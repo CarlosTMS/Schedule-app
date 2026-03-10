@@ -11,6 +11,9 @@ import { SMESchedule } from './SMESchedule';
 import { FacultySchedule } from './FacultySchedule';
 import { FacultyDebriefSchedule } from './FacultyDebriefSchedule';
 import { useI18n } from '../i18n';
+import { loadSMEData, forceFetchSMEData } from '../lib/smeDataLoader';
+import type { SMECacheStatus } from '../lib/smeDataLoader';
+import type { SME } from '../lib/smeMatcher';
 
 interface DashboardProps {
     result: AllocationResult;
@@ -30,6 +33,23 @@ export function Dashboard({ result, onReset, onSave, previousMetrics, sessionLen
     const [localRecords, setLocalRecords] = useState(result.records);
     const [localMetrics, setLocalMetrics] = useState(result.metrics);
     const [sessionTimeOverrides, setSessionTimeOverrides] = useState<Record<string, number>>({});
+    const [smeList, setSmeList] = useState<SME[]>([]);
+    const [smeStatus, setSmeStatus] = useState<SMECacheStatus | null>(null);
+
+    // Fetch SME data on mount; daily cache prevents unnecessary network calls
+    useEffect(() => {
+        loadSMEData().then(({ smes, status }) => {
+            setSmeList(smes);
+            setSmeStatus(status);
+        });
+    }, []);
+
+    const handleRefreshSMEs = () => {
+        forceFetchSMEData().then(({ smes, status }) => {
+            setSmeList(smes);
+            setSmeStatus(status);
+        });
+    };
 
     const handleSessionTimeChange = (scheduleKey: string, newUtcHour: number) => {
         setSessionTimeOverrides(prev => ({ ...prev, [scheduleKey]: newUtcHour }));
@@ -313,6 +333,9 @@ export function Dashboard({ result, onReset, onSave, previousMetrics, sessionLen
                             startHour={result.config.startHour}
                             endHour={result.config.endHour}
                             sessionTimeOverrides={sessionTimeOverrides}
+                            smeList={smeList}
+                            smeStatus={smeStatus}
+                            onRefreshSMEs={handleRefreshSMEs}
                         />
                     </div>
                 )}

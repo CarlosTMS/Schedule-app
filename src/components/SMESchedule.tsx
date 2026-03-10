@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Users, MapPin, Building2, UserCircle2, AlertCircle } from 'lucide-react';
+import { Users, MapPin, Building2, UserCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { sessions, getEligibleSMEs, autoAssignSMEs } from '../lib/smeMatcher';
 import type { SME, SessionId } from '../lib/smeMatcher';
+import type { SMECacheStatus } from '../lib/smeDataLoader';
 import { getLocalTimeStr, getKnownUtcOffset, getEffectiveScheduleUtcHour } from '../lib/timezones';
 
 interface SMEScheduleProps {
@@ -9,9 +10,12 @@ interface SMEScheduleProps {
     startHour: number;
     endHour: number;
     sessionTimeOverrides?: Record<string, number>;
+    smeList: SME[];
+    smeStatus?: SMECacheStatus | null;
+    onRefreshSMEs?: () => void;
 }
 
-export function SMESchedule({ schedulesBySA, startHour, endHour, sessionTimeOverrides = {} }: SMEScheduleProps) {
+export function SMESchedule({ schedulesBySA, startHour, endHour, sessionTimeOverrides = {}, smeList, smeStatus, onRefreshSMEs }: SMEScheduleProps) {
     const uniqueSAs = Object.keys(schedulesBySA).sort();
 
     const [selectedSAState, setSelectedSA] = useState<string>('');
@@ -26,14 +30,14 @@ export function SMESchedule({ schedulesBySA, startHour, endHour, sessionTimeOver
     const availableSchedules = Array.from(schedulesBySA[selectedSA] || []).sort((a, b) => a.localeCompare(b));
 
     // Use manual assignments if they exist for this SA; otherwise fallback to the auto-assignments.
-    const currentAssignments = manualAssignments[selectedSA] || autoAssignSMEs(selectedSA, availableSchedules, startHour, endHour);
+    const currentAssignments = manualAssignments[selectedSA] || autoAssignSMEs(selectedSA, availableSchedules, startHour, endHour, smeList);
 
     const handleSMEChange = (schedule: string, sessionId: SessionId, smeName: string) => {
-        const eligible = getEligibleSMEs(selectedSA, sessionId);
+        const eligible = getEligibleSMEs(selectedSA, sessionId, smeList);
         const newSME = eligible.find(s => s.name === smeName) || null;
 
         setManualAssignments(prev => {
-            const currentAuto = autoAssignSMEs(selectedSA, availableSchedules, startHour, endHour);
+            const currentAuto = autoAssignSMEs(selectedSA, availableSchedules, startHour, endHour, smeList);
             const saData = prev[selectedSA] || currentAuto;
 
             return {
@@ -51,11 +55,47 @@ export function SMESchedule({ schedulesBySA, startHour, endHour, sessionTimeOver
 
     return (
         <div className="glass-panel animated-fade-in" style={{ marginTop: '2rem', padding: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                <div style={{ background: 'rgba(59, 130, 246, 0.1)', padding: '0.5rem', borderRadius: '8px', color: 'var(--primary-color)' }}>
-                    <Users size={24} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ background: 'rgba(59, 130, 246, 0.1)', padding: '0.5rem', borderRadius: '8px', color: 'var(--primary-color)' }}>
+                        <Users size={24} />
+                    </div>
+                    <h3 style={{ margin: 0, fontSize: '1.25rem' }}>Subject Matter Experts Assignment</h3>
                 </div>
-                <h3 style={{ margin: 0, fontSize: '1.25rem' }}>Subject Matter Experts Assignment</h3>
+                {/* SME data source badge */}
+                {smeStatus && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: '0.4rem',
+                            padding: '0.3rem 0.75rem', borderRadius: '9999px', fontSize: '0.78rem', fontWeight: 500,
+                            background: smeStatus.source === 'api' ? 'rgba(16,185,129,0.1)' : smeStatus.error ? 'rgba(239,68,68,0.1)' : 'rgba(99,102,241,0.1)',
+                            color: smeStatus.source === 'api' ? '#059669' : smeStatus.error ? '#dc2626' : '#6366f1',
+                            border: '1px solid',
+                            borderColor: smeStatus.source === 'api' ? 'rgba(16,185,129,0.3)' : smeStatus.error ? 'rgba(239,68,68,0.3)' : 'rgba(99,102,241,0.3)',
+                        }}>
+                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'currentColor', display: 'inline-block' }} />
+                            {smeStatus.source === 'api' ? 'Live data' : smeStatus.error ? 'Offline cache' : 'Cached'}
+                            {smeStatus.fetchedAt && (
+                                <span style={{ opacity: 0.75 }}>
+                                    &nbsp;· {new Date(smeStatus.fetchedAt).toLocaleDateString()}
+                                </span>
+                            )}
+                        </div>
+                        {onRefreshSMEs && (
+                            <button
+                                onClick={onRefreshSMEs}
+                                title="Force refresh SME data from API"
+                                style={{
+                                    background: 'none', border: 'none', cursor: 'pointer',
+                                    color: 'var(--text-secondary)', padding: '4px', borderRadius: '6px',
+                                    display: 'flex', alignItems: 'center',
+                                }}
+                            >
+                                <RefreshCw size={14} />
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* SA Radio Buttons / Pills */}
@@ -96,7 +136,7 @@ export function SMESchedule({ schedulesBySA, startHour, endHour, sessionTimeOver
                     </thead>
                     <tbody>
                         {sessions.map((session, tIndex) => {
-                            const eligibleSMEs = getEligibleSMEs(selectedSA, session.id);
+                            const eligibleSMEs = getEligibleSMEs(selectedSA, session.id, smeList);
                             const topicIsLast = tIndex === sessions.length - 1;
 
                             return availableSchedules.map((schedule, sIndex) => {

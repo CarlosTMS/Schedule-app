@@ -1,4 +1,3 @@
-import smeData from '../../solution-weeks-sme-coverage.json';
 import { getKnownUtcOffset } from './timezones';
 
 export interface SME {
@@ -14,6 +13,7 @@ export interface SME {
     open_to_additional_sessions?: boolean;
     email?: string;
     notes?: string[];
+    last_edited_at?: string;
 }
 
 export const sessions = [
@@ -27,8 +27,8 @@ export const sessions = [
 
 export type SessionId = typeof sessions[number]['id'];
 
-export const getEligibleSMEs = (solutionArea: string, sessionId: SessionId): SME[] => {
-    return (smeData.solution_weeks_sme_coverage as SME[]).filter((sme) => {
+export const getEligibleSMEs = (solutionArea: string, sessionId: SessionId, smeList: SME[]): SME[] => {
+    return smeList.filter((sme) => {
         const smeLob = sme.lob.toLowerCase();
         const sa = solutionArea.toLowerCase();
         const lobMatches = smeLob.includes(sa) || sa.includes(smeLob);
@@ -45,31 +45,40 @@ const getDistance = (localHour: number, startHour: number, endHour: number) => {
     return Math.min(distToStart, distToEnd);
 };
 
-export const autoAssignSMEs = (solutionArea: string, schedules: string[], startHour: number = 0, endHour: number = 24): Record<string, Record<SessionId, SME | null>> => {
+export const autoAssignSMEs = (
+    solutionArea: string,
+    schedules: string[],
+    startHour: number = 0,
+    endHour: number = 24,
+    smeList: SME[] = []
+): Record<string, Record<SessionId, SME | null>> => {
     const assignments: Record<string, Record<SessionId, SME | null>> = {};
     const assignedCounts: Record<string, number> = {};
 
     schedules.forEach(schedule => {
-        assignments[schedule] = { ...sessions.reduce((acc, s) => ({ ...acc, [s.id]: null }), {} as any) };
+        assignments[schedule] = sessions.reduce(
+            (acc, s) => ({ ...acc, [s.id]: null }),
+            {} as Record<SessionId, SME | null>
+        );
 
         sessions.forEach(session => {
-            const eligible = getEligibleSMEs(solutionArea, session.id);
+            const eligible = getEligibleSMEs(solutionArea, session.id, smeList);
             if (eligible.length > 0) {
                 eligible.forEach(s => { if (assignedCounts[s.name] === undefined) assignedCounts[s.name] = 0; });
 
                 const match = schedule.match(/(\d+):00 UTC/);
                 const utcHour = match ? parseInt(match[1], 10) : 0;
 
-                const sortedEligible = [...eligible].sort((a,b) => {
+                const sortedEligible = [...eligible].sort((a, b) => {
                     const aLocal = (utcHour + getKnownUtcOffset(a.office_location) + 24) % 24;
                     const bLocal = (utcHour + getKnownUtcOffset(b.office_location) + 24) % 24;
-                    
+
                     const penaltyA = getDistance(aLocal, startHour, endHour) + (assignedCounts[a.name] * 12);
                     const penaltyB = getDistance(bLocal, startHour, endHour) + (assignedCounts[b.name] * 12);
-                    
+
                     return penaltyA - penaltyB;
                 });
-                
+
                 const chosen = sortedEligible[0];
                 assignments[schedule][session.id] = chosen;
                 assignedCounts[chosen.name]++;
