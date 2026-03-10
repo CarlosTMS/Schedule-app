@@ -22,6 +22,7 @@ interface SummaryProps {
     schedulesBySA: Record<string, Set<string>>;
     startHour: number;
     endHour: number;
+    facultyStartHour?: number;
     sessionTimeOverrides: Record<string, number>;
     manualSmeAssignments: SmeAssignments;
     onSmeAssignmentsChange: (next: SmeAssignments) => void;
@@ -114,6 +115,7 @@ export function Summary({
     schedulesBySA,
     startHour,
     endHour,
+    facultyStartHour,
     sessionTimeOverrides,
     manualSmeAssignments,
     onSmeAssignmentsChange,
@@ -123,6 +125,7 @@ export function Summary({
     smeStatus,
 }: SummaryProps) {
     const { t } = useI18n();
+    const effectiveFacultyStartHour = facultyStartHour ?? startHour;
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
     const [publishing, setPublishing] = useState(false);
@@ -137,7 +140,7 @@ export function Summary({
         const schedules = Array.from(schedulesBySA[sa] || []).sort();
 
         const autoSme = autoAssignSMEs(sa, schedules, startHour, endHour, smeList);
-        const autoFac = autoAssignFaculty(sa, schedules, startHour, endHour);
+        const autoFac = autoAssignFaculty(sa, schedules, effectiveFacultyStartHour, endHour);
 
         const smeAssignmentsForSA = manualSmeAssignments[sa] || autoSme;
         const facAssignmentsForSA = manualFacultyAssignments[sa] || autoFac;
@@ -160,7 +163,7 @@ export function Summary({
                 if (assignedSME && isOutOfHours(utcHour, getKnownUtcOffset(assignedSME.office_location), startHour, endHour)) {
                     warnings.push({ type: 'smeOutOfHours', label: t('warnSMEOutOfHours') });
                 }
-                if (assignedFaculty && isOutOfHours(utcHour, getKnownUtcOffset(assignedFaculty.office), startHour, endHour)) {
+                if (assignedFaculty && isOutOfHours(utcHour, getKnownUtcOffset(assignedFaculty.office), effectiveFacultyStartHour, endHour)) {
                     warnings.push({ type: 'facultyOutOfHours', label: t('warnFacultyOutOfHours') });
                 }
 
@@ -200,7 +203,7 @@ export function Summary({
         const eligible = getEligibleFaculty(sa);
         const newFac = eligible.find(f => f.name === facultyName) || null;
         const schedules = Array.from(schedulesBySA[sa] || []).sort();
-        const currentAuto = autoAssignFaculty(sa, schedules, startHour, endHour);
+        const currentAuto = autoAssignFaculty(sa, schedules, effectiveFacultyStartHour, endHour);
         const saData = manualFacultyAssignments[sa] || currentAuto;
         onFacultyAssignmentsChange({
             ...manualFacultyAssignments,

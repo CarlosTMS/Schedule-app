@@ -12,6 +12,7 @@ interface FacultyScheduleProps {
     schedulesBySA: Record<string, Set<string>>;
     startHour: number;
     endHour: number;
+    facultyStartHour?: number;
     sessionTimeOverrides?: Record<string, number>;
     /** Lifted-state assignments — from Dashboard */
     manualFacultyAssignments: FacultyAssignments;
@@ -22,6 +23,7 @@ export function FacultySchedule({
     schedulesBySA,
     startHour,
     endHour,
+    facultyStartHour,
     sessionTimeOverrides = {},
     manualFacultyAssignments,
     onFacultyAssignmentsChange,
@@ -37,15 +39,16 @@ export function FacultySchedule({
     }
 
     const availableSchedules = Array.from(schedulesBySA[selectedSA] || []).sort((a, b) => a.localeCompare(b));
+    const effectiveFacultyStartHour = facultyStartHour ?? startHour;
 
     // Use lifted manual assignments if they exist for this SA; otherwise fallback to auto-assignments.
-    const currentAssignments = manualFacultyAssignments[selectedSA] || autoAssignFaculty(selectedSA, availableSchedules, startHour, endHour);
+    const currentAssignments = manualFacultyAssignments[selectedSA] || autoAssignFaculty(selectedSA, availableSchedules, effectiveFacultyStartHour, endHour);
 
     const handleFacultyChange = (schedule: string, sessionId: SessionId, facultyName: string) => {
         const eligible = getEligibleFaculty(selectedSA);
         const newFaculty = eligible.find(f => f.name === facultyName) || null;
 
-        const currentAuto = autoAssignFaculty(selectedSA, availableSchedules, startHour, endHour);
+        const currentAuto = autoAssignFaculty(selectedSA, availableSchedules, effectiveFacultyStartHour, endHour);
         const saData = manualFacultyAssignments[selectedSA] || currentAuto;
 
         onFacultyAssignmentsChange({
@@ -118,7 +121,7 @@ export function FacultySchedule({
                                 if (assignedFaculty) {
                                     const utcHour = getEffectiveScheduleUtcHour(schedule, sessionTimeOverrides);
                                     const localHour = (utcHour + getKnownUtcOffset(assignedFaculty.office) + 24) % 24;
-                                    if (localHour < startHour || localHour >= endHour) {
+                                    if (localHour < effectiveFacultyStartHour || localHour >= endHour) {
                                         isOutOfHours = true;
                                     }
                                 }

@@ -125,7 +125,26 @@ const translations = {
         autosaveSaving: 'Saving…',
         autosaveSaved: 'Saved',
         autosaveSavedLocal: 'Saved locally (server unavailable)',
-        historyTitle: 'Recent Simulations'
+        autosaveConflict: 'Conflict detected',
+        conflictDesc: 'This run was modified by another user.',
+        conflictReload: 'Reload remote',
+        conflictOverwrite: 'Overwrite with local',
+        historyTitle: 'Recent Simulations',
+        projectsTitle: 'Projects',
+        projectNew: 'New Project',
+        projectName: 'Project Name',
+        projectPlaceholder: 'e.g. Q3 LATAM Plan',
+        versionsTitle: 'Version History',
+        versionSave: 'Save as new version',
+        versionLabel: 'Version Label (optional)',
+        versionRestore: 'Load this version',
+        versionCurrent: 'Active Version',
+        versionDraft: 'Modified Draft',
+        duplicateDraft: 'Duplicate as new draft',
+        projectRename: 'Rename Project',
+        projectDelete: 'Delete Project',
+        statusDraft: 'Draft',
+        statusVersion: 'Versioned'
     },
     es: {
         appTitle: 'Programador de Habilitación de SAP Associates',
@@ -138,6 +157,7 @@ const translations = {
         missingAssignments: 'Asignaciones Faltantes Detectadas',
         missingAssignmentsDesc: 'Associates no tienen una asignación "Solution Week SA". Aquí el desglose por Solution Area y Especialización:',
         runAllocation: 'Ejecutar Motor de Asignación',
+        runAllocationShort: 'Correr Asignación',
         downloadResults: 'Descargar Resultados',
         totalStudents: 'Total Estudiantes',
         assignedSuccess: 'Asignación Exitosa',
@@ -248,8 +268,28 @@ const translations = {
         autosaveSaving: 'Guardando…',
         autosaveSaved: 'Guardado',
         autosaveSavedLocal: 'Guardado localmente (servidor no disponible)',
-        historyTitle: 'Simulaciones Recientes'
+        autosaveConflict: 'Conflicto detectado',
+        conflictDesc: 'Esta corrida fue modificada por otro usuario.',
+        conflictReload: 'Recargar remoto',
+        conflictOverwrite: 'Sobrescribir con local',
+        historyTitle: 'Simulaciones Recientes',
+        projectsTitle: 'Proyectos',
+        projectNew: 'Nuevo Proyecto',
+        projectName: 'Nombre del Proyecto',
+        projectPlaceholder: 'ej. Plan Q3 LATAM',
+        versionsTitle: 'Historial de Versiones',
+        versionSave: 'Guardar como nueva versión',
+        versionLabel: 'Etiqueta (opcional)',
+        versionRestore: 'Cargar esta versión',
+        versionCurrent: 'Versión Activa',
+        versionDraft: 'Borrador Modificado',
+        duplicateDraft: 'Duplicar como nuevo borrador',
+        projectRename: 'Renombrar Proyecto',
+        projectDelete: 'Eliminar Proyecto',
+        statusDraft: 'Borrador',
+        statusVersion: 'Versionado'
     }
+
 };
 
 type I18nContextType = {

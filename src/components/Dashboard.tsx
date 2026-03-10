@@ -26,6 +26,7 @@ interface DashboardProps {
     onSave?: () => void;
     previousMetrics?: AllocationResult['metrics'] | null;
     sessionLength?: number;
+    facultyStartHour?: number;
     // ── Controlled editable state (optional — if omitted, Dashboard uses internal state) ──
     sessionTimeOverrides?: Record<string, number>;
     onSessionTimeOverridesChange?: (v: Record<string, number>) => void;
@@ -33,8 +34,7 @@ interface DashboardProps {
     onManualSmeAssignmentsChange?: (v: SmeAssignments) => void;
     manualFacultyAssignments?: FacultyAssignments;
     onManualFacultyAssignmentsChange?: (v: FacultyAssignments) => void;
-    /** Optional panel rendered at the bottom of the sidebar (e.g., run history list) */
-    historyPanel?: ReactNode;
+    versionInfo?: ReactNode;
 
     // ── Live editing state (if omitted, falls back to internal state) ──
     localRecords?: StudentRecord[];
@@ -47,18 +47,20 @@ type TabType = 'overview' | 'sessions' | 'smes' | 'faculty' | 'summary' | 'debri
 
 export function Dashboard({
     result, onReset, previousMetrics, sessionLength = 90,
+    facultyStartHour = 6,
     sessionTimeOverrides: controlledOverrides,
     onSessionTimeOverridesChange,
     manualSmeAssignments: controlledSme,
     onManualSmeAssignmentsChange,
     manualFacultyAssignments: controlledFaculty,
     onManualFacultyAssignmentsChange,
-    historyPanel,
+    versionInfo,
     localRecords: controlledRecords,
     onLocalRecordsChange,
     localMetrics: controlledMetrics,
     onLocalMetricsChange,
 }: DashboardProps) {
+
     const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<TabType>('overview');
     const [filterType, setFilterType] = useState<string | null>(null);
@@ -260,14 +262,15 @@ export function Dashboard({
                     </button>
                 ))}
 
-                {/* Run history panel slot */}
-                {historyPanel && (
-                    <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>History</div>
-                        {historyPanel}
+                {/* New version info widget slot */}
+                {versionInfo && (
+                    <div style={{ marginTop: 'auto', borderTop: '1px solid var(--glass-border)', paddingTop: '1.25rem' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-secondary)', marginBottom: '0.75rem', opacity: 0.6 }}>{t('versionsTitle')}</div>
+                        {versionInfo}
                     </div>
                 )}
             </aside>
+
 
             {/* MAIN CONTENT AREA */}
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -420,6 +423,7 @@ export function Dashboard({
                             schedulesBySA={schedulesBySA}
                             startHour={result.config.startHour}
                             endHour={result.config.endHour}
+                            facultyStartHour={facultyStartHour}
                             sessionTimeOverrides={sessionTimeOverrides}
                             manualFacultyAssignments={manualFacultyAssignments}
                             onFacultyAssignmentsChange={setManualFacultyAssignments}
@@ -434,6 +438,7 @@ export function Dashboard({
                             schedulesBySA={schedulesBySA}
                             startHour={result.config.startHour}
                             endHour={result.config.endHour}
+                            facultyStartHour={facultyStartHour}
                             sessionTimeOverrides={sessionTimeOverrides}
                             manualSmeAssignments={manualSmeAssignments}
                             onSmeAssignmentsChange={setManualSmeAssignments}

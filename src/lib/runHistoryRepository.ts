@@ -1,269 +1,407 @@
 /**
  * src/lib/runHistoryRepository.ts
  *
- * Unified data layer for run history.
- * Implements "Runtime-first + Local Mirror" strategy.
+ * Unified data layer for Projects and Versions (V3).
+ * Implements "Runtime-first + Local Mirror" with explicit versioning.
  */
 
 import {
-    type StoredRunV2, readRuns as readLocalRuns, persistRuns as persistLocalRuns,
-    readLastRunId as readLocalActiveId, persistLastRunId as persistLocalActiveId,
-    migrateFromV1, SCHEMA_VERSION, newId
+    type RunProject, type RunVersion, type RunSnapshot,
+    readProjects as readLocalProjects, persistProjects as persistLocalProjects,
+    readVersions as readLocalVersions, persistVersions as persistLocalVersions,
+    readActiveProjectId as readLocalActiveId, persistActiveProjectId as persistLocalActiveId,
+    migrateToV3, newId
 } from './runHistoryStorage';
-export type { StoredRunV2 };
-import type { StudentRecord } from './excelParser';
-import type { AllocationResult } from './allocationEngine';
-import type { Assumptions } from '../components/Configurator';
-import type { AllocationRule } from '../components/RuleBuilder';
-import type { DistributionTarget } from '../components/Randomizer';
-import type { SmeAssignments } from '../components/SMESchedule';
-import type { FacultyAssignments } from '../components/FacultySchedule';
 
-export type SyncStatus = 'idle' | 'saving' | 'saved' | 'saved-local' | 'error';
+export type SyncStatus = 'idle' | 'saving' | 'saved' | 'saved-local' | 'error' | 'conflict';
+
 
 const API_BASE = '/api/runtime';
-const MAX_HISTORY = 20;
 
-/**
- * Merges two lists of runs, keeping the most recent version (by updatedAt) of each ID.
- */
-export const mergeRuns = (local: StoredRunV2[], remote: StoredRunV2[]): StoredRunV2[] => {
-    const map = new Map<string, StoredRunV2>();
-
-    // Add local ones first
-    local.forEach(r => map.set(r.id, r));
-
-    // Add remote ones, overwriting if remote is newer
-    remote.forEach(remoteRun => {
-        const existing = map.get(remoteRun.id);
-        if (!existing || new Date(remoteRun.updatedAt) > new Date(existing.updatedAt)) {
-            map.set(remoteRun.id, remoteRun);
-        }
-    });
-
-    return Array.from(map.values())
-        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-        .slice(0, MAX_HISTORY);
-};
+export interface SyncResult {
+    status: SyncStatus;
+    error?: string;
+    conflictData?: RunProject;
+    project?: RunProject;
+}
 
 class RunHistoryRepository {
     public runtimeAvailable = true;
+    private mutationQueues = new Map<string, Promise<void>>();
 
     constructor() {
-        migrateFromV1();
+        migrateToV3();
     }
 
-    async getSyncData(): Promise<{ runs: StoredRunV2[], activeId: string | null, status: SyncStatus }> {
+    /**
+     * Serializes mutations for a specific ID.
+     */
+    private async enqueueMutation<T>(id: string, fn: () => Promise<T>): Promise<T> {
+        const prev = this.mutationQueues.get(id) || Promise.resolve();
+
+        const task = (async () => {
+            try { await prev; } catch { /* chain even if previous failed */ }
+            return await fn();
+        })();
+
+        // Map maintenance: remove entry once settles, but only if we are still the latest in flight
+        const cleanup = task.then(() => {
+            if (this.mutationQueues.get(id) === cleanup) {
+                this.mutationQueues.delete(id);
+            }
+        }, () => {
+            if (this.mutationQueues.get(id) === cleanup) {
+                this.mutationQueues.delete(id);
+            }
+        });
+
+        this.mutationQueues.set(id, cleanup);
+        return task;
+    }
+
+
+    /**
+     * Internal implementation of draft synchronization.
+     * Does NOT use the queue directly, allowing for recursion/retries within a single queued task.
+     */
+    private async _performSyncDraft(projectId: string, snapshot: RunSnapshot, expectedRevision: number, isRetry = false): Promise<SyncResult> {
         try {
-            const [remoteRunsRes, remoteActiveRes] = await Promise.all([
-                fetch(`${API_BASE}/runs`).then(r => r.json()),
-                fetch(`${API_BASE}/active`).then(r => r.json())
-            ]);
+            const res = await fetch(`${API_BASE}/projects/${projectId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ draftSnapshot: snapshot, expectedRevision })
+            });
+            const data = await res.json();
 
-            if (remoteRunsRes.ok) {
+            if (res.status === 409 && !isRetry) {
+                console.warn(`[autosave-retry] Self-conflict detected on ${projectId} (Rev: ${expectedRevision}). Fetching latest and retrying...`);
+                const { projects } = await this.getSyncData();
+                const latest = projects.find(p => p.id === projectId);
+                if (latest) {
+                    return this._performSyncDraft(projectId, snapshot, latest.revision || 1, true);
+                }
+            }
+
+            if (res.status === 409) {
+                return { status: 'conflict', conflictData: data.current || data.data };
+            }
+
+            if (!res.ok) throw new Error(data.error);
+
+            this.runtimeAvailable = true;
+
+            // Update local projects
+            if (data.data) {
+                const projects = readLocalProjects();
+                const idx = projects.findIndex(p => p.id === projectId);
+                if (idx !== -1) {
+                    projects[idx] = data.data;
+                    persistLocalProjects(projects);
+                }
+            }
+
+            return { status: 'saved', project: data.data };
+        } catch (e) {
+            console.error('[Repository] _performSyncDraft failed:', e);
+            this.runtimeAvailable = false;
+            return { status: 'saved-local' };
+        }
+    }
+
+    /**
+     * Synchronizes projects and versions between runtime and local.
+     */
+    async getSyncData(): Promise<{ projects: RunProject[], activeProjectId: string | null, status: SyncStatus }> {
+        try {
+            const res = await fetch(`${API_BASE}/projects`);
+            if (res.status === 200) {
+                const projectsRes = await res.json();
                 this.runtimeAvailable = true;
-                const local = readLocalRuns();
+                const localProjects = readLocalProjects();
+                const localVersions = readLocalVersions();
 
-                // [P1] Re-hydration: if remote is empty but we have local, push to remote
-                if (remoteRunsRes.data.length === 0 && local.length > 0) {
-                    console.info('[Repository] Runtime empty, re-hydrating from local storage...');
-                    // Push all local runs to remote. Note: might exceed concurrent request limits if many, 
-                    // but we only have 20. Let's do them sequentially or in small batch.
-                    for (const lr of local) {
-                        await fetch(`${API_BASE}/runs`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(lr)
-                        });
-                    }
-                    if (readLocalActiveId()) {
-                        await fetch(`${API_BASE}/runs/${readLocalActiveId()}/activate`, { method: 'POST' });
-                    }
+                // Re-hydration: if remote is empty, push everything
+                if (projectsRes.data.length === 0 && localProjects.length > 0) {
+                    console.info('[Repository] Runtime empty, re-hydrating...');
+                    await fetch(`${API_BASE}/sync/batch`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ projects: localProjects, versions: localVersions })
+                    });
                 }
 
-                const merged = mergeRuns(local, remoteRunsRes.data);
-
-                // Mirror merge result back to local
-                persistLocalRuns(merged);
+                // Simple merge for projects (merging metadata)
+                const remoteProjects = projectsRes.data as RunProject[];
+                const projectMap = new Map<string, RunProject>();
+                localProjects.forEach(p => projectMap.set(p.id, p));
+                remoteProjects.forEach(p => {
+                    const existing = projectMap.get(p.id);
+                    if (!existing || new Date(p.updatedAt) > new Date(existing.updatedAt)) {
+                        projectMap.set(p.id, p);
+                    }
+                });
+                const mergedProjects = Array.from(projectMap.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+                persistLocalProjects(mergedProjects);
 
                 return {
-                    runs: merged,
-                    activeId: remoteActiveRes.data || readLocalActiveId(),
+                    projects: mergedProjects,
+                    activeProjectId: readLocalActiveId(),
                     status: 'saved'
                 };
+            } else {
+                this.runtimeAvailable = false;
             }
         } catch (e) {
-            console.warn('[Repository] Runtime unavailable, falling back to local:', e);
+            console.warn('[Repository] Runtime unavailable during syncData:', e);
+            this.runtimeAvailable = false;
         }
 
-        this.runtimeAvailable = false;
         return {
-            runs: readLocalRuns(),
-            activeId: readLocalActiveId(),
+            projects: readLocalProjects(),
+            activeProjectId: readLocalActiveId(),
             status: 'saved-local'
         };
     }
 
-    async createRun(
-        name: string,
-        records: StudentRecord[],
-        assumptions: Assumptions,
-        rules: AllocationRule[],
-        fsDistributions: DistributionTarget[],
-        aeDistributions: DistributionTarget[],
-        startHour: number,
-        endHour: number,
-        result: AllocationResult,
-    ): Promise<{ run: StoredRunV2, status: SyncStatus }> {
+    /**
+     * Unified autosave: Syncs the current draft to the server with retry logic.
+     */
+    async syncDraft(projectId: string, snapshot: RunSnapshot, expectedRevision: number): Promise<SyncResult> {
+        return this.enqueueMutation(projectId, () => this._performSyncDraft(projectId, snapshot, expectedRevision));
+    }
+
+
+    /**
+     * Creates a new project with an initial version.
+     */
+    async createProject(name: string, snapshot: RunSnapshot): Promise<{ project: RunProject, version: RunVersion, status: SyncStatus }> {
         const now = new Date().toISOString();
-        const run: StoredRunV2 = {
-            version: SCHEMA_VERSION as 2,
-            id: newId(),
+        const projectId = newId();
+        const versionId = newId();
+
+        const project: RunProject = {
+            id: projectId,
             name,
             createdAt: now,
             updatedAt: now,
-            records,
-            assumptions,
-            rules,
-            fsDistributions,
-            aeDistributions,
-            startHour,
-            endHour,
-            result,
-            sessionTimeOverrides: {},
-            manualSmeAssignments: {},
-            manualFacultyAssignments: {},
+            activeVersionId: versionId,
+            revision: 1
+        };
+
+        const version: RunVersion = {
+            id: versionId,
+            projectId,
+            versionNumber: 1,
+            label: 'Initial version',
+            createdAt: now,
+            snapshot
         };
 
         let status: SyncStatus = 'saved';
 
-        // Remote
         try {
-            const res = await fetch(`${API_BASE}/runs`, {
+            // Push project
+            const pRes = await fetch(`${API_BASE}/projects`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(run)
-            }).then(r => r.json());
+                body: JSON.stringify(project)
+            });
+            // Push version
+            const vRes = await fetch(`${API_BASE}/projects/${projectId}/versions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(version)
+            });
 
-            if (res.ok) {
-                this.runtimeAvailable = true;
-                // Also activate on remote
-                await fetch(`${API_BASE}/runs/${run.id}/activate`, { method: 'POST' });
-            } else {
-                throw new Error(res.error);
+            if (!pRes.ok || !vRes.ok) throw new Error('Remote save failed');
+            this.runtimeAvailable = true;
+        } catch {
+            this.runtimeAvailable = false;
+            status = 'saved-local';
+        }
+
+        // Persist local
+        const projects = [project, ...readLocalProjects()];
+        persistLocalProjects(projects);
+        const versions = [version, ...readLocalVersions()];
+        persistLocalVersions(versions);
+        persistLocalActiveId(projectId);
+
+        return { project, version, status };
+    }
+
+    /**
+     * Saves a new immutable version for an existing project.
+     */
+    async saveAsNewVersion(projectId: string, snapshot: RunSnapshot, label?: string): Promise<{ version: RunVersion, status: SyncStatus }> {
+        const localVersions = readLocalVersions(projectId);
+        const nextNum = (localVersions[0]?.versionNumber || 0) + 1;
+        const now = new Date().toISOString();
+        const versionId = newId();
+
+        const version: RunVersion = {
+            id: versionId,
+            projectId,
+            versionNumber: nextNum,
+            label: label || `Version ${nextNum}`,
+            parentVersionId: localVersions[0]?.id || null,
+            createdAt: now,
+            snapshot
+        };
+
+        const projects = readLocalProjects();
+        const pIdx = projects.findIndex(p => p.id === projectId);
+        const currentRev = projects[pIdx]?.revision || 1;
+
+        let status: SyncStatus = 'saved';
+
+        try {
+            const vRes = await fetch(`${API_BASE}/projects/${projectId}/versions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(version)
+            });
+            // Also update project's activeVersionId and increment revision via PATCH
+            const pRes = await fetch(`${API_BASE}/projects/${projectId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ activeVersionId: versionId, updatedAt: now, expectedRevision: currentRev })
+            });
+
+            if (!vRes.ok || !pRes.ok) throw new Error('Remote save failed');
+            this.runtimeAvailable = true;
+
+            const pData = await pRes.json();
+            if (pData.ok && pData.data) {
+                projects[pIdx] = pData.data;
+                persistLocalProjects(projects);
             }
         } catch {
             this.runtimeAvailable = false;
             status = 'saved-local';
         }
 
-        // Always mirror to local
-        const local = readLocalRuns();
-        const updatedLocal = [run, ...local.filter(r => r.id !== run.id)].slice(0, MAX_HISTORY);
-        persistLocalRuns(updatedLocal);
-        persistLocalActiveId(run.id);
+        // Update local versions
+        const allVersions = [version, ...readLocalVersions()];
+        persistLocalVersions(allVersions);
 
-        return { run, status };
+        return { version, status };
     }
 
-    async patchCore(id: string, patch: Partial<Pick<StoredRunV2, 'assumptions' | 'rules' | 'fsDistributions' | 'aeDistributions' | 'startHour' | 'endHour' | 'records' | 'result'>>): Promise<SyncStatus> {
-        let status: SyncStatus = 'saved';
+    async getVersions(projectId: string): Promise<RunVersion[]> {
+        // Optimistically try runtime first, fallback to local on any failure
         try {
-            const res = await fetch(`${API_BASE}/runs/${id}/core`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(patch)
-            }).then(r => r.json());
-
-            if (!res.ok) throw new Error(res.error);
-            this.runtimeAvailable = true;
+            const projRes = await fetch(`${API_BASE}/projects/${projectId}/versions`);
+            if (projRes.ok) {
+                const res = await projRes.json();
+                this.runtimeAvailable = true;
+                const remote = res.data as RunVersion[];
+                // Merge with local versions to be safe
+                const local = readLocalVersions(projectId);
+                const map = new Map<string, RunVersion>();
+                local.forEach(v => map.set(v.id, v));
+                remote.forEach(v => map.set(v.id, v));
+                const merged = Array.from(map.values()).sort((a, b) => b.versionNumber - a.versionNumber);
+                persistLocalVersions(Array.from(map.values()));
+                return merged;
+            } else {
+                this.runtimeAvailable = false;
+            }
         } catch {
             this.runtimeAvailable = false;
-            status = 'saved-local';
         }
-
-        // Mirror to local
-        const local = readLocalRuns();
-        const idx = local.findIndex(r => r.id === id);
-        if (idx !== -1) {
-            local[idx] = { ...local[idx], ...patch, updatedAt: new Date().toISOString() };
-            persistLocalRuns(local);
-        }
-        return status;
+        return readLocalVersions(projectId);
     }
 
-    async patchDashboard(id: string, patch: { sessionTimeOverrides?: Record<string, number>, manualSmeAssignments?: SmeAssignments, manualFacultyAssignments?: FacultyAssignments }): Promise<SyncStatus> {
-        let status: SyncStatus = 'saved';
-        try {
-            const res = await fetch(`${API_BASE}/runs/${id}/dashboard`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(patch)
-            }).then(r => r.json());
+    async getVersion(versionId: string): Promise<RunVersion | null> {
+        // Check local first as it's a snapshot
+        const local = readLocalVersions().find(v => v.id === versionId);
+        if (local) return local;
 
-            if (!res.ok) throw new Error(res.error);
-            this.runtimeAvailable = true;
+        try {
+            const res = await fetch(`${API_BASE}/versions/${versionId}`);
+            if (res.ok) {
+                const data = await res.json();
+                this.runtimeAvailable = true;
+                return data.data;
+            } else {
+                this.runtimeAvailable = false;
+            }
         } catch {
             this.runtimeAvailable = false;
-            status = 'saved-local';
         }
-
-        const local = readLocalRuns();
-        const idx = local.findIndex(r => r.id === id);
-        if (idx !== -1) {
-            local[idx] = { ...local[idx], ...patch, updatedAt: new Date().toISOString() };
-            persistLocalRuns(local);
-        }
-        return status;
+        return null;
     }
 
-    async renameRun(id: string, name: string): Promise<SyncStatus> {
-        let status: SyncStatus = 'saved';
+    async deleteProject(id: string): Promise<boolean> {
+        let shouldDeleteLocal = false;
+        let success = false;
+
         try {
-            const res = await fetch(`${API_BASE}/runs/${id}/meta`, {
+            const res = await fetch(`${API_BASE}/projects/${id}`, { method: 'DELETE' });
+            if (res.ok || res.status === 404) {
+                this.runtimeAvailable = true;
+                shouldDeleteLocal = true;
+                success = true;
+            } else {
+                this.runtimeAvailable = false;
+                success = false; // Reject if server failed with error
+            }
+        } catch {
+            this.runtimeAvailable = false;
+            success = false;
+        }
+
+        if (shouldDeleteLocal) {
+            const projects = readLocalProjects().filter(p => p.id !== id);
+            persistLocalProjects(projects);
+            const versions = readLocalVersions().filter(v => v.projectId !== id);
+            persistLocalVersions(versions);
+
+            if (readLocalActiveId() === id) {
+                persistLocalActiveId(projects[0]?.id || null);
+            }
+        }
+        return success;
+    }
+
+    async renameProject(id: string, newName: string): Promise<SyncStatus> {
+        const now = new Date().toISOString();
+        let status: SyncStatus = 'saved';
+        let shouldUpdateLocal = false;
+
+        try {
+            const res = await fetch(`${API_BASE}/projects/${id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name })
-            }).then(r => r.json());
-            if (!res.ok) throw new Error(res.error);
+                body: JSON.stringify({ name: newName, updatedAt: now })
+            });
+            if (res.ok) {
+                this.runtimeAvailable = true;
+                status = 'saved';
+                shouldUpdateLocal = true;
+            } else {
+                this.runtimeAvailable = false;
+                status = 'error';
+                shouldUpdateLocal = false; // Hard rejection from server
+            }
         } catch {
-            status = 'saved-local';
+            this.runtimeAvailable = false;
+            status = 'error'; // Strictly server-authoritative: no local rename if offline
+            shouldUpdateLocal = false;
         }
 
-        const local = readLocalRuns();
-        const idx = local.findIndex(r => r.id === id);
+        if (!shouldUpdateLocal) return 'error';
+
+        const projects = readLocalProjects();
+        const idx = projects.findIndex(p => p.id === id);
         if (idx !== -1) {
-            local[idx] = { ...local[idx], name, updatedAt: new Date().toISOString() };
-            persistLocalRuns(local);
+            projects[idx].name = newName;
+            projects[idx].updatedAt = now;
+            persistLocalProjects(projects);
+            return status;
         }
-        return status;
-    }
-
-    async deleteRun(id: string): Promise<SyncStatus> {
-        let status: SyncStatus = 'saved';
-        try {
-            await fetch(`${API_BASE}/runs/${id}`, { method: 'DELETE' });
-        } catch {
-            status = 'saved-local';
-        }
-
-        const local = readLocalRuns().filter(r => r.id !== id);
-        persistLocalRuns(local);
-        if (readLocalActiveId() === id) {
-            persistLocalActiveId(local[0]?.id ?? null);
-        }
-        return status;
-    }
-
-    async setActiveRun(id: string): Promise<SyncStatus> {
-        let status: SyncStatus = 'saved';
-        try {
-            await fetch(`${API_BASE}/runs/${id}/activate`, { method: 'POST' });
-        } catch {
-            status = 'saved-local';
-        }
-        persistLocalActiveId(id);
-        return status;
+        return 'error';
     }
 }
 
