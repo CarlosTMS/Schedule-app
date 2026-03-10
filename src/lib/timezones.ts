@@ -62,19 +62,32 @@ export const getAvailableUtcHours = (student: StudentRecord, startHourLocal: num
 export const getKnownUtcOffset = (office: string | undefined): number => {
     if (!office) return 0;
     const o = office.toLowerCase();
-    if (o.includes('san francisco') || o.includes('palo alto') || o.includes('california')) return -8;
-    if (o.includes('chicago')) return -6;
-    if (o.includes('new york') || o.includes('atlanta')) return -5;
+
+    // Specific US Cities / States
+    if (o.includes('san francisco') || o.includes('palo alto') || o.includes('california') || o.includes('west')) return -8;
+    if (o.includes('denver') || o.includes('mountain')) return -7;
+    if (o.includes('chicago') || o.includes('central')) return -6;
+    if (o.includes('new york') || o.includes('atlanta') || o.includes('east') || o.includes('toronto') || o.includes('canada')) return -5;
+
+    // Broad Regions for Americas
+    if (o.includes('amer - us') || o.includes('us') || o.includes('usa')) return -5; // Default East
     if (o.includes('mexico')) return -6;
-    if (o.includes('sao paulo') || o.includes('brazil')) return -3;
-    if (o.includes('london')) return 0;
-    if (o.includes('amsterdam') || o.includes('barcelona') || o.includes('frankfurt') || o.includes('oslo') || o.includes('germany') || o.includes('france') || o.includes('spain') || o.includes('madrid')) return 1;
-    if (o.includes('south africa')) return 2;
+    if (o.includes('sao paulo') || o.includes('brazil') || o.includes('argentina')) return -3;
+    if (o.includes('colombia')) return -5;
+
+    // EMEA / MEE
+    if (o.includes('london') || o.includes('ireland') || o.includes('uk')) return 0;
+    if (o.includes('amsterdam') || o.includes('netherlands') || o.includes('barcelona') || o.includes('frankfurt') || o.includes('germany') || o.includes('france') || o.includes('spain') || o.includes('italy') || o.includes('switzerland') || o.includes('oslo') || o.includes('denmark') || o.includes('madrid') || o.includes('emea') || o.includes('mee')) return 1;
+    if (o.includes('south africa') || o.includes('greece') || o.includes('finland') || o.includes('israel')) return 2;
     if (o.includes('dubai') || o.includes('uae')) return 4;
+
+    // APJ
     if (o.includes('india') || o.includes('mumbai') || o.includes('delhi')) return 5.5;
-    if (o.includes('singapore') || o.includes('manila') || o.includes('perth')) return 8;
-    if (o.includes('sydney') || o.includes('melbourne')) return 10;
-    if (o.includes('tokyo') || o.includes('seoul')) return 9;
+    if (o.includes('singapore') || o.includes('manila') || o.includes('perth') || o.includes('china') || o.includes('indonesia') || o.includes('malaysia')) return 8;
+    if (o.includes('tokyo') || o.includes('seoul') || o.includes('korea') || o.includes('japan')) return 9;
+    if (o.includes('sydney') || o.includes('melbourne') || o.includes('australia')) return 10;
+    if (o.includes('nz') || o.includes('new zealand')) return 12;
+
     return 0; // Default
 };
 
