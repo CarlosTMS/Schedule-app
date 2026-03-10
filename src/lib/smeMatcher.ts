@@ -51,7 +51,8 @@ export const getEligibleSMEs = (solutionArea: string, sessionId: SessionId, smeL
             smeLob.includes(term) || term.includes(smeLob)
         );
 
-        return lobMatches && (sme as any)[sessionId] === true;
+        const hasSkill = sme[sessionId as keyof SME] === true;
+        return lobMatches && hasSkill;
     });
 };
 

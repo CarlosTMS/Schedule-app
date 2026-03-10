@@ -8,6 +8,7 @@ export interface Assumptions {
     sessionLength: number; // in minutes (60, 90, 120)
     maxTimezoneDifference: number; // in hours
     allowSingleRoleVat: boolean;
+    facultyStartHour?: number; // local start hour for faculty availability checks
 }
 
 interface ConfiguratorProps {
@@ -174,6 +175,25 @@ export function Configurator({ startHour, endHour, onTimeChange, assumptions, on
                             onChange={e => {
                                 const val = parseInt(e.target.value);
                                 onAssumptionsChange({ ...assumptions, maxTimezoneDifference: isNaN(val) ? 5 : Math.max(0, Math.min(12, val)) });
+                            }}
+                        />
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
+                        <label style={{ fontSize: '0.9rem' }}>Faculty Local Start Hour</label>
+                        <input
+                            type="number"
+                            className="input-field"
+                            style={{ width: '80px', padding: '0.4rem' }}
+                            min={0}
+                            max={23}
+                            value={assumptions.facultyStartHour ?? 6}
+                            onChange={e => {
+                                const val = parseInt(e.target.value, 10);
+                                onAssumptionsChange({
+                                    ...assumptions,
+                                    facultyStartHour: isNaN(val) ? 6 : Math.max(0, Math.min(23, val)),
+                                });
                             }}
                         />
                     </div>

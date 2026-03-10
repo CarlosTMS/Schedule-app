@@ -1,146 +1,154 @@
 /**
  * server/runtime-store.mjs
  *
- * In-memory storage for simulation runs. 
+ * In-memory storage for Projetcs and their Immutable Versions.
  * This data is volatile and will be lost on server restart.
  */
 
-const MAX_RUNS = 20;
+const MAX_PROJECTS = 10;
+const MAX_VERSIONS_PER_PROJECT = 20;
+
 
 class RuntimeStore {
     constructor() {
-        this.runs = [];
-        this.activeRunId = null;
+        this.projects = [];
+        this.versions = []; // Global list of versions
+        this.drafts = new Map(); // id -> snapshot
     }
 
-    /**
-     * Returns all runs, sorted by updatedAt (desc) or as stored.
-     */
-    getRuns() {
-        return this.runs;
+    // ─── Projects ─────────────────────────────────────────────────────────────
+
+    getProjects() {
+        return this.projects;
     }
 
-    /**
-     * Returns the active run ID.
-     */
-    getActiveRunId() {
-        return this.activeRunId;
+    getProject(id) {
+        return this.projects.find(p => p.id === id) || null;
     }
 
-    /**
-     * Sets the active run ID.
-     */
-    setActiveRunId(id) {
-        this.activeRunId = id;
-        return true;
-    }
+    upsertProject(project) {
+        const { draftSnapshot, ...cleanProject } = project;
+        const idx = this.projects.findIndex(p => p.id === cleanProject.id);
 
-    /**
-     * Adds or updates a run. 
-     * If ID exists, it performs a full replace (mirroring the 'create/save' behavior).
-     */
-    upsertRun(run) {
-        const idx = this.runs.findIndex((r) => r.id === run.id);
-        const updatedRun = {
-            ...run,
-            updatedAt: new Date().toISOString(),
+        let nextRevision = cleanProject.revision || 1;
+        if (idx !== -1) {
+            nextRevision = (this.projects[idx].revision || 1) + 1;
+        }
+
+        const updated = {
+            ...cleanProject,
+            revision: nextRevision,
+            updatedAt: new Date().toISOString()
         };
 
         if (idx !== -1) {
-            this.runs[idx] = updatedRun;
+            this.projects[idx] = updated;
         } else {
-            this.runs.push(updatedRun);
+            this.projects.push(updated);
         }
 
-        // Capacity limiting: protect activeRunId
-        if (this.runs.length > MAX_RUNS) {
-            // Sort by updatedAt desc (most recent first)
-            this.runs.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-
-            // If active run is way back, don't slice it. 
-            // Better: identify which indices to keep. Top items, plus the active one.
-            const toKeep = this.runs.filter((r, i) => i < MAX_RUNS || r.id === this.activeRunId);
-            this.runs = toKeep;
-
-            // If STILL too many (because active was protected and added to the 20), drop the oldest non-active.
-            if (this.runs.length > MAX_RUNS) {
-                const oldestNonActiveIdx = [...this.runs].reverse().findIndex(r => r.id !== this.activeRunId);
-                if (oldestNonActiveIdx !== -1) {
-                    const items = [...this.runs];
-                    items.splice(items.length - 1 - oldestNonActiveIdx, 1);
-                    this.runs = items;
-                }
-            }
+        // Limit capacity
+        if (this.projects.length > MAX_PROJECTS) {
+            this.projects.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+            const removed = this.projects.splice(MAX_PROJECTS);
+            const removedIds = removed.map(p => p.id);
+            this.versions = this.versions.filter(v => !removedIds.includes(v.projectId));
+            removedIds.forEach(id => this.drafts.delete(id));
         }
-        return updatedRun;
+
+        return updated;
     }
 
-    /**
-     * Partial update for core configuration.
-     */
-    patchCore(id, patch) {
-        const idx = this.runs.findIndex((r) => r.id === id);
-        if (idx === -1) return null;
-
-        this.runs[idx] = {
-            ...this.runs[idx],
-            ...patch,
-            updatedAt: new Date().toISOString(),
-        };
-        return this.runs[idx];
-    }
-
-    /**
-     * Partial update for dashboard state.
-     */
-    patchDashboard(id, patch) {
-        const idx = this.runs.findIndex((r) => r.id === id);
-        if (idx === -1) return null;
-
-        this.runs[idx] = {
-            ...this.runs[idx],
-            ...patch,
-            updatedAt: new Date().toISOString(),
-        };
-        return this.runs[idx];
-    }
-
-    /**
-     * Update metadata (rename).
-     */
-    patchMeta(id, patch) {
-        const idx = this.runs.findIndex((r) => r.id === id);
-        if (idx === -1) return null;
-
-        this.runs[idx] = {
-            ...this.runs[idx],
-            ...patch,
-            updatedAt: new Date().toISOString(),
-        };
-        return this.runs[idx];
-    }
-
-    /**
-     * Delete a run.
-     */
-    deleteRun(id) {
-        const idx = this.runs.findIndex((r) => r.id === id);
+    deleteProject(id) {
+        const idx = this.projects.findIndex(p => p.id === id);
         if (idx === -1) return false;
-
-        this.runs.splice(idx, 1);
-        if (this.activeRunId === id) {
-            this.activeRunId = null;
-        }
+        this.projects.splice(idx, 1);
+        this.versions = this.versions.filter(v => v.projectId !== id);
+        this.drafts.delete(id);
         return true;
     }
 
-    /**
-     * Structural validation (minimal check to avoid corrupt data in memory).
-     */
-    isValidRun(r) {
-        if (!r || typeof r !== 'object') return false;
-        // Required fields for StoredRunV2
-        return !!(r.id && r.version === 2 && r.records && r.result);
+    getConflict(id, expectedRevision) {
+        if (expectedRevision === undefined || expectedRevision === null) return null;
+        const p = this.getProject(id);
+        if (!p) return null;
+        if (p.revision !== expectedRevision) return p;
+        return null;
+    }
+
+    // ─── Drafts ──────────────────────────────────────────────────────────────
+
+    getDraft(id) {
+        return this.drafts.get(id) || null;
+    }
+
+    upsertDraft(id, snapshot) {
+        this.drafts.set(id, snapshot);
+    }
+
+
+    // ─── Versions ─────────────────────────────────────────────────────────────
+
+    getVersions(projectId) {
+        return this.versions
+            .filter(v => v.projectId === projectId)
+            .sort((a, b) => b.versionNumber - a.versionNumber);
+    }
+
+    getVersion(id) {
+        return this.versions.find(v => v.id === id) || null;
+    }
+
+    addVersion(version) {
+        // Versions are immutable, we only add if doesn't exist
+        if (this.versions.some(v => v.id === version.id)) {
+            return this.getVersion(version.id);
+        }
+
+        // Capacity check for this project
+        const projectVersions = this.versions.filter(v => v.projectId === version.projectId);
+        if (projectVersions.length >= MAX_VERSIONS_PER_PROJECT) {
+            projectVersions.sort((a, b) => a.versionNumber - b.versionNumber);
+            const oldestId = projectVersions[0].id;
+            const globalIdx = this.versions.findIndex(v => v.id === oldestId);
+            if (globalIdx !== -1) this.versions.splice(globalIdx, 1);
+        }
+
+        this.versions.push(version);
+        return version;
+    }
+
+    // ─── Batch Sync ───────────────────────────────────────────────────────────
+
+    syncBatch(projects, versions) {
+        let addedProjects = 0;
+        let addedVersions = 0;
+
+        for (const p of projects) {
+            if (!this.projects.some(ex => ex.id === p.id)) {
+                this.upsertProject(p);
+                addedProjects++;
+            }
+        }
+
+        for (const v of versions) {
+            if (!this.versions.some(ex => ex.id === v.id)) {
+                this.addVersion(v);
+                addedVersions++;
+            }
+        }
+
+        return { addedProjects, addedVersions };
+    }
+
+    // ─── Validation ───────────────────────────────────────────────────────────
+
+    isValidProject(p) {
+        return !!(p && p.id && p.name);
+    }
+
+    isValidVersion(v) {
+        return !!(v && v.id && v.projectId && v.snapshot);
     }
 }
 

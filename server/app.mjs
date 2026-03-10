@@ -159,76 +159,115 @@ const server = http.createServer(async (req, res) => {
     return jsonResponse(res, 200, { status: 'ok', port: PORT });
   }
 
-  // ── Runtime History API ──
+  // ── Runtime Versioning API ──
 
-  if (pathname === '/api/runtime/runs') {
+  if (pathname === '/api/runtime/projects') {
     if (req.method === 'GET') {
-      return jsonResponse(res, 200, { ok: true, data: runtimeStore.getRuns() });
+      return jsonResponse(res, 200, { ok: true, data: runtimeStore.getProjects() });
     }
     if (req.method === 'POST') {
       try {
         const body = await readBody(req);
-        const parsed = JSON.parse(body);
-        if (!runtimeStore.isValidRun(parsed)) {
-          return jsonResponse(res, 400, { ok: false, error: 'Invalid run structure' });
+        const { draftSnapshot, ...project } = JSON.parse(body);
+
+        if (!runtimeStore.isValidProject(project)) return jsonResponse(res, 400, { ok: false, error: 'Invalid project' });
+
+        // Ensure draft is stored separately if provided during initial creation
+        if (draftSnapshot) {
+          runtimeStore.upsertDraft(project.id, draftSnapshot);
         }
-        const saved = runtimeStore.upsertRun(parsed);
-        console.log(`[runtime] Created/Updated run: ${saved.id} - ${saved.name}`);
+
+        const saved = runtimeStore.upsertProject(project);
         return jsonResponse(res, 200, { ok: true, data: saved });
-      } catch (err) {
-        return jsonResponse(res, 400, { ok: false, error: String(err) });
+      } catch (e) {
+        return jsonResponse(res, 400, { ok: false, error: String(e) });
       }
     }
   }
 
-  if (pathname === '/api/runtime/active' && req.method === 'GET') {
-    return jsonResponse(res, 200, { ok: true, data: runtimeStore.getActiveRunId() });
-  }
-
-  // Dynamic routes with ID
-  if (pathname.startsWith('/api/runtime/runs/')) {
+  if (pathname.startsWith('/api/runtime/projects/')) {
     const parts = pathname.split('/');
-    const id = parts[4]; // /api/runtime/runs/:id/...
+    const id = parts[4];
     const subRoute = parts[5];
 
-    if (!id) return jsonResponse(res, 400, { ok: false, error: 'Missing run ID' });
-
-    if (req.method === 'DELETE' && !subRoute) {
-      const deleted = runtimeStore.deleteRun(id);
-      console.log(`[runtime] Deleted run: ${id}`);
-      return jsonResponse(res, deleted ? 200 : 404, { ok: deleted });
-    }
-
-    if (req.method === 'POST' && subRoute === 'activate') {
-      runtimeStore.setActiveRunId(id);
-      console.log(`[runtime] Activated run: ${id}`);
-      return jsonResponse(res, 200, { ok: true });
-    }
-
-    if (req.method === 'PATCH') {
-      try {
+    if (id && !subRoute) {
+      if (req.method === 'PATCH') {
         const body = await readBody(req);
-        const patch = JSON.parse(body);
-        let updated = null;
+        const { expectedRevision, draftSnapshot, ...metadata } = JSON.parse(body);
 
-        if (subRoute === 'core') {
-          updated = runtimeStore.patchCore(id, patch);
-        } else if (subRoute === 'dashboard') {
-          updated = runtimeStore.patchDashboard(id, patch);
-        } else if (subRoute === 'meta') {
-          updated = runtimeStore.patchMeta(id, patch);
+        const conflict = runtimeStore.getConflict(id, expectedRevision);
+        if (conflict) {
+          console.warn(`[runtime] Conflict detected on project ${id}: Expected ${expectedRevision}, Actual ${conflict.revision}`);
+          return jsonResponse(res, 409, { ok: false, error: 'conflict', current: conflict });
         }
 
-        if (updated) {
-          console.log(`[runtime] Patched ${subRoute || 'unknown'} for run: ${id}`);
-          return jsonResponse(res, 200, { ok: true, data: updated });
+        const existing = runtimeStore.getProject(id);
+        if (!existing) return jsonResponse(res, 404, { ok: false, error: 'Project not found' });
+
+        // Strip any legacy draftSnapshot if it somehow exists in the persistent record
+        const { draftSnapshot: _old, ...cleanExisting } = existing;
+
+        // Separate draft working state from persistent metadata to avoid record inflation
+        if (draftSnapshot) {
+          runtimeStore.upsertDraft(id, draftSnapshot);
         }
-        return jsonResponse(res, 404, { ok: false, error: 'Run not found' });
-      } catch (err) {
-        return jsonResponse(res, 400, { ok: false, error: String(err) });
+
+        // Strictly prune metadata to avoid bloating persistence
+        const cleanMetadata = { ...metadata };
+        delete cleanMetadata.draftSnapshot;
+        delete cleanMetadata.expectedRevision;
+
+        const updated = runtimeStore.upsertProject({
+          ...cleanExisting,
+          ...cleanMetadata
+        });
+
+        console.log(`[runtime] Patched project: ${id} (Rev: ${updated.revision})${draftSnapshot ? ' [Draft Sync]' : ''}`);
+        return jsonResponse(res, 200, { ok: true, data: updated });
+      }
+
+
+
+      if (req.method === 'DELETE') {
+        const ok = runtimeStore.deleteProject(id);
+        return jsonResponse(res, ok ? 200 : 404, { ok });
+      }
+    }
+
+    if (id && subRoute === 'versions') {
+      if (req.method === 'GET') {
+        return jsonResponse(res, 200, { ok: true, data: runtimeStore.getVersions(id) });
+      }
+      if (req.method === 'POST') {
+        const body = await readBody(req);
+        const v = JSON.parse(body);
+        if (!runtimeStore.isValidVersion(v)) return jsonResponse(res, 400, { ok: false, error: 'Invalid version' });
+        const saved = runtimeStore.addVersion(v);
+        return jsonResponse(res, 200, { ok: true, data: saved });
       }
     }
   }
+
+  if (pathname.startsWith('/api/runtime/versions/')) {
+    const id = pathname.split('/')[4];
+    if (id && req.method === 'GET') {
+      const v = runtimeStore.getVersion(id);
+      return v ? jsonResponse(res, 200, { ok: true, data: v }) : jsonResponse(res, 404, { ok: false });
+    }
+  }
+
+  if (pathname === '/api/runtime/sync/batch' && req.method === 'POST') {
+    try {
+      const body = await readBody(req);
+      const { projects = [], versions = [] } = JSON.parse(body);
+      const result = runtimeStore.syncBatch(projects, versions);
+      console.log(`[runtime] Batch sync: ${result.addedProjects} projects, ${result.addedVersions} versions added.`);
+      return jsonResponse(res, 200, { ok: true, data: result });
+    } catch (e) {
+      return jsonResponse(res, 400, { ok: false, error: String(e) });
+    }
+  }
+
 
   if (pathname.startsWith('/api/')) {
     return jsonResponse(res, 404, { error: `Not found: ${req.method} ${pathname}` });

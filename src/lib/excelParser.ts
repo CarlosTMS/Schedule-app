@@ -1,5 +1,9 @@
 import * as xlsx from 'xlsx';
-import type { StoredRunV2 } from './runHistoryStorage';
+import type { AllocationRule } from '../components/RuleBuilder';
+import type { RunSnapshot } from './runHistoryStorage';
+
+
+
 
 export interface StudentRecord {
     'Full Name': string;
@@ -83,7 +87,7 @@ export const parseExcel = async (file: File): Promise<StudentRecord[]> => {
     });
 };
 
-export const generateExcel = (data: StudentRecord[], config?: Partial<StoredRunV2>, filename: string = 'Scheduler_Results.xlsx') => {
+export const generateExcel = (data: StudentRecord[], config?: Partial<RunSnapshot>, filename: string = 'Scheduler_Results.xlsx') => {
     // Strip internal fields starting with '_'
     const exportData = data.map(record => {
         const cleanRecord: Record<string, unknown> = {};
@@ -100,7 +104,7 @@ export const generateExcel = (data: StudentRecord[], config?: Partial<StoredRunV
     xlsx.utils.book_append_sheet(workbook, worksheet, "Results");
 
     if (config) {
-        const configData = [
+        const configData: { Parameter: string; Value: string | number | undefined }[] = [
             { Parameter: "Working Hours Start (UTC)", Value: config.startHour },
             { Parameter: "Working Hours End (UTC)", Value: config.endHour },
             { Parameter: "Min Session Size", Value: config.assumptions?.minSessionSize },
@@ -114,7 +118,7 @@ export const generateExcel = (data: StudentRecord[], config?: Partial<StoredRunV
         configData.push({ Parameter: "", Value: "" }); // Blank row
         configData.push({ Parameter: "MANUAL ALLOCATION RULES", Value: "" });
         if (config.rules && config.rules.length > 0) {
-            config.rules.forEach((rule) => {
+            config.rules.forEach((rule: AllocationRule) => {
                 configData.push({ Parameter: `IF ${rule.field} EQUALS ${rule.value}`, Value: `SET TO: ${rule.targetSA}` });
             });
         } else {
@@ -137,9 +141,11 @@ export const generateExcel = (data: StudentRecord[], config?: Partial<StoredRunV
             });
         }
 
+
         const configSheet = xlsx.utils.json_to_sheet(configData);
         xlsx.utils.book_append_sheet(workbook, configSheet, "Configuration");
     }
 
     xlsx.writeFile(workbook, filename);
 };
+
