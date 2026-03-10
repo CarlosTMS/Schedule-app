@@ -9,6 +9,7 @@
  */
 
 import type { SME } from './smeMatcher';
+import staticSmeData from '../../solution-weeks-sme-coverage.json';
 
 const API_URL = 'https://solweeks-academy-web.cfapps.us10.hana.ondemand.com/api/public/smes';
 const CACHE_KEY = 'sme_data_cache';
@@ -114,14 +115,15 @@ export const loadSMEData = async (): Promise<SMEDataResult> => {
             };
         }
 
-        // 4. Nothing available — return empty list
+        // 4. Ultimate fallback to local JSON file
+        const staticSmes = staticSmeData.solution_weeks_sme_coverage as unknown as SME[];
         return {
-            smes: [],
+            smes: staticSmes,
             status: {
                 source: 'fallback',
-                fetchedAt: null,
+                fetchedAt: new Date().toISOString(),
                 lastUpdatedAt: null,
-                error: `Live fetch failed and no cache found: ${err}`,
+                error: `Live fetch failed and no cache found. Using local backup.`,
             },
         };
     }

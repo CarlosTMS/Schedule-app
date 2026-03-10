@@ -27,12 +27,31 @@ export const sessions = [
 
 export type SessionId = typeof sessions[number]['id'];
 
+const SA_MAPPING: Record<string, string[]> = {
+    'btm': ['business transformation management', 'btm'],
+    'btp': ['business technology platform', 'btp'],
+    'cx': ['customer experience', 'cx'],
+    'hcm': ['human capital management', 'hcm'],
+    'scm': ['supply chain management', 'scm'],
+    'ocfo': ['office of the cfo', 'ocfo'],
+    'data & ai': ['data & ai', 'data', 'bdc'],
+    'finance and spend (f&s)': ['cloud erp', 'ocfo', 'procurement', 'finance'],
+    'industry account executive (iae)': ['cloud erp', 'btp', 'data & ai', 'iae'],
+};
+
 export const getEligibleSMEs = (solutionArea: string, sessionId: SessionId, smeList: SME[]): SME[] => {
+    const saLower = solutionArea.toLowerCase().trim();
+    const allowedLobs = SA_MAPPING[saLower] || [saLower];
+
     return smeList.filter((sme) => {
         const smeLob = sme.lob.toLowerCase();
-        const sa = solutionArea.toLowerCase();
-        const lobMatches = smeLob.includes(sa) || sa.includes(smeLob);
-        return lobMatches && sme[sessionId] === true;
+
+        // Match if the SME's LOB matches any of the allowed terms for this SA
+        const lobMatches = allowedLobs.some(term =>
+            smeLob.includes(term) || term.includes(smeLob)
+        );
+
+        return lobMatches && (sme as any)[sessionId] === true;
     });
 };
 
