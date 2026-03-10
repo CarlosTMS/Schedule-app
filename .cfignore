@@ -1,0 +1,15 @@
+.git/
+.github/
+node_modules/
+*.log
+npm-debug.log*
+coverage/
+Resultados/
+*.xlsx
+*.csv
+debug_*.js
+rewrite_*.js
+fix_dashboard.sh
+replace.sh
+update_sme_faculty_schedules.sh
+_validate.cjs

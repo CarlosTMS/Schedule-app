@@ -38,26 +38,26 @@ export const autoAssignFaculty = (solutionArea: string, schedules: string[], sta
     const eligibleFaculty = getEligibleFaculty(solutionArea);
     const sortedSchedules = [...schedules].sort((a, b) => a.localeCompare(b));
     const assignedCounts: Record<string, number> = {};
-    
+
     eligibleFaculty.forEach(f => assignedCounts[f.name] = 0);
 
     sortedSchedules.forEach(schedule => {
-        assignments[schedule] = { ...sessions.reduce((acc, s) => ({ ...acc, [s.id]: null }), {} as any) };
+        assignments[schedule] = { ...sessions.reduce((acc, s) => ({ ...acc, [s.id]: null }), {} as Record<SessionId, Faculty | null>) };
 
         if (eligibleFaculty.length > 0) {
             const match = schedule.match(/(\d+):00 UTC/);
             const utcHour = match ? parseInt(match[1], 10) : 0;
-            
-            const sortedEligible = [...eligibleFaculty].sort((a,b) => {
+
+            const sortedEligible = [...eligibleFaculty].sort((a, b) => {
                 const aLocal = (utcHour + getKnownUtcOffset(a.office) + 24) % 24;
                 const bLocal = (utcHour + getKnownUtcOffset(b.office) + 24) % 24;
-                
+
                 const penaltyA = getDistance(aLocal, startHour, endHour) + assignedCounts[a.name] * 12;
                 const penaltyB = getDistance(bLocal, startHour, endHour) + assignedCounts[b.name] * 12;
-                
+
                 return penaltyA - penaltyB;
             });
-            
+
             const assignedFaculty = sortedEligible[0];
             assignedCounts[assignedFaculty.name]++;
 

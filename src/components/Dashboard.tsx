@@ -1,15 +1,19 @@
-import { useState, useEffect } from 'react';
-import { Download, Users, AlertTriangle, CheckCircle, Clock, ShieldAlert, LayoutDashboard, Calendar, Presentation, UserSquare2, Database, Save } from 'lucide-react';
+import { useState, useEffect, type ReactNode } from 'react';
+import { Download, Users, AlertTriangle, CheckCircle, Clock, ShieldAlert, LayoutDashboard, Calendar, Presentation, UserSquare2, Database, BarChart3 } from 'lucide-react';
 import { calculateMetrics } from '../lib/allocationEngine';
 import type { AllocationResult } from '../lib/allocationEngine';
 import { generateExcel } from '../lib/excelParser';
+import type { StudentRecord } from '../lib/excelParser';
 import { SessionBreakdown } from './SessionBreakdown';
 import { VATVisualizer } from './VATVisualizer';
 import { ScheduleOutlierBreakdown } from './ScheduleOutlierBreakdown';
 import { CalendarExporter } from './CalendarExporter';
 import { SMESchedule } from './SMESchedule';
+import type { SmeAssignments } from './SMESchedule';
 import { FacultySchedule } from './FacultySchedule';
+import type { FacultyAssignments } from './FacultySchedule';
 import { FacultyDebriefSchedule } from './FacultyDebriefSchedule';
+import { Summary } from './Summary';
 import { useI18n } from '../i18n';
 import { loadSMEData, forceFetchSMEData } from '../lib/smeDataLoader';
 import type { SMECacheStatus } from '../lib/smeDataLoader';
@@ -18,21 +22,89 @@ import type { SME } from '../lib/smeMatcher';
 interface DashboardProps {
     result: AllocationResult;
     onReset: () => void;
+    /** @deprecated replaced by autosave — kept for API compatibility but no longer rendered */
     onSave?: () => void;
     previousMetrics?: AllocationResult['metrics'] | null;
     sessionLength?: number;
+    // ── Controlled editable state (optional — if omitted, Dashboard uses internal state) ──
+    sessionTimeOverrides?: Record<string, number>;
+    onSessionTimeOverridesChange?: (v: Record<string, number>) => void;
+    manualSmeAssignments?: SmeAssignments;
+    onManualSmeAssignmentsChange?: (v: SmeAssignments) => void;
+    manualFacultyAssignments?: FacultyAssignments;
+    onManualFacultyAssignmentsChange?: (v: FacultyAssignments) => void;
+    /** Optional panel rendered at the bottom of the sidebar (e.g., run history list) */
+    historyPanel?: ReactNode;
+
+    // ── Live editing state (if omitted, falls back to internal state) ──
+    localRecords?: StudentRecord[];
+    onLocalRecordsChange?: (records: StudentRecord[]) => void;
+    localMetrics?: AllocationResult['metrics'];
+    onLocalMetricsChange?: (metrics: AllocationResult['metrics']) => void;
 }
 
-type TabType = 'overview' | 'sessions' | 'smes' | 'faculty' | 'debrief' | 'vats' | 'data';
+type TabType = 'overview' | 'sessions' | 'smes' | 'faculty' | 'summary' | 'debrief' | 'vats' | 'data';
 
-export function Dashboard({ result, onReset, onSave, previousMetrics, sessionLength = 90 }: DashboardProps) {
+export function Dashboard({
+    result, onReset, previousMetrics, sessionLength = 90,
+    sessionTimeOverrides: controlledOverrides,
+    onSessionTimeOverridesChange,
+    manualSmeAssignments: controlledSme,
+    onManualSmeAssignmentsChange,
+    manualFacultyAssignments: controlledFaculty,
+    onManualFacultyAssignmentsChange,
+    historyPanel,
+    localRecords: controlledRecords,
+    onLocalRecordsChange,
+    localMetrics: controlledMetrics,
+    onLocalMetricsChange,
+}: DashboardProps) {
     const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<TabType>('overview');
     const [filterType, setFilterType] = useState<string | null>(null);
     const [columnFilters, setColumnFilters] = useState<{ SA: string; Country: string; Office: string }>({ SA: '', Country: '', Office: '' });
-    const [localRecords, setLocalRecords] = useState(result.records);
-    const [localMetrics, setLocalMetrics] = useState(result.metrics);
-    const [sessionTimeOverrides, setSessionTimeOverrides] = useState<Record<string, number>>({});
+
+    // Internal fallback state — used when parent does NOT pass controlled props
+    const [internalRecords, setInternalRecords] = useState(result.records);
+    const [internalMetrics, setInternalMetrics] = useState(result.metrics);
+
+    const localRecords = controlledRecords ?? internalRecords;
+    const localMetrics = controlledMetrics ?? internalMetrics;
+
+    const liftRecords = (recs: StudentRecord[]) => {
+        if (onLocalRecordsChange) onLocalRecordsChange(recs);
+        else setInternalRecords(recs);
+        const mets = calculateMetrics(recs);
+        if (onLocalMetricsChange) onLocalMetricsChange(mets);
+        else setInternalMetrics(mets);
+    };
+
+    // Internal fallback state — used when parent does NOT pass controlled props
+    const [internalOverrides, setInternalOverrides] = useState<Record<string, number>>({});
+    const [internalSme, setInternalSme] = useState<SmeAssignments>({});
+    const [internalFaculty, setInternalFaculty] = useState<FacultyAssignments>({});
+
+    // Resolve: prefer controlled props, fall back to internal
+    const sessionTimeOverrides = controlledOverrides ?? internalOverrides;
+    const manualSmeAssignments = controlledSme ?? internalSme;
+    const manualFacultyAssignments = controlledFaculty ?? internalFaculty;
+
+    const setSessionTimeOverrides = (v: Record<string, number> | ((p: Record<string, number>) => Record<string, number>)) => {
+        const next = typeof v === 'function' ? v(sessionTimeOverrides) : v;
+        if (onSessionTimeOverridesChange) onSessionTimeOverridesChange(next);
+        else setInternalOverrides(next);
+    };
+    const setManualSmeAssignments = (v: SmeAssignments | ((p: SmeAssignments) => SmeAssignments)) => {
+        const next = typeof v === 'function' ? v(manualSmeAssignments) : v;
+        if (onManualSmeAssignmentsChange) onManualSmeAssignmentsChange(next);
+        else setInternalSme(next);
+    };
+    const setManualFacultyAssignments = (v: FacultyAssignments | ((p: FacultyAssignments) => FacultyAssignments)) => {
+        const next = typeof v === 'function' ? v(manualFacultyAssignments) : v;
+        if (onManualFacultyAssignmentsChange) onManualFacultyAssignmentsChange(next);
+        else setInternalFaculty(next);
+    };
+
     const [smeList, setSmeList] = useState<SME[]>([]);
     const [smeStatus, setSmeStatus] = useState<SMECacheStatus | null>(null);
 
@@ -63,14 +135,13 @@ export function Dashboard({ result, onReset, onSave, previousMetrics, sessionLen
                 newRecords[idx] = { ...newRecords[idx], Schedule: targetSchedule };
             }
         });
-        setLocalRecords(newRecords);
-        setLocalMetrics(calculateMetrics(newRecords));
+        liftRecords(newRecords);
     };
 
-    useEffect(() => {
-        setLocalRecords(result.records);
-        setLocalMetrics(result.metrics);
-    }, [result]);
+    const handleFilterTypeChange = (type: string | null) => {
+        setFilterType(type);
+        setColumnFilters({ SA: '', Country: '', Office: '' });
+    };
 
     const availableSchedules = Array.from(new Set(localRecords.map(r => r.Schedule).filter(s => s && s !== 'Outlier-Schedule'))).sort() as string[];
     const availableVATs = Array.from(new Set(localRecords.map(r => r.VAT).filter(v => v && v !== 'Outlier-Size' && v !== 'Unassigned'))).sort();
@@ -105,9 +176,7 @@ export function Dashboard({ result, onReset, onSave, previousMetrics, sessionLen
         return true;
     });
 
-    useEffect(() => {
-        setColumnFilters({ SA: '', Country: '', Office: '' });
-    }, [filterType]);
+
 
     const handleEdit = (originalIndex: number | undefined, field: 'Schedule' | 'VAT', value: string) => {
         if (originalIndex === undefined) return;
@@ -123,8 +192,7 @@ export function Dashboard({ result, onReset, onSave, previousMetrics, sessionLen
         const recordIndex = newRecords.findIndex(r => r._originalIndex === originalIndex);
         if (recordIndex !== -1) {
             newRecords[recordIndex] = { ...newRecords[recordIndex], [field]: finalValue };
-            setLocalRecords(newRecords);
-            setLocalMetrics(calculateMetrics(newRecords));
+            liftRecords(newRecords);
         }
     };
 
@@ -132,12 +200,13 @@ export function Dashboard({ result, onReset, onSave, previousMetrics, sessionLen
         generateExcel(localRecords, result.config);
     };
 
+    // Navigation — debrief is intentionally excluded from the visible menu (requirement)
     const navItems = [
         { id: 'overview', icon: LayoutDashboard, label: t('allocationDashboard') },
         { id: 'sessions', icon: Calendar, label: t('navSessions') },
         { id: 'smes', icon: UserSquare2, label: t('navSMEs') },
         { id: 'faculty', icon: Presentation, label: t('navFaculty') },
-        { id: 'debrief', icon: Users, label: t('facultyDebrief') || 'Faculty Debrief' },
+        { id: 'summary', icon: BarChart3, label: t('navSummary') },
         { id: 'vats', icon: Users, label: t('navVATs') },
         { id: 'data', icon: Database, label: t('navData') },
     ] as const;
@@ -190,6 +259,14 @@ export function Dashboard({ result, onReset, onSave, previousMetrics, sessionLen
                         {item.label}
                     </button>
                 ))}
+
+                {/* Run history panel slot */}
+                {historyPanel && (
+                    <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>History</div>
+                        {historyPanel}
+                    </div>
+                )}
             </aside>
 
             {/* MAIN CONTENT AREA */}
@@ -198,17 +275,12 @@ export function Dashboard({ result, onReset, onSave, previousMetrics, sessionLen
                 <div className="glass-panel animated-fade-in" style={{ marginBottom: '2rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h2 style={{ margin: 0 }}>
-                            {navItems.find(n => n.id === activeTab)?.label}
+                            {navItems.find(n => n.id === activeTab)?.label ?? t('facultyDebrief')}
                         </h2>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                             <button className="btn btn-secondary" onClick={onReset}>
                                 {t('changeParameters')}
                             </button>
-                            {onSave && (
-                                <button className="btn" onClick={onSave} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--success-color)', color: 'white', border: 'none' }}>
-                                    <Save size={18} /> {t('saveSimulation') || 'Save'}
-                                </button>
-                            )}
                             <button className="btn btn-primary" onClick={handleDownload} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 <Download size={18} /> {t('downloadResults')}
                             </button>
@@ -280,7 +352,7 @@ export function Dashboard({ result, onReset, onSave, previousMetrics, sessionLen
                                 <button
                                     className="btn glass-panel"
                                     style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '1.5rem', border: filterType === 'schedule' ? '2px solid var(--primary-color)' : '', transition: 'all 0.2s', textAlign: 'left', minHeight: '120px' }}
-                                    onClick={() => setFilterType(filterType === 'schedule' ? null : 'schedule')}
+                                    onClick={() => handleFilterTypeChange(filterType === 'schedule' ? null : 'schedule')}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--danger-color)' }}>
                                         <Clock size={16} /> {t('scheduleConflicts')}
@@ -292,7 +364,7 @@ export function Dashboard({ result, onReset, onSave, previousMetrics, sessionLen
                                 <button
                                     className="btn glass-panel"
                                     style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '1.5rem', border: filterType === 'vat' ? '2px solid var(--primary-color)' : '', transition: 'all 0.2s', textAlign: 'left', minHeight: '120px' }}
-                                    onClick={() => setFilterType(filterType === 'vat' ? null : 'vat')}
+                                    onClick={() => handleFilterTypeChange(filterType === 'vat' ? null : 'vat')}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--danger-color)' }}>
                                         <Users size={16} /> {t('vatSizeMismatch')}
@@ -336,6 +408,8 @@ export function Dashboard({ result, onReset, onSave, previousMetrics, sessionLen
                             smeList={smeList}
                             smeStatus={smeStatus}
                             onRefreshSMEs={handleRefreshSMEs}
+                            manualSmeAssignments={manualSmeAssignments}
+                            onSmeAssignmentsChange={setManualSmeAssignments}
                         />
                     </div>
                 )}
@@ -347,10 +421,31 @@ export function Dashboard({ result, onReset, onSave, previousMetrics, sessionLen
                             startHour={result.config.startHour}
                             endHour={result.config.endHour}
                             sessionTimeOverrides={sessionTimeOverrides}
+                            manualFacultyAssignments={manualFacultyAssignments}
+                            onFacultyAssignmentsChange={setManualFacultyAssignments}
                         />
                     </div>
                 )}
 
+                {activeTab === 'summary' && (
+                    <div className="animated-fade-in">
+                        <Summary
+                            records={localRecords}
+                            schedulesBySA={schedulesBySA}
+                            startHour={result.config.startHour}
+                            endHour={result.config.endHour}
+                            sessionTimeOverrides={sessionTimeOverrides}
+                            manualSmeAssignments={manualSmeAssignments}
+                            onSmeAssignmentsChange={setManualSmeAssignments}
+                            manualFacultyAssignments={manualFacultyAssignments}
+                            onFacultyAssignmentsChange={setManualFacultyAssignments}
+                            smeList={smeList}
+                            smeStatus={smeStatus}
+                        />
+                    </div>
+                )}
+
+                {/* Debrief is hidden from menu but still renderable if activeTab is set programmatically */}
                 {activeTab === 'debrief' && (
                     <div className="animated-fade-in">
                         <FacultyDebriefSchedule
