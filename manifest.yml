@@ -1,0 +1,18 @@
+---
+applications:
+  - name: ((app_name))
+    memory: 512M
+    disk_quota: 1G
+    instances: 1
+    random-route: false
+    routes:
+      - route: ((app_name)).cfapps.us10.hana.ondemand.com
+    buildpacks:
+      - nodejs_buildpack
+    command: node server/app.mjs
+    env:
+      NODE_ENV: production
+      # Set this in CF env if you need a fixed CORS policy
+      # CORS_ORIGIN: https://your-app-domain
+      # Optional override for upstream SME source
+      # SME_SOURCE_URL: https://solweeks-academy-web.cfapps.us10.hana.ondemand.com/api/public/smes

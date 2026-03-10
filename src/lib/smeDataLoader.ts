@@ -5,13 +5,25 @@
  * Results are cached in localStorage with a 24-hour TTL so the app
  * works offline and avoids hammering the server on every render.
  *
- * API: https://solweeks-academy-web.cfapps.us10.hana.ondemand.com/api/public/smes
+ * API strategy:
+ *   - Browser calls local API proxy (/api/public/smes) to avoid CORS issues.
+ *   - Local API server then fetches from the live upstream endpoint.
  */
 
 import type { SME } from './smeMatcher';
 import staticSmeData from '../../solution-weeks-sme-coverage.json';
 
-const API_URL = 'https://solweeks-academy-web.cfapps.us10.hana.ondemand.com/api/public/smes';
+const resolveSmeApiUrl = (): string => {
+    const envUrl = import.meta.env.VITE_SME_API_URL as string | undefined;
+    if (envUrl && envUrl.trim() !== '') return envUrl;
+
+    const host = window.location.hostname;
+    const isLocal = host === 'localhost' || host === '127.0.0.1';
+    if (isLocal) return `${window.location.protocol}//${host}:8787/api/public/smes`;
+    return `${window.location.origin}/api/public/smes`;
+};
+
+const API_URL = resolveSmeApiUrl();
 const CACHE_KEY = 'sme_data_cache';
 const CACHE_DATE_KEY = 'sme_data_cache_date';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours

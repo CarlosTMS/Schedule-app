@@ -45,7 +45,7 @@ export const runAllocation = (
     // 1. Manual Rules
     records.forEach(r => {
         for (const rule of rules) {
-            if ((r as any)[rule.field] === rule.value) {
+            if (r[rule.field as keyof StudentRecord] === rule.value) {
                 // When manual rules fire, they override everything into 'Solution Week SA'
                 r['Solution Week SA'] = rule.targetSA;
                 break;
@@ -89,9 +89,6 @@ export const runAllocation = (
         return !t || t === '-' || t === 'tbd' || t === 'n/a' || t === 'na' || t === 'unassigned' || t === 'unknown';
     });
 
-    // DEBUG LOG
-    console.log("Total Unassigned Associates (Blank/TBD Sol Week SA):", unassignedAssociates.length);
-
     const fsAssociates = unassignedAssociates.filter(r => {
         const combined = `${r.Role || ''} ${r['Solution Area'] || ''} ${r['(AA) Secondary Specialization'] || ''}`.toUpperCase().replace(/\s+/g, '');
         return combined.includes('F&S') || combined.includes('FAND');
@@ -100,9 +97,6 @@ export const runAllocation = (
         const combined = `${r.Role || ''} ${r['Solution Area'] || ''} ${r['(AA) Secondary Specialization'] || ''}`.toLowerCase().replace(/\s+/g, '');
         return combined.includes('account') || combined.includes('iae') || combined.includes('ae-generalist');
     });
-
-    console.log("F&S Associates targetted by Random Engine:", fsAssociates.length);
-    console.log("AE Associates targetted by Random Engine:", aeAssociates.length);
 
     applyDistribution(fsAssociates, fsDistributions);
     applyDistribution(aeAssociates, aeDistributions);
@@ -117,15 +111,15 @@ export const runAllocation = (
 
     Object.entries(bySA).forEach(([sa, students]) => {
         students.forEach(s => {
-            (s as any)._availInfo = getAvailableUtcHours(s, startHour, endHour);
+            s._availInfo = getAvailableUtcHours(s, startHour, endHour);
         });
 
-        let unassignedStudents = [...students];
+        const unassignedStudents = [...students];
 
         // 1. Unique hours available in this SA
         const allHours = new Set<number>();
         unassignedStudents.forEach(s => {
-            ((s as any)._availInfo || []).forEach((h: number) => allHours.add(h));
+            (s._availInfo || []).forEach((h: number) => allHours.add(h));
         });
         const uniqueHours = Array.from(allHours);
 
@@ -159,7 +153,7 @@ export const runAllocation = (
         for (const combo of allCombinations) {
             // Find students who can attend AT LEAST ONE hour in this combo
             const availableStudents = unassignedStudents.filter(s => {
-                const hours: number[] = (s as any)._availInfo || [];
+                const hours: number[] = s._availInfo || [];
                 return combo.some(h => hours.includes(h));
             });
 
@@ -171,8 +165,8 @@ export const runAllocation = (
             // Greedy assignment to maximize balanced coverage
             // Sort students: those with fewer options in this combo first (harder to map)
             const sortedStudents = [...availableStudents].sort((a, b) => {
-                const aOpts = combo.filter(h => ((a as any)._availInfo || []).includes(h)).length;
-                const bOpts = combo.filter(h => ((b as any)._availInfo || []).includes(h)).length;
+                const aOpts = combo.filter(h => (a._availInfo || []).includes(h)).length;
+                const bOpts = combo.filter(h => (b._availInfo || []).includes(h)).length;
                 return aOpts - bOpts;
             });
 
@@ -181,7 +175,7 @@ export const runAllocation = (
 
             let currentCoverage = 0;
             for (const s of sortedStudents) {
-                const hours: number[] = (s as any)._availInfo || [];
+                const hours: number[] = s._availInfo || [];
                 const possibleHours = combo.filter(h => hours.includes(h));
 
                 let bestH = -1;
@@ -212,8 +206,6 @@ export const runAllocation = (
             }
 
             if (isValid) {
-                // If same coverage, prefer the one with FEWER sessions.
-                // If same coverage and same sessions, could tie-break by better min-max balance, but first is fine.
                 if (currentCoverage > bestCoverage || (currentCoverage === bestCoverage && combo.length < bestCombo.length)) {
                     bestCoverage = currentCoverage;
                     bestCombo = combo;
@@ -228,7 +220,6 @@ export const runAllocation = (
             const coveredIds = new Set<number>();
             let sessionIndex = 1;
 
-            // Sort hours early to later so Session 1 is earlier than Session 2, etc.
             const sortedBestHours = [...bestCombo].sort((a, b) => a - b);
 
             for (const h of sortedBestHours) {
@@ -240,14 +231,12 @@ export const runAllocation = (
                 sessionIndex++;
             }
 
-            // All non-covered students become outliers
             unassignedStudents.forEach(s => {
                 if (!coveredIds.has(s._originalIndex ?? -1)) {
                     s.Schedule = 'Outlier-Schedule';
                 }
             });
         } else {
-            // No valid combination found
             unassignedStudents.forEach(s => {
                 s.Schedule = 'Outlier-Schedule';
             });
@@ -279,21 +268,18 @@ export const runAllocation = (
                     const spec = (r['(AA) Secondary Specialization'] || '').toLowerCase();
                     const rOffset = typeof r._utcOffset === 'number' ? r._utcOffset : 0;
 
-                    // Check timezone constraint against existing VAT members
                     if (vat.length > 0) {
                         const offsets = vat.map(v => typeof v._utcOffset === 'number' ? v._utcOffset : 0);
                         const minOffset = Math.min(...offsets, rOffset);
                         const maxOffset = Math.max(...offsets, rOffset);
 
-                        // Because timezone differences wrap around (e.g. UTC+12 and UTC-11 are 1 hour apart, not 23),
-                        // we need to calculate the shortest distance on the 24-hour clock.
                         let distance = maxOffset - minOffset;
                         if (distance > 12) {
                             distance = 24 - distance;
                         }
 
                         if (distance > assumptions.maxTimezoneDifference) {
-                            return false; // Candidate violates timezone constraint
+                            return false;
                         }
                     }
 
@@ -311,13 +297,10 @@ export const runAllocation = (
             };
 
             if (assumptions.allowSingleRoleVat) {
-                // If single roles are allowed, just grab the first available delegates without enforcing different roles.
-                // We attempt to pull exactly 'size' members iteratively
                 for (let i = 0; i < size; i++) {
                     tryPick(['']);
                 }
             } else {
-                // Original standard flow: Force diversity (CSM -> SA/Advisory -> Sales)
                 if (!tryPick(['csm'])) { tryPick(['']); }
                 if (!tryPick(['advisory', 'sa'])) { tryPick(['']); }
                 if (!tryPick(['sales'])) { tryPick(['']); }
@@ -339,8 +322,8 @@ export const runAllocation = (
             vat.forEach(v => {
                 v.VAT = vatName;
                 if (size !== 3) {
-                    (v as any)._isDiscrepancy = true;
-                    (v as any)._discrepancyReason = `VAT Size ${size}`;
+                    v._isDiscrepancy = true;
+                    v._discrepancyReason = `VAT Size ${size}`;
                 }
             });
             formedVatsForSchedule.push(vat);
@@ -372,9 +355,6 @@ export const runAllocation = (
             }
         } while (formed);
 
-        // --- SECOND PASS: ORPHAN ABSORPTION ---
-        // If there are leftovers, try to append them to existing VATs in this schedule,
-        // up to the maximum allowed VAT size, respecting timezone limits.
         const maxAllowedSize = Math.max(...assumptions.allowedVATSizes);
         if (remaining.length > 0 && formedVatsForSchedule.length > 0) {
             for (let i = remaining.length - 1; i >= 0; i--) {
@@ -382,11 +362,9 @@ export const runAllocation = (
                 const rOffset = typeof r._utcOffset === 'number' ? r._utcOffset : 0;
 
                 const suitableVat = formedVatsForSchedule.find(vat => {
-                    // Check if adding one more exceeds allowed sizes
                     if (vat.length >= maxAllowedSize) return false;
                     if (!assumptions.allowedVATSizes.includes(vat.length + 1)) return false;
 
-                    // Check timezone constraint against ALL existing VAT members
                     const offsets = vat.map(v => typeof v._utcOffset === 'number' ? v._utcOffset : 0);
                     const minOffset = Math.min(...offsets, rOffset);
                     const maxOffset = Math.max(...offsets, rOffset);
@@ -401,16 +379,15 @@ export const runAllocation = (
 
                 if (suitableVat) {
                     suitableVat.push(r);
-                    r.VAT = suitableVat[0].VAT; // Copy exact VAT name
+                    r.VAT = suitableVat[0].VAT;
 
-                    // Update discrepancy flags for the entire transformed VAT
                     suitableVat.forEach(v => {
                         if (suitableVat.length !== 3) {
-                            (v as any)._isDiscrepancy = true;
-                            (v as any)._discrepancyReason = `VAT Size ${suitableVat.length}`;
+                            v._isDiscrepancy = true;
+                            v._discrepancyReason = `VAT Size ${suitableVat.length}`;
                         } else {
-                            (v as any)._isDiscrepancy = false;
-                            (v as any)._discrepancyReason = undefined;
+                            v._isDiscrepancy = false;
+                            v._discrepancyReason = undefined;
                         }
                     });
 

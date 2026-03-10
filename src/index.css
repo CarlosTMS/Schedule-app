@@ -10,12 +10,12 @@
   --primary-hover: #2563eb;
   --danger-color: #ef4444;
   --success-color: #10b981;
-  
+
   --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
   --glass-border: 1px solid rgba(255, 255, 255, 0.4);
   --glass-bg: rgba(255, 255, 255, 0.7);
   --glass-blur: blur(12px);
-  
+
   --border-radius-sm: 6px;
   --border-radius-md: 12px;
   --border-radius-lg: 24px;
@@ -30,10 +30,10 @@
 body {
   font-family: 'Inter', sans-serif;
   background-color: var(--bg-color);
-  background-image: 
-    radial-gradient(at 0% 0%, hsla(253,16%,7%,0) 0, transparent 50%), 
-    radial-gradient(at 50% 0%, hsla(225,39%,30%,0.05) 0, transparent 50%), 
-    radial-gradient(at 100% 0%, hsla(339,49%,30%,0.05) 0, transparent 50%);
+  background-image:
+    radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 0) 0, transparent 50%),
+    radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 0.05) 0, transparent 50%),
+    radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 0.05) 0, transparent 50%);
   color: var(--text-primary);
   line-height: 1.5;
   min-height: 100vh;
@@ -128,7 +128,10 @@ body {
 }
 
 /* Base Headings */
-h1, h2, h3, h4 {
+h1,
+h2,
+h3,
+h4 {
   color: var(--text-primary);
   margin-bottom: 1rem;
   font-weight: 700;
@@ -139,5 +142,37 @@ h1 {
   letter-spacing: -0.025em;
   background: linear-gradient(135deg, #1e293b 0%, #3b82f6 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+/* Animations */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animated-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
 }

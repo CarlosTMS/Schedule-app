@@ -1,73 +1,109 @@
-# React + TypeScript + Vite
+# Schedule App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Scheduling and assignment web app for Solution Weeks, built with React + TypeScript + Vite, with a Node.js server for API proxy/runtime endpoints and SAP BTP Cloud Foundry deployment support.
 
-Currently, two official plugins are available:
+## Core Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Allocation engine for sessions and schedules.
+- SME and Faculty assignment workflows.
+- Summary tab with exports (Excel/CSV/JSON) and publish endpoint for summary snapshots.
+- Bilingual UI (English/Spanish).
+- Autosave for run edits and configuration.
+- Hybrid run history persistence:
+  - Browser local mirror (`localStorage`).
+  - Runtime in-memory API on server (`/api/runtime/*`).
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Frontend: React 19, TypeScript, Vite.
+- Backend: Node.js HTTP server (`server/app.mjs`).
+- Deployment: SAP BTP Cloud Foundry (`cf` CLI).
 
-## Expanding the ESLint configuration
+## Local Development
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Frontend default URL: `http://localhost:5173`
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Build
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run build
 ```
+
+## Runtime API Endpoints
+
+Served by `server/app.mjs`:
+
+- `GET /health`
+- `GET /api/public/smes` (proxy to upstream SME API)
+- `GET /api/public/summary`
+- `POST /api/public/summary`
+- `GET /api/runtime/runs`
+- `POST /api/runtime/runs`
+- `PATCH /api/runtime/runs/:id/core`
+- `PATCH /api/runtime/runs/:id/dashboard`
+- `PATCH /api/runtime/runs/:id/meta`
+- `DELETE /api/runtime/runs/:id`
+- `POST /api/runtime/runs/:id/activate`
+- `GET /api/runtime/active`
+
+## Deploy to SAP BTP (Cloud Foundry)
+
+Requirements:
+
+- Cloud Foundry CLI installed (`cf`).
+- Active login (`cf login` or `cf login --sso`).
+
+One-command deployment:
+
+```bash
+./deploy_btp_cf.sh <APP_NAME>
+```
+
+Examples:
+
+```bash
+./deploy_btp_cf.sh scheduler-app
+```
+
+Optional target env vars:
+
+```bash
+export BTP_CF_API="https://api.cf.us10.hana.ondemand.com"
+export BTP_CF_ORG="your-org"
+export BTP_CF_SPACE="your-space"
+./deploy_btp_cf.sh scheduler-app
+```
+
+Key deploy files:
+
+- `manifest.yml`
+- `.cfignore`
+- `deploy_btp_cf.sh`
+- `server/app.mjs`
+
+## Upstream Sync Workflow
+
+This project can selectively sync changes from another repository without forking.
+
+Use:
+
+```bash
+./sync_upstream.sh --upstream-url https://github.com/CarlosTMS/Schedule-app.git
+```
+
+The script:
+
+- Ensures/fetches `upstream` remote.
+- Creates a `sync/upstream-YYYY-MM-DD` branch.
+- Lists candidate commits and file diffs.
+- Supports selective import via `git cherry-pick -x <sha>`.
+
+## Notes
+
+- Runtime history storage is in-memory by design and resets on process restart.
+- For consistent runtime state, use a single CF instance unless a shared external store is introduced.

@@ -1,4 +1,5 @@
 import * as xlsx from 'xlsx';
+import type { StoredRunV2 } from './runHistoryStorage';
 
 export interface StudentRecord {
     'Full Name': string;
@@ -17,6 +18,11 @@ export interface StudentRecord {
     // Internal fields appended during processing
     _originalIndex: number;
     _utcOffset?: number;
+    _availInfo?: number[];
+    _assignedSchedule?: string;
+    _isManual?: boolean;
+    _isDiscrepancy?: boolean;
+    _discrepancyReason?: string;
 
     // Output fields
     'Schedule'?: string;
@@ -35,7 +41,7 @@ export const parseExcel = async (file: File): Promise<StudentRecord[]> => {
                 const worksheet = workbook.Sheets[firstSheetName];
 
                 // Convert to JSON
-                const rawData: any[] = xlsx.utils.sheet_to_json(worksheet, { defval: "" });
+                const rawData = xlsx.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: "" });
 
                 // Normalize and attach internal index
                 const records: StudentRecord[] = rawData.map((row, index) => {
@@ -77,13 +83,13 @@ export const parseExcel = async (file: File): Promise<StudentRecord[]> => {
     });
 };
 
-export const generateExcel = (data: StudentRecord[], config?: any, filename: string = 'Scheduler_Results.xlsx') => {
+export const generateExcel = (data: StudentRecord[], config?: Partial<StoredRunV2>, filename: string = 'Scheduler_Results.xlsx') => {
     // Strip internal fields starting with '_'
     const exportData = data.map(record => {
-        const cleanRecord: any = {};
+        const cleanRecord: Record<string, unknown> = {};
         Object.keys(record).forEach(key => {
             if (!key.startsWith('_')) {
-                cleanRecord[key] = (record as any)[key];
+                cleanRecord[key] = record[key as keyof StudentRecord];
             }
         });
         return cleanRecord;
@@ -108,7 +114,7 @@ export const generateExcel = (data: StudentRecord[], config?: any, filename: str
         configData.push({ Parameter: "", Value: "" }); // Blank row
         configData.push({ Parameter: "MANUAL ALLOCATION RULES", Value: "" });
         if (config.rules && config.rules.length > 0) {
-            config.rules.forEach((rule: any) => {
+            config.rules.forEach((rule) => {
                 configData.push({ Parameter: `IF ${rule.field} EQUALS ${rule.value}`, Value: `SET TO: ${rule.targetSA}` });
             });
         } else {
@@ -118,7 +124,7 @@ export const generateExcel = (data: StudentRecord[], config?: any, filename: str
         configData.push({ Parameter: "", Value: "" }); // Blank row
         configData.push({ Parameter: "RANDOM DISTRIBUTION ENGINE (%) - F&S", Value: "" });
         if (config.fsDistributions) {
-            config.fsDistributions.forEach((dist: any) => {
+            config.fsDistributions.forEach((dist) => {
                 configData.push({ Parameter: dist.sa, Value: `${dist.percentage}%` });
             });
         }
@@ -126,7 +132,7 @@ export const generateExcel = (data: StudentRecord[], config?: any, filename: str
         configData.push({ Parameter: "", Value: "" }); // Blank row
         configData.push({ Parameter: "RANDOM DISTRIBUTION ENGINE (%) - ACCOUNT EXECUTIVE", Value: "" });
         if (config.aeDistributions) {
-            config.aeDistributions.forEach((dist: any) => {
+            config.aeDistributions.forEach((dist) => {
                 configData.push({ Parameter: dist.sa, Value: `${dist.percentage}%` });
             });
         }

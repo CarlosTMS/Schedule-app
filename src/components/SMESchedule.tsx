@@ -5,6 +5,9 @@ import type { SME, SessionId } from '../lib/smeMatcher';
 import type { SMECacheStatus } from '../lib/smeDataLoader';
 import { getLocalTimeStr, getKnownUtcOffset, getEffectiveScheduleUtcHour } from '../lib/timezones';
 
+// Shared assignment shape used by Dashboard, SMESchedule, FacultySchedule, and Summary
+export type SmeAssignments = Record<string, Record<string, Record<SessionId, SME | null>>>;
+
 interface SMEScheduleProps {
     schedulesBySA: Record<string, Set<string>>;
     startHour: number;
@@ -13,15 +16,26 @@ interface SMEScheduleProps {
     smeList: SME[];
     smeStatus?: SMECacheStatus | null;
     onRefreshSMEs?: () => void;
+    /** Lifted-state assignments — from Dashboard */
+    manualSmeAssignments: SmeAssignments;
+    onSmeAssignmentsChange: (next: SmeAssignments) => void;
 }
 
-export function SMESchedule({ schedulesBySA, startHour, endHour, sessionTimeOverrides = {}, smeList, smeStatus, onRefreshSMEs }: SMEScheduleProps) {
+export function SMESchedule({
+    schedulesBySA,
+    startHour,
+    endHour,
+    sessionTimeOverrides = {},
+    smeList,
+    smeStatus,
+    onRefreshSMEs,
+    manualSmeAssignments,
+    onSmeAssignmentsChange,
+}: SMEScheduleProps) {
     const uniqueSAs = Object.keys(schedulesBySA).sort();
 
     const [selectedSAState, setSelectedSA] = useState<string>('');
     const selectedSA = uniqueSAs.includes(selectedSAState) ? selectedSAState : (uniqueSAs.length > 0 ? uniqueSAs[0] : '');
-
-    const [manualAssignments, setManualAssignments] = useState<Record<string, Record<string, Record<SessionId, SME | null>>>>({});
 
     if (!selectedSA) {
         return null;
@@ -29,27 +43,25 @@ export function SMESchedule({ schedulesBySA, startHour, endHour, sessionTimeOver
 
     const availableSchedules = Array.from(schedulesBySA[selectedSA] || []).sort((a, b) => a.localeCompare(b));
 
-    // Use manual assignments if they exist for this SA; otherwise fallback to the auto-assignments.
-    const currentAssignments = manualAssignments[selectedSA] || autoAssignSMEs(selectedSA, availableSchedules, startHour, endHour, smeList);
+    // Use lifted manual assignments if they exist for this SA; otherwise fallback to auto-assignments.
+    const currentAssignments = manualSmeAssignments[selectedSA] || autoAssignSMEs(selectedSA, availableSchedules, startHour, endHour, smeList);
 
     const handleSMEChange = (schedule: string, sessionId: SessionId, smeName: string) => {
         const eligible = getEligibleSMEs(selectedSA, sessionId, smeList);
         const newSME = eligible.find(s => s.name === smeName) || null;
 
-        setManualAssignments(prev => {
-            const currentAuto = autoAssignSMEs(selectedSA, availableSchedules, startHour, endHour, smeList);
-            const saData = prev[selectedSA] || currentAuto;
+        const currentAuto = autoAssignSMEs(selectedSA, availableSchedules, startHour, endHour, smeList);
+        const saData = manualSmeAssignments[selectedSA] || currentAuto;
 
-            return {
-                ...prev,
-                [selectedSA]: {
-                    ...saData,
-                    [schedule]: {
-                        ...saData[schedule],
-                        [sessionId]: newSME
-                    }
-                }
-            };
+        onSmeAssignmentsChange({
+            ...manualSmeAssignments,
+            [selectedSA]: {
+                ...saData,
+                [schedule]: {
+                    ...saData[schedule],
+                    [sessionId]: newSME,
+                },
+            },
         });
     };
 

@@ -5,21 +5,32 @@ import type { Faculty, SessionId } from '../lib/facultyMatcher';
 import { useI18n } from '../i18n';
 import { getLocalTimeStr, getKnownUtcOffset, getEffectiveScheduleUtcHour } from '../lib/timezones';
 
+// Shared assignment shape used by Dashboard, FacultySchedule, and Summary
+export type FacultyAssignments = Record<string, Record<string, Record<SessionId, Faculty | null>>>;
+
 interface FacultyScheduleProps {
     schedulesBySA: Record<string, Set<string>>;
     startHour: number;
     endHour: number;
     sessionTimeOverrides?: Record<string, number>;
+    /** Lifted-state assignments — from Dashboard */
+    manualFacultyAssignments: FacultyAssignments;
+    onFacultyAssignmentsChange: (next: FacultyAssignments) => void;
 }
 
-export function FacultySchedule({ schedulesBySA, startHour, endHour, sessionTimeOverrides = {} }: FacultyScheduleProps) {
+export function FacultySchedule({
+    schedulesBySA,
+    startHour,
+    endHour,
+    sessionTimeOverrides = {},
+    manualFacultyAssignments,
+    onFacultyAssignmentsChange,
+}: FacultyScheduleProps) {
     const { t } = useI18n();
     const uniqueSAs = Object.keys(schedulesBySA).sort();
 
     const [selectedSAState, setSelectedSA] = useState<string>('');
     const selectedSA = uniqueSAs.includes(selectedSAState) ? selectedSAState : (uniqueSAs.length > 0 ? uniqueSAs[0] : '');
-
-    const [manualAssignments, setManualAssignments] = useState<Record<string, Record<string, Record<SessionId, Faculty | null>>>>({});
 
     if (!selectedSA) {
         return null;
@@ -27,27 +38,25 @@ export function FacultySchedule({ schedulesBySA, startHour, endHour, sessionTime
 
     const availableSchedules = Array.from(schedulesBySA[selectedSA] || []).sort((a, b) => a.localeCompare(b));
 
-    // Use manual assignments if they exist for this SA; otherwise fallback to the auto-assignments.
-    const currentAssignments = manualAssignments[selectedSA] || autoAssignFaculty(selectedSA, availableSchedules, startHour, endHour);
+    // Use lifted manual assignments if they exist for this SA; otherwise fallback to auto-assignments.
+    const currentAssignments = manualFacultyAssignments[selectedSA] || autoAssignFaculty(selectedSA, availableSchedules, startHour, endHour);
 
     const handleFacultyChange = (schedule: string, sessionId: SessionId, facultyName: string) => {
         const eligible = getEligibleFaculty(selectedSA);
         const newFaculty = eligible.find(f => f.name === facultyName) || null;
 
-        setManualAssignments(prev => {
-            const currentAuto = autoAssignFaculty(selectedSA, availableSchedules, startHour, endHour);
-            const saData = prev[selectedSA] || currentAuto;
+        const currentAuto = autoAssignFaculty(selectedSA, availableSchedules, startHour, endHour);
+        const saData = manualFacultyAssignments[selectedSA] || currentAuto;
 
-            return {
-                ...prev,
-                [selectedSA]: {
-                    ...saData,
-                    [schedule]: {
-                        ...saData[schedule],
-                        [sessionId]: newFaculty
-                    }
-                }
-            };
+        onFacultyAssignmentsChange({
+            ...manualFacultyAssignments,
+            [selectedSA]: {
+                ...saData,
+                [schedule]: {
+                    ...saData[schedule],
+                    [sessionId]: newFaculty,
+                },
+            },
         });
     };
 
