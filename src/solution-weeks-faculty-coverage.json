@@ -1,0 +1,154 @@
+{
+    "solution_weeks_faculty_coverage": [
+        {
+            "name": "Jessica",
+            "office": "San Francisco",
+            "sa": "Cloud ERP"
+        },
+        {
+            "name": "Sandra",
+            "office": "Amsterdam",
+            "sa": "Cloud ERP"
+        },
+        {
+            "name": "Amy",
+            "office": "Perth",
+            "sa": "Cloud ERP"
+        },
+        {
+            "name": "Jessica",
+            "office": "San Francisco",
+            "sa": "oCFO"
+        },
+        {
+            "name": "Sandra",
+            "office": "Amsterdam",
+            "sa": "oCFO"
+        },
+        {
+            "name": "Amy",
+            "office": "Perth",
+            "sa": "oCFO"
+        },
+        {
+            "name": "Jessica",
+            "office": "San Francisco",
+            "sa": "Procurement"
+        },
+        {
+            "name": "Sandra",
+            "office": "Amsterdam",
+            "sa": "Procurement"
+        },
+        {
+            "name": "Amy",
+            "office": "Perth",
+            "sa": "Procurement"
+        },
+        {
+            "name": "Fernando",
+            "office": "San Francisco",
+            "sa": "BTP"
+        },
+        {
+            "name": "Pau",
+            "office": "Barcelona",
+            "sa": "BTP"
+        },
+        {
+            "name": "Carlos",
+            "office": "Frankfurt",
+            "sa": "BTP"
+        },
+        {
+            "name": "Fernando",
+            "office": "San Francisco",
+            "sa": "Data & AI"
+        },
+        {
+            "name": "Pau",
+            "office": "Barcelona",
+            "sa": "Data & AI"
+        },
+        {
+            "name": "Carlos",
+            "office": "Frankfurt",
+            "sa": "Data & AI"
+        },
+        {
+            "name": "David",
+            "office": "San Francisco",
+            "sa": "BTM"
+        },
+        {
+            "name": "Daron",
+            "office": "San Francisco",
+            "sa": "BTM"
+        },
+        {
+            "name": "Nelly",
+            "office": "Mexico DF",
+            "sa": "BTM"
+        },
+        {
+            "name": "Hanna",
+            "office": "Oslo",
+            "sa": "BTM"
+        },
+        {
+            "name": "David",
+            "office": "San Francisco",
+            "sa": "CX"
+        },
+        {
+            "name": "Daron",
+            "office": "San Francisco",
+            "sa": "CX"
+        },
+        {
+            "name": "Nelly",
+            "office": "Mexico DF",
+            "sa": "CX"
+        },
+        {
+            "name": "Juan",
+            "office": "Madrid",
+            "sa": "CX"
+        },
+        {
+            "name": "Godfrey",
+            "office": "San Francisco",
+            "sa": "HCM"
+        },
+        {
+            "name": "Reese",
+            "office": "Manila",
+            "sa": "HCM"
+        },
+        {
+            "name": "Hanna",
+            "office": "Oslo",
+            "sa": "HCM"
+        },
+        {
+            "name": "Ivan",
+            "office": "Chicago",
+            "sa": "SCM"
+        },
+        {
+            "name": "Reese",
+            "office": "Manila",
+            "sa": "SCM"
+        },
+        {
+            "name": "Selene",
+            "office": "Barcelona",
+            "sa": "SCM"
+        },
+        {
+            "name": "Lilly",
+            "office": "Frankfurt",
+            "sa": "SCM"
+        }
+    ]
+}

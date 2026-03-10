@@ -1,0 +1,486 @@
+import type { StudentRecord } from './excelParser';
+import { getUtcOffset, getAvailableUtcHours } from './timezones';
+import type { AllocationRule } from '../components/RuleBuilder';
+import type { DistributionTarget } from '../components/Randomizer';
+import type { Assumptions } from '../components/Configurator';
+
+export interface AllocationResult {
+    records: StudentRecord[];
+    metrics: {
+        totalStudents: number;
+        assignedSuccess: number;
+        outliersTotal: number;
+        outliersSchedule: number;
+        outliersVatSize: number;
+        outliersDupeRole: number;
+        perfectVats: number;
+        imperfectVats: number;
+    };
+    config: {
+        startHour: number;
+        endHour: number;
+        assumptions: Assumptions;
+        rules: AllocationRule[];
+        fsDistributions: DistributionTarget[];
+        aeDistributions: DistributionTarget[];
+    };
+}
+
+export const runAllocation = (
+    rawRecords: StudentRecord[],
+    startHour: number,
+    endHour: number,
+    rules: AllocationRule[],
+    fsDistributions: DistributionTarget[],
+    aeDistributions: DistributionTarget[],
+    assumptions: Assumptions
+): AllocationResult => {
+    const records = [...rawRecords.map(r => ({ ...r }))];
+
+    // Paso A: Convert properties and offsets
+    records.forEach(r => {
+        r._utcOffset = getUtcOffset(r.Country, r.Office);
+    });
+
+    // 1. Manual Rules
+    records.forEach(r => {
+        for (const rule of rules) {
+            if ((r as any)[rule.field] === rule.value) {
+                // When manual rules fire, they override everything into 'Solution Week SA'
+                r['Solution Week SA'] = rule.targetSA;
+                break;
+            }
+        }
+    });
+
+    // 2. Random Distribution
+    const applyDistribution = (associates: StudentRecord[], dists: DistributionTarget[]) => {
+        const totalUnassigned = associates.length;
+        if (totalUnassigned === 0) return;
+
+        const distributionCounts = dists.map(d => {
+            const count = Math.round((d.percentage / 100) * totalUnassigned);
+            return { sa: d.sa, count };
+        });
+
+        const currentTotal = distributionCounts.reduce((t, d) => t + d.count, 0);
+        if (currentTotal > totalUnassigned && distributionCounts.length > 0) {
+            distributionCounts[0].count -= (currentTotal - totalUnassigned);
+        } else if (currentTotal < totalUnassigned && distributionCounts.length > 0) {
+            distributionCounts[0].count += (totalUnassigned - currentTotal);
+        }
+
+        const shuffledAssociates = [...associates].sort(() => 0.5 - Math.random());
+        let pointer = 0;
+        distributionCounts.forEach(dist => {
+            for (let i = 0; i < dist.count; i++) {
+                if (pointer < shuffledAssociates.length) {
+                    shuffledAssociates[pointer]['Solution Week SA'] = dist.sa;
+                    shuffledAssociates[pointer]['Solution Area'] = dist.sa;
+                    pointer++;
+                }
+            }
+        });
+    };
+
+    const unassignedAssociates = records.filter(r => {
+        const swSA = r['Solution Week SA'] || '';
+        const t = swSA.trim().toLowerCase();
+        return !t || t === '-' || t === 'tbd' || t === 'n/a' || t === 'na' || t === 'unassigned' || t === 'unknown';
+    });
+
+    // DEBUG LOG
+    console.log("Total Unassigned Associates (Blank/TBD Sol Week SA):", unassignedAssociates.length);
+
+    const fsAssociates = unassignedAssociates.filter(r => {
+        const combined = `${r.Role || ''} ${r['Solution Area'] || ''} ${r['(AA) Secondary Specialization'] || ''}`.toUpperCase().replace(/\s+/g, '');
+        return combined.includes('F&S') || combined.includes('FAND');
+    });
+    const aeAssociates = unassignedAssociates.filter(r => {
+        const combined = `${r.Role || ''} ${r['Solution Area'] || ''} ${r['(AA) Secondary Specialization'] || ''}`.toLowerCase().replace(/\s+/g, '');
+        return combined.includes('account') || combined.includes('iae') || combined.includes('ae-generalist');
+    });
+
+    console.log("F&S Associates targetted by Random Engine:", fsAssociates.length);
+    console.log("AE Associates targetted by Random Engine:", aeAssociates.length);
+
+    applyDistribution(fsAssociates, fsDistributions);
+    applyDistribution(aeAssociates, aeDistributions);
+
+    // Paso C: Session Balancing
+    const bySA = records.reduce((acc, r) => {
+        const sa = r['Solution Week SA'] || r['Solution Area'] || 'Unassigned';
+        if (!acc[sa]) acc[sa] = [];
+        acc[sa].push(r);
+        return acc;
+    }, {} as Record<string, StudentRecord[]>);
+
+    Object.entries(bySA).forEach(([sa, students]) => {
+        students.forEach(s => {
+            (s as any)._availInfo = getAvailableUtcHours(s, startHour, endHour);
+        });
+
+        let unassignedStudents = [...students];
+
+        // 1. Unique hours available in this SA
+        const allHours = new Set<number>();
+        unassignedStudents.forEach(s => {
+            ((s as any)._availInfo || []).forEach((h: number) => allHours.add(h));
+        });
+        const uniqueHours = Array.from(allHours);
+
+        // 2. Generate combinations iterator/array up to maxSessionsPerDay
+        function getCombinations(arr: number[], k: number): number[][] {
+            if (k === 0) return [[]];
+            if (arr.length === 0) return [];
+            const [first, ...rest] = arr;
+            const withFirst = getCombinations(rest, k - 1).map(c => [first, ...c]);
+            const withoutFirst = getCombinations(rest, k);
+            return [...withFirst, ...withoutFirst];
+        }
+
+        let allCombinations: number[][] = [];
+        for (let i = 1; i <= Math.min(assumptions.maxSessionsPerDay, uniqueHours.length); i++) {
+            allCombinations = allCombinations.concat(getCombinations(uniqueHours, i));
+        }
+
+        let bestCoverage = -1;
+        let bestCombo: number[] = [];
+        let bestAssignment: Map<number, StudentRecord[]> = new Map();
+
+        // If this Solution Area has fewer people than the globally required minSessionSize, 
+        // we temporarily lower the threshold so they don't get entirely left out.
+        let effectiveMinSessionSize = assumptions.minSessionSize;
+        if (unassignedStudents.length > 0 && unassignedStudents.length < effectiveMinSessionSize) {
+            effectiveMinSessionSize = unassignedStudents.length;
+        }
+
+        // 3. Evaluate each combination
+        for (const combo of allCombinations) {
+            // Find students who can attend AT LEAST ONE hour in this combo
+            const availableStudents = unassignedStudents.filter(s => {
+                const hours: number[] = (s as any)._availInfo || [];
+                return combo.some(h => hours.includes(h));
+            });
+
+            // Fast skip: if total available students < combo.length * effectiveMinSessionSize, impossible to satisfy
+            if (availableStudents.length < combo.length * effectiveMinSessionSize) {
+                continue;
+            }
+
+            // Greedy assignment to maximize balanced coverage
+            // Sort students: those with fewer options in this combo first (harder to map)
+            const sortedStudents = [...availableStudents].sort((a, b) => {
+                const aOpts = combo.filter(h => ((a as any)._availInfo || []).includes(h)).length;
+                const bOpts = combo.filter(h => ((b as any)._availInfo || []).includes(h)).length;
+                return aOpts - bOpts;
+            });
+
+            const comboAssignment = new Map<number, StudentRecord[]>();
+            combo.forEach(h => comboAssignment.set(h, []));
+
+            let currentCoverage = 0;
+            for (const s of sortedStudents) {
+                const hours: number[] = (s as any)._availInfo || [];
+                const possibleHours = combo.filter(h => hours.includes(h));
+
+                let bestH = -1;
+                let minGroupSize = Infinity;
+
+                for (const h of possibleHours) {
+                    const group = comboAssignment.get(h)!;
+                    // Assign to the smallest group to keep balanced, but don't exceed maxSessionSize
+                    if (group.length < assumptions.maxSessionSize && group.length < minGroupSize) {
+                        minGroupSize = group.length;
+                        bestH = h;
+                    }
+                }
+
+                if (bestH !== -1) {
+                    comboAssignment.get(bestH)!.push(s);
+                    currentCoverage++;
+                }
+            }
+
+            // Validate MIN constraint
+            let isValid = true;
+            for (const h of combo) {
+                if (comboAssignment.get(h)!.length < effectiveMinSessionSize) {
+                    isValid = false;
+                    break;
+                }
+            }
+
+            if (isValid) {
+                // If same coverage, prefer the one with FEWER sessions.
+                // If same coverage and same sessions, could tie-break by better min-max balance, but first is fine.
+                if (currentCoverage > bestCoverage || (currentCoverage === bestCoverage && combo.length < bestCombo.length)) {
+                    bestCoverage = currentCoverage;
+                    bestCombo = combo;
+                    bestAssignment = new Map();
+                    combo.forEach(h => bestAssignment.set(h, [...comboAssignment.get(h)!]));
+                }
+            }
+        }
+
+        // 4. Apply best assignment
+        if (bestCombo.length > 0) {
+            const coveredIds = new Set<number>();
+            let sessionIndex = 1;
+
+            // Sort hours early to later so Session 1 is earlier than Session 2, etc.
+            const sortedBestHours = [...bestCombo].sort((a, b) => a - b);
+
+            for (const h of sortedBestHours) {
+                const assigned = bestAssignment.get(h)!;
+                assigned.forEach(s => {
+                    s.Schedule = `${sa} Session ${sessionIndex} (${h}:00 UTC)`;
+                    coveredIds.add(s._originalIndex ?? -1);
+                });
+                sessionIndex++;
+            }
+
+            // All non-covered students become outliers
+            unassignedStudents.forEach(s => {
+                if (!coveredIds.has(s._originalIndex ?? -1)) {
+                    s.Schedule = 'Outlier-Schedule';
+                }
+            });
+        } else {
+            // No valid combination found
+            unassignedStudents.forEach(s => {
+                s.Schedule = 'Outlier-Schedule';
+            });
+        }
+    });
+
+    // Paso D: VAT Formation
+    let vatCounter = 1;
+
+    const bySchedule = records.reduce((acc, r) => {
+        if (r.Schedule === 'Outlier-Schedule' || !r.Schedule) return acc;
+        const key = r.Schedule;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(r);
+        return acc;
+    }, {} as Record<string, StudentRecord[]>);
+
+    Object.entries(bySchedule).forEach(([, students]) => {
+        const remaining = [...students];
+        const formedVatsForSchedule: StudentRecord[][] = [];
+
+        const tryFormVat = (size: number): boolean => {
+            if (remaining.length < size) return false;
+
+            const vat: StudentRecord[] = [];
+
+            const tryPick = (matchers: string[]) => {
+                const idx = remaining.findIndex(r => {
+                    const spec = (r['(AA) Secondary Specialization'] || '').toLowerCase();
+                    const rOffset = typeof r._utcOffset === 'number' ? r._utcOffset : 0;
+
+                    // Check timezone constraint against existing VAT members
+                    if (vat.length > 0) {
+                        const offsets = vat.map(v => typeof v._utcOffset === 'number' ? v._utcOffset : 0);
+                        const minOffset = Math.min(...offsets, rOffset);
+                        const maxOffset = Math.max(...offsets, rOffset);
+
+                        // Because timezone differences wrap around (e.g. UTC+12 and UTC-11 are 1 hour apart, not 23),
+                        // we need to calculate the shortest distance on the 24-hour clock.
+                        let distance = maxOffset - minOffset;
+                        if (distance > 12) {
+                            distance = 24 - distance;
+                        }
+
+                        if (distance > assumptions.maxTimezoneDifference) {
+                            return false; // Candidate violates timezone constraint
+                        }
+                    }
+
+                    if (matchers.includes('')) return true;
+                    return matchers.some(m => {
+                        if (m === 'sa') return spec === 'sa' || spec.includes(' sa ') || spec.startsWith('sa ') || spec.endsWith(' sa') || spec.includes('solution advisor');
+                        return spec.includes(m.toLowerCase());
+                    });
+                });
+                if (idx !== -1) {
+                    vat.push(remaining.splice(idx, 1)[0]);
+                    return true;
+                }
+                return false;
+            };
+
+            if (assumptions.allowSingleRoleVat) {
+                // If single roles are allowed, just grab the first available delegates without enforcing different roles.
+                // We attempt to pull exactly 'size' members iteratively
+                for (let i = 0; i < size; i++) {
+                    tryPick(['']);
+                }
+            } else {
+                // Original standard flow: Force diversity (CSM -> SA/Advisory -> Sales)
+                if (!tryPick(['csm'])) { tryPick(['']); }
+                if (!tryPick(['advisory', 'sa'])) { tryPick(['']); }
+                if (!tryPick(['sales'])) { tryPick(['']); }
+            }
+
+            let madeProgress = true;
+            while (vat.length < size && remaining.length > 0 && madeProgress) {
+                madeProgress = tryPick(['']);
+            }
+
+            if (vat.length < size) {
+                remaining.push(...vat);
+                return false;
+            }
+
+            const sa = vat[0]['Solution Week SA'];
+            const vatName = `VAT ${vatCounter}-${sa}`;
+
+            vat.forEach(v => {
+                v.VAT = vatName;
+                if (size !== 3) {
+                    (v as any)._isDiscrepancy = true;
+                    (v as any)._discrepancyReason = `VAT Size ${size}`;
+                }
+            });
+            formedVatsForSchedule.push(vat);
+            vatCounter++;
+            return true;
+        };
+
+        let formed = false;
+        do {
+            formed = false;
+            if (assumptions.allowedVATSizes.includes(3) && remaining.length >= 3) {
+                if (remaining.length === 4 && assumptions.allowedVATSizes.includes(4)) {
+                    formed = tryFormVat(4);
+                    continue;
+                }
+                if (remaining.length === 5 && assumptions.allowedVATSizes.includes(2) && assumptions.allowedVATSizes.includes(3)) {
+                    formed = tryFormVat(3);
+                    continue;
+                }
+                if (remaining.length === 2 && assumptions.allowedVATSizes.includes(2)) {
+                    formed = tryFormVat(2);
+                    continue;
+                }
+                formed = tryFormVat(3);
+            } else if (assumptions.allowedVATSizes.includes(4) && remaining.length >= 4) {
+                formed = tryFormVat(4);
+            } else if (assumptions.allowedVATSizes.includes(2) && remaining.length >= 2) {
+                formed = tryFormVat(2);
+            }
+        } while (formed);
+
+        // --- SECOND PASS: ORPHAN ABSORPTION ---
+        // If there are leftovers, try to append them to existing VATs in this schedule,
+        // up to the maximum allowed VAT size, respecting timezone limits.
+        const maxAllowedSize = Math.max(...assumptions.allowedVATSizes);
+        if (remaining.length > 0 && formedVatsForSchedule.length > 0) {
+            for (let i = remaining.length - 1; i >= 0; i--) {
+                const r = remaining[i];
+                const rOffset = typeof r._utcOffset === 'number' ? r._utcOffset : 0;
+
+                const suitableVat = formedVatsForSchedule.find(vat => {
+                    // Check if adding one more exceeds allowed sizes
+                    if (vat.length >= maxAllowedSize) return false;
+                    if (!assumptions.allowedVATSizes.includes(vat.length + 1)) return false;
+
+                    // Check timezone constraint against ALL existing VAT members
+                    const offsets = vat.map(v => typeof v._utcOffset === 'number' ? v._utcOffset : 0);
+                    const minOffset = Math.min(...offsets, rOffset);
+                    const maxOffset = Math.max(...offsets, rOffset);
+
+                    let distance = maxOffset - minOffset;
+                    if (distance > 12) {
+                        distance = 24 - distance;
+                    }
+
+                    return distance <= assumptions.maxTimezoneDifference;
+                });
+
+                if (suitableVat) {
+                    suitableVat.push(r);
+                    r.VAT = suitableVat[0].VAT; // Copy exact VAT name
+
+                    // Update discrepancy flags for the entire transformed VAT
+                    suitableVat.forEach(v => {
+                        if (suitableVat.length !== 3) {
+                            (v as any)._isDiscrepancy = true;
+                            (v as any)._discrepancyReason = `VAT Size ${suitableVat.length}`;
+                        } else {
+                            (v as any)._isDiscrepancy = false;
+                            (v as any)._discrepancyReason = undefined;
+                        }
+                    });
+
+                    remaining.splice(i, 1);
+                }
+            }
+        }
+
+        remaining.forEach(r => {
+            r.VAT = 'Outlier-Size';
+        });
+    });
+
+    return {
+        records,
+        metrics: calculateMetrics(records),
+        config: {
+            startHour,
+            endHour,
+            assumptions,
+            rules,
+            fsDistributions,
+            aeDistributions
+        }
+    };
+};
+
+export const calculateMetrics = (records: StudentRecord[]) => {
+    let outliersScheduleCount = 0;
+    let outliersVatSizeCount = 0;
+    let outliersDupeRoleCount = 0;
+    let perfectVats = 0;
+    let imperfectVats = 0;
+
+    const byVAT: Record<string, StudentRecord[]> = {};
+
+    records.forEach(r => {
+        if (r.Schedule === 'Outlier-Schedule') {
+            outliersScheduleCount++;
+        }
+        if (r.VAT === 'Outlier-Size') {
+            outliersVatSizeCount++;
+        }
+
+        if (r.VAT && r.VAT !== 'Outlier-Size' && r.VAT !== 'Unassigned') {
+            if (!byVAT[r.VAT]) byVAT[r.VAT] = [];
+            byVAT[r.VAT].push(r);
+        }
+    });
+
+    Object.values(byVAT).forEach(vat => {
+        const progsInVat = new Set(vat.map(v => v['(AA) Secondary Specialization']));
+        if (vat.length === 3 && progsInVat.size === 3) {
+            perfectVats++;
+        } else {
+            imperfectVats++;
+            if (vat.length === 3) outliersDupeRoleCount++;
+        }
+    });
+
+    const assignedSuccess = records.filter(r => r.Schedule && r.Schedule !== 'Outlier-Schedule').length;
+
+    return {
+        totalStudents: records.length,
+        assignedSuccess,
+        outliersTotal: outliersScheduleCount + outliersVatSizeCount + outliersDupeRoleCount,
+        outliersSchedule: outliersScheduleCount,
+        outliersVatSize: outliersVatSizeCount,
+        outliersDupeRole: outliersDupeRoleCount,
+        perfectVats,
+        imperfectVats
+    };
+};

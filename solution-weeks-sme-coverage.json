@@ -1,0 +1,329 @@
+{
+  "solution_weeks_sme_coverage": [
+    {
+      "name": "Pranav",
+      "lob": "oCFO",
+      "office_location": "MEE - Germany",
+      "overview": true,
+      "process_mapping": true,
+      "industry_relevance": false,
+      "ai_strategy": false,
+      "competitive_defense": true,
+      "adoption_risk": true
+    },
+    {
+      "name": "Brennan",
+      "lob": "oCFO",
+      "office_location": "AMER - US",
+      "overview": true,
+      "process_mapping": false,
+      "industry_relevance": false,
+      "ai_strategy": false,
+      "competitive_defense": false,
+      "adoption_risk": false
+    },
+    {
+      "name": "Kezia",
+      "lob": "oCFO",
+      "office_location": "APAC - Indonesia",
+      "overview": false,
+      "process_mapping": true,
+      "industry_relevance": false,
+      "ai_strategy": false,
+      "competitive_defense": false,
+      "adoption_risk": false
+    },
+    {
+      "name": "Vic Tung",
+      "lob": "Cloud ERP",
+      "office_location": "AMER - Canada",
+      "overview": false,
+      "process_mapping": true,
+      "industry_relevance": false,
+      "ai_strategy": false,
+      "competitive_defense": false,
+      "adoption_risk": true
+    },
+    {
+      "name": "Yannick Laible",
+      "lob": "Cloud ERP",
+      "office_location": "MEE - Germany",
+      "overview": true,
+      "process_mapping": false,
+      "industry_relevance": false,
+      "ai_strategy": false,
+      "competitive_defense": false,
+      "adoption_risk": false
+    },
+    {
+      "name": "Tiffany Lai",
+      "lob": "Cloud ERP",
+      "office_location": "AMER - Canada",
+      "overview": false,
+      "process_mapping": false,
+      "industry_relevance": false,
+      "ai_strategy": true,
+      "competitive_defense": false,
+      "adoption_risk": true
+    },
+    {
+      "name": "Jonas Germann",
+      "lob": "Business Transformation Management (BTM)",
+      "office_location": "MEE - Germany",
+      "overview": true,
+      "process_mapping": true,
+      "industry_relevance": false,
+      "ai_strategy": true,
+      "competitive_defense": false,
+      "adoption_risk": false
+    },
+    {
+      "name": "Sourajit",
+      "lob": "BTM",
+      "office_location": "APAC - India",
+      "overview": true,
+      "process_mapping": true,
+      "industry_relevance": false,
+      "ai_strategy": true,
+      "competitive_defense": false,
+      "adoption_risk": false
+    },
+    {
+      "name": "Simon Eckert",
+      "lob": "BTM",
+      "office_location": "MEE - Germany (A2.13)",
+      "overview": false,
+      "process_mapping": false,
+      "industry_relevance": false,
+      "ai_strategy": true,
+      "competitive_defense": false,
+      "adoption_risk": false,
+      "email": "simon.eckert@sap.com"
+    },
+    {
+      "name": "Ahsan Ghazanfar",
+      "lob": "BTM",
+      "office_location": "AMER - Canada",
+      "overview": true,
+      "process_mapping": true,
+      "industry_relevance": true,
+      "ai_strategy": false,
+      "competitive_defense": false,
+      "adoption_risk": false
+    },
+    {
+      "name": "Remi",
+      "lob": "Cloud ERP",
+      "office_location": "MEE - Switzerland",
+      "overview": true,
+      "process_mapping": true,
+      "industry_relevance": true,
+      "ai_strategy": true,
+      "competitive_defense": true,
+      "adoption_risk": true
+    },
+    {
+      "name": "Victoria del Barrio",
+      "lob": "Data & AI",
+      "office_location": "EMEA - Spain",
+      "overview": true,
+      "process_mapping": false,
+      "industry_relevance": false,
+      "ai_strategy": true,
+      "competitive_defense": false,
+      "adoption_risk": false
+    },
+    {
+      "name": "Alfonso Giordano",
+      "lob": "Data & AI",
+      "office_location": "EMEA - Italy",
+      "overview": true,
+      "process_mapping": false,
+      "industry_relevance": true,
+      "ai_strategy": true,
+      "competitive_defense": false,
+      "adoption_risk": false,
+      "open_to_additional_sessions": true,
+      "notes": [
+        "Primary focus: Utilities industry",
+        "Prefers not to be overloaded but open to helping if gaps appear"
+      ]
+    },
+    {
+      "name": "Clara",
+      "lob": "CX",
+      "office_location": "Global - Italy",
+      "overview": true,
+      "process_mapping": true,
+      "industry_relevance": false,
+      "ai_strategy": false,
+      "competitive_defense": false,
+      "adoption_risk": false
+    },
+    {
+      "name": "Berenice Grimaldo",
+      "lob": "CX",
+      "office_location": "AMER - Mexico",
+      "overview": true,
+      "process_mapping": true,
+      "industry_relevance": false,
+      "ai_strategy": false,
+      "competitive_defense": true,
+      "adoption_risk": false
+    },
+    {
+      "name": "Johannes",
+      "lob": "SCM",
+      "office_location": "MEE - Switzerland",
+      "overview": true,
+      "process_mapping": true,
+      "industry_relevance": false,
+      "ai_strategy": false,
+      "competitive_defense": false,
+      "adoption_risk": false
+    },
+    {
+      "name": "Lacey Barton",
+      "lob": "Supply Chain Management (SCM)",
+      "office_location": "AMER - US",
+      "overview": true,
+      "process_mapping": true,
+      "industry_relevance": false,
+      "ai_strategy": false,
+      "competitive_defense": false,
+      "adoption_risk": true
+    },
+    {
+      "name": "Hao",
+      "lob": "Supply Chain Management (SCM)",
+      "office_location": "AMER - Canada",
+      "overview": false,
+      "process_mapping": false,
+      "industry_relevance": false,
+      "ai_strategy": false,
+      "competitive_defense": false,
+      "adoption_risk": true
+    },
+    {
+      "name": "Kristina Pedersen",
+      "lob": "Supply Chain Management (SCM)",
+      "office_location": "EMEA - Denmark",
+      "overview": false,
+      "process_mapping": false,
+      "industry_relevance": true,
+      "ai_strategy": false,
+      "competitive_defense": false,
+      "adoption_risk": true
+    },
+    {
+      "name": "Reilly",
+      "lob": "Business Technology Platform (BTP)",
+      "office_location": "AMER - US",
+      "overview": true,
+      "process_mapping": true,
+      "industry_relevance": false,
+      "ai_strategy": false,
+      "competitive_defense": false,
+      "adoption_risk": true
+    },
+    {
+      "name": "Em Kinsler",
+      "lob": "Business Technology Platform (BTP)",
+      "office_location": "AMER - US",
+      "overview": true,
+      "process_mapping": true,
+      "industry_relevance": false,
+      "ai_strategy": false,
+      "competitive_defense": true,
+      "adoption_risk": false,
+      "open_to_additional_sessions": true,
+      "additional_topics_offered": [
+        "LoB AE / IAE collaboration",
+        "Deal lifecycle management",
+        "Sales best practices",
+        "Story of a deal"
+      ],
+      "suggested_session_mapping": [
+        {
+          "session": "Roles & Account Dynamics",
+          "date": "2026-04-14",
+          "topic_focus": "LoB AE / IAE collaboration"
+        },
+        {
+          "session": "Adoption & Risk",
+          "date": "2026-04-23",
+          "topic_focus": "Deal lifecycle management / Sales best practices / Story of a deal"
+        }
+      ],
+      "availability_notes": [
+        "Can come on-site during SR2",
+        "Cannot travel to San Ramon during SR1"
+      ]
+    },
+    {
+      "name": "Vanessa Birkholz",
+      "lob": "Human Capital Management (HCM)",
+      "office_location": "MEE - Germany",
+      "overview": true,
+      "process_mapping": false,
+      "industry_relevance": false,
+      "ai_strategy": true,
+      "competitive_defense": false,
+      "adoption_risk": false
+    },
+    {
+      "name": "Zainab Zaheer",
+      "lob": "Human Capital Management (HCM)",
+      "office_location": "AMER - Canada",
+      "overview": false,
+      "process_mapping": false,
+      "industry_relevance": true,
+      "ai_strategy": true,
+      "competitive_defense": false,
+      "adoption_risk": true
+    },
+    {
+      "name": "Leonie Hassler",
+      "lob": "Human Capital Management (HCM)",
+      "office_location": "EMEA - France",
+      "overview": false,
+      "process_mapping": false,
+      "industry_relevance": false,
+      "ai_strategy": false,
+      "competitive_defense": false,
+      "adoption_risk": false,
+      "solution_weeks_participation": "declined",
+      "future_support": [
+        "HCM demo sessions",
+        "targeted solution walkthroughs"
+      ]
+    },
+    {
+      "name": "Peyton Lis",
+      "lob": "Human Capital Management (HCM)",
+      "office_location": "AMER - US",
+      "overview": true,
+      "process_mapping": false,
+      "industry_relevance": true,
+      "ai_strategy": true,
+      "competitive_defense": false,
+      "adoption_risk": true
+    },
+    {
+      "name": "Joost van der Zalm",
+      "lob": "Business Technology Platform (BTP)",
+      "office_location": "Netherlands",
+      "overview": true,
+      "process_mapping": true,
+      "industry_relevance": false,
+      "ai_strategy": false,
+      "competitive_defense": false,
+      "adoption_risk": false,
+      "open_to_additional_sessions": true,
+      "notes": [
+        "Comfortable leading both Week 1 sessions",
+        "Open to supporting Week 2 topics with Faculty guidance"
+      ]
+    }
+  ]
+}

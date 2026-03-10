@@ -1,0 +1,59 @@
+# Especificación Técnica para Google Antigravity: SAP Associate Enablement Scheduler
+
+**Objetivo de la Aplicación:**
+Desarrollar una aplicación web interactiva tipo "What-If" para automatizar la asignación de Especializaciones (Solution Area), Horarios (Schedule) y Equipos Virtuales (VAT) de un grupo global de asociados (estudiantes) de SAP. 
+
+---
+### 1. MODELO DE DATOS Y RESTRICCIONES (INPUT)
+- **Entrada:** Archivo Excel con las columnas: `Full Name`, `First Name`, `Last Name`, `Program` (CSM, Sales, Solution Advisory), `Region`, `Country`, `Office`, `Role`, y `Solution Weeks SA`.
+- **Regla de Inmutabilidad:** Todos los datos importados son de LECTURA OBLIGATORIA e inalterables, **con una única excepción**: La columna `Solution Weeks SA` solo puede ser modificada por la aplicación para aquellos estudiantes donde la columna `Role` contenga las palabras "IAE" o "Account Executive" (búsqueda parcial/insensible a mayúsculas). Para los demás perfiles (HCM, SCM, BTP, etc.), el campo original de `Solution Weeks SA` está estrictamente bloqueado.
+
+---
+### 2. INTERFAZ DE USUARIO (UI/UX)
+La aplicación constará de 4 secciones principales:
+1. **Configurador de Horario Laboral:** Un *slider* o selector de rango horario local (por defecto 08:00 a 20:00). Este valor determina qué franja de conexión es aceptable en el reloj local de cada estudiante.
+2. **Motor de Reglas (Rule Builder):** - Interfaz con menús desplegables condicionales (`IF` [Columna] `=` [Valor] `THEN` `Solution Weeks SA` `=` [Especialización]).
+   - Sistema de Autocompletado (Autofill) con los valores únicos detectados en el archivo original.
+   - Las reglas solo se aplicarán a los perfiles permitidos (IAEs).
+3. **Distribuidor Aleatorio (%):** Panel para repartir porcentajes entre las áreas (ej. 30% BTP, 70% Cloud ERP) aplicable **exclusivamente** a los IAEs que no fueron asignados por ninguna regla manual previa. La interfaz debe validar obligatoriamente que la suma exacta sea 100%; de lo contrario, el botón de "Calcular" permanecerá deshabilitado.
+4. **Dashboard de Resultados y Descarga:**
+   - KPIs Visuales: Total Estudiantes, Asignados con Éxito, Total Outliers (con desglose), VATs perfectos vs. VATs con duplicados.
+   - Panel Interactivo de Outliers (Drill-down): Clicar en un KPI de error filtrará una tabla debajo mostrando los estudiantes afectados.
+   - Botón final de "Descargar Resultados" (Excel).
+
+---
+### 3. MOTOR DE LÓGICA Y ALGORITMOS (BACKEND FLOW)
+
+**Paso A: Conversión de Zonas Horarias**
+- La app debe cruzar las columnas `Country` y `Office` para asignar a cada registro un "Offset UTC".
+- Calcular las "Ventanas Globales" disponibles respetando estrictamente el Rango Horario Local configurado en la UI (ej. que las 15:00 UTC caigan entre las 08:00 y las 20:00 de cada alumno).
+
+**Paso B: Asignación de Especializaciones (IAEs)**
+1. Ejecutar las **Reglas Manuales** definidas por el usuario.
+2. Aplicar la **Jerarquía de SAP (Secondary Specialization)**: Si un perfil pertenece a F&S/IAE, las áreas objetivo permitidas a evaluar para equilibrar sesiones serán: *Cloud ERP*, *Procurement*, u *oCFO*.
+3. Ejecutar el **Reparto Aleatorio (%)** sobre el remanente de IAEs "en blanco".
+
+**Paso C: Algoritmo de Equilibrio de Sesiones (Schedule)**
+- Agrupar a todos los estudiantes por su `Solution Weeks SA` final.
+- Crear sesiones superponiendo horarios comunes (ej. NY/Berlín/Singapur).
+- **Regla de Umbral:** Mínimo absoluto de 10 personas por sesión.
+- **Regla de Oro (Paridad):** Entre dos configuraciones válidas, el algoritmo SIEMPRE debe priorizar sesiones con tamaños similares (ej. preferir dos grupos de 20/20 en lugar de uno de 10/30). En caso de conflicto, la app tiene permitido reubicar a un IAE dentro de sus opciones de jerarquía (F&S -> Cloud ERP, etc.) para forzar este equilibrio.
+
+**Paso D: Formación de Equipos Virtuales (VAT)**
+- Agrupar exclusivamente a estudiantes que compartan la MISMA `Solution Weeks SA` y el MISMO `Schedule` (sesión).
+- Formar equipos (VAT) de exactamente 3 personas.
+- Maximizar la diversidad de la columna `Program`: Idealmente 1 CSM, 1 Solution Advisory y 1 Sales por equipo.
+- Nombrar los equipos secuencialmente: "VAT [Número]-[Solution Area]".
+
+---
+### 4. MANEJO DE EXCEPCIONES Y OUTLIERS
+La app NUNCA descartará registros silenciosamente. Generará "Alertas de Outlier" para los siguientes escenarios:
+- **Outliers por Horario:** Estudiantes que, con la restricción de horario local elegida, no logran coincidir con al menos 9 compañeros de su misma especialidad (sesiones fallidas de < 10).
+- **Outliers por Tamaño de VAT:** Equipos residuales de 1 o 2 personas.
+- **Outliers por Duplicado de Rol:** Equipos de 3 personas que, por restricciones demográficas (ej. un exceso masivo de IAEs/Sales en Cloud ERP), incluyan perfiles repetidos en la columna `Program`. Estos se marcarán como "Avisos" pero se mantendrán en el Excel final.
+
+---
+### 5. SALIDA DE DATOS
+La app generará y permitirá la descarga del Excel original, añadiendo dos nuevas columnas al final:
+1. `Schedule` (Ej. "BTP-1: 11:00 NY / 17:00 Berlín").
+2. `VAT` (Ej. "VAT 1-BTP").

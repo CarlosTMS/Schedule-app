@@ -1,0 +1,79 @@
+{
+    "faculty_locations": [
+        {
+            "Faculty Name": "David Uichanco",
+            "City Location": "San Francisco",
+            "Country Location": "USA"
+        },
+        {
+            "Faculty Name": "Sandra Bissels",
+            "City Location": "Amsterdam",
+            "Country Location": "Nederlands"
+        },
+        {
+            "Faculty Name": "Carlos Moreno",
+            "City Location": "Frankfurt",
+            "Country Location": "Germany"
+        },
+        {
+            "Faculty Name": "Amy Hawkins",
+            "City Location": "Perth",
+            "Country Location": "Australia"
+        },
+        {
+            "Faculty Name": "Nelly Rebollo",
+            "City Location": "Mexico DF",
+            "Country Location": "Mexico"
+        },
+        {
+            "Faculty Name": "Jessica Zhang",
+            "City Location": "San Francisco",
+            "Country Location": "USA"
+        },
+        {
+            "Faculty Name": "Godfrey Leung",
+            "City Location": "San Francisco",
+            "Country Location": "USA"
+        },
+        {
+            "Faculty Name": "Daron Smith",
+            "City Location": "San Francisco",
+            "Country Location": "USA"
+        },
+        {
+            "Faculty Name": "Rissa Colayco",
+            "City Location": "Manila",
+            "Country Location": "Philipines"
+        },
+        {
+            "Faculty Name": "Maggie Ramaiah",
+            "City Location": "San Francisco",
+            "Country Location": "USA"
+        },
+        {
+            "Faculty Name": "Ivan Aguilar",
+            "City Location": "Chicago",
+            "Country Location": "USA"
+        },
+        {
+            "Faculty Name": "Fernando Sanchez",
+            "City Location": "San Francisco",
+            "Country Location": "USA"
+        },
+        {
+            "Faculty Name": "Hanna Aalen",
+            "City Location": "Oslo",
+            "Country Location": "Noruega"
+        },
+        {
+            "Faculty Name": "Juan Gonzalez",
+            "City Location": "Madrid",
+            "Country Location": "Spain"
+        },
+        {
+            "Faculty Name": "Pau Pujol",
+            "City Location": "Barcelona",
+            "Country Location": "Spain"
+        }
+    ]
+}
