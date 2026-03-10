@@ -44,16 +44,16 @@ function App() {
     maxSessionsPerDay: 2,
     allowedVATSizes: [3, 4],
     sessionLength: 90,
-    maxTimezoneDifference: 4,
+    maxTimezoneDifference: 5,
     allowSingleRoleVat: false
   });
 
   const [rules, setRules] = useState<AllocationRule[]>([]);
 
   const [fsDistributions, setFsDistributions] = useState<DistributionTarget[]>([
-    { sa: 'Cloud ERP', percentage: 20 },
-    { sa: 'Procurement', percentage: 60 },
-    { sa: 'oCFO', percentage: 20 },
+    { sa: 'Cloud ERP', percentage: 50 },
+    { sa: 'Procurement', percentage: 0 },
+    { sa: 'oCFO', percentage: 50 },
   ]);
 
   const [aeDistributions, setAeDistributions] = useState<DistributionTarget[]>([
