@@ -56,7 +56,7 @@ export function FacultySchedule({
     // Use lifted manual assignments if they exist for this SA; otherwise fallback to auto-assignments.
     const currentAssignments = allAssignments[selectedSA] || {};
 
-    const getConflict = (facultyName: string, targetSchedule: string, targetSA: string, targetSessionId: string): string | null => {
+    const getConflict = (facultyName: string, targetSchedule: string, targetSA: string): string | null => {
         const targetUtcHour = getEffectiveScheduleUtcHour(targetSchedule, sessionTimeOverrides);
         
         for (const sa of Object.keys(allAssignments)) {
@@ -67,7 +67,8 @@ export function FacultySchedule({
                 
                 const sessionAssignments = saAssignments[schedule];
                 for (const sessionId of Object.keys(sessionAssignments)) {
-                    if (sa === targetSA && sessionId === targetSessionId) continue;
+                    // Only flag conflicts if they occur in a DIFFERENT Solution Area
+                    if (sa === targetSA) continue;
                     
                     const assigned = sessionAssignments[sessionId as SessionId];
                     if (assigned && assigned.name === facultyName) {
@@ -163,7 +164,7 @@ export function FacultySchedule({
                                     if (localHour < effectiveFacultyStartHour || localHour >= endHour) {
                                         isOutOfHours = true;
                                     }
-                                    conflictDetails = getConflict(assignedFaculty.name, schedule, selectedSA, session.id);
+                                    conflictDetails = getConflict(assignedFaculty.name, schedule, selectedSA);
                                 }
 
                                 return (
