@@ -9,6 +9,7 @@ Scheduling and assignment web app for Solution Weeks, built with React + TypeScr
 - Summary tab with exports (Excel/CSV/JSON) and publish endpoint for summary snapshots.
 - Bilingual UI (English/Spanish).
 - Autosave for run edits and configuration.
+- Collapsible left sidebar with persisted state across refreshes.
 - Hybrid run history persistence:
   - Browser local mirror (`localStorage`).
   - Runtime in-memory API on server (`/api/runtime/*`).
@@ -107,3 +108,4 @@ The script:
 
 - Runtime history storage is in-memory by design and resets on process restart.
 - For consistent runtime state, use a single CF instance unless a shared external store is introduced.
+- Sidebar collapse state is stored in browser `localStorage` using key `scheduler_sidebar_collapsed_v1`.

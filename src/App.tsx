@@ -18,13 +18,14 @@ import { type RunProject, type RunVersion, type RunSnapshot, persistDraft, readD
 import type { SmeAssignments } from './components/SMESchedule';
 import type { FacultyAssignments } from './components/FacultySchedule';
 import { useI18n } from './i18n';
-import { Globe, Clock, Trash2, RotateCcw, Pencil, CheckCircle2, Plus, History, Save, Copy, Loader2, ShieldAlert } from 'lucide-react';
+import { Globe, Clock, Trash2, RotateCcw, Pencil, CheckCircle2, Plus, History, Save, Copy, Loader2, ShieldAlert, ChevronLeft, ChevronRight } from 'lucide-react';
 
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 function App() {
   const { t, lang, toggleLang } = useI18n();
+  const SIDEBAR_COLLAPSED_KEY = 'scheduler_sidebar_collapsed_v1';
 
   // ── Core data state (Current Working Draft) ────────────────────────────────
   const [records, setRecords] = useState<StudentRecord[]>([]);
@@ -70,6 +71,13 @@ function App() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [projectVersions, setProjectVersions] = useState<RunVersion[]>([]);
   const [loadedVersionId, setLoadedVersionId] = useState<string | null>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const [autosaveStatus, setAutosaveStatus] = useState<SyncStatus>('idle');
 
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -80,6 +88,13 @@ function App() {
   // Sync refs with state
   useEffect(() => { projectsRef.current = projects; }, [projects]);
   useEffect(() => { errorRef.current = error; }, [error]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, isSidebarCollapsed ? '1' : '0');
+    } catch {
+      // Ignore storage write errors.
+    }
+  }, [isSidebarCollapsed, SIDEBAR_COLLAPSED_KEY]);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -313,59 +328,74 @@ function App() {
 
   return (
     <div className="app-container">
-      <aside className="sidebar">
+      <aside className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <Globe className="logo-icon" size={24} />
-            <h1 className="logo-text">Antigravity</h1>
+            {!isSidebarCollapsed && <h1 className="logo-text">Antigravity</h1>}
           </div>
-          <button onClick={toggleLang} className="btn-lang">{lang === 'en' ? 'ES' : 'EN'}</button>
+          <div className="sidebar-header-actions">
+            {!isSidebarCollapsed && (
+              <button onClick={toggleLang} className="btn-lang">{lang === 'en' ? 'ES' : 'EN'}</button>
+            )}
+            <button
+              onClick={() => setIsSidebarCollapsed(prev => !prev)}
+              className="btn-subtle sidebar-toggle-btn"
+              title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            </button>
+          </div>
         </div>
 
-        <nav className="sidebar-nav">
-          <div className="nav-group">
-            <div className="nav-group-header">
-              <span>{t('projectsTitle')}</span>
-              <button onClick={() => { if (window.confirm('Clear current draft?')) { setRecords([]); setResult(null); setActiveProjectId(null); setProjectVersions([]); setLoadedVersionId(null); } }} className="btn-icon-alt" title={t('projectNew')}>
-                <Plus size={16} />
-              </button>
-            </div>
-            <div className="project-list">
-              {projects.length === 0 && <p className="empty-text">{t('historyEmpty')}</p>}
-              {projects.map(p => (
-                <div key={p.id} className={`project-item ${activeProjectId === p.id ? 'active' : ''}`} onClick={() => setActiveProjectId(p.id)}>
-                  <div className="project-info">
-                    <span className="project-name">{p.name}</span>
-                    <span className="project-date">{new Date(p.updatedAt).toLocaleDateString()}</span>
-                  </div>
-                  <div className="project-actions">
-                    <button onClick={(e) => { e.stopPropagation(); handleRenameProject(p.id); }} className="btn-subtle"><Pencil size={12} /></button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDeleteProject(p.id); }} className="btn-subtle danger"><Trash2 size={12} /></button>
+        {!isSidebarCollapsed && (
+          <>
+            <nav className="sidebar-nav">
+              <div className="nav-group">
+                <div className="nav-group-header">
+                  <span>{t('projectsTitle')}</span>
+                  <button onClick={() => { if (window.confirm('Clear current draft?')) { setRecords([]); setResult(null); setActiveProjectId(null); setProjectVersions([]); setLoadedVersionId(null); } }} className="btn-icon-alt" title={t('projectNew')}>
+                    <Plus size={16} />
+                  </button>
+                </div>
+                <div className="project-list">
+                  {projects.length === 0 && <p className="empty-text">{t('historyEmpty')}</p>}
+                  {projects.map(p => (
+                    <div key={p.id} className={`project-item ${activeProjectId === p.id ? 'active' : ''}`} onClick={() => setActiveProjectId(p.id)}>
+                      <div className="project-info">
+                        <span className="project-name">{p.name}</span>
+                        <span className="project-date">{new Date(p.updatedAt).toLocaleDateString()}</span>
+                      </div>
+                      <div className="project-actions">
+                        <button onClick={(e) => { e.stopPropagation(); handleRenameProject(p.id); }} className="btn-subtle"><Pencil size={12} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteProject(p.id); }} className="btn-subtle danger"><Trash2 size={12} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {activeProjectId && (
+                <div className="nav-group" style={{ marginTop: '1.5rem' }}>
+                  <div className="nav-group-header"><span>{t('versionsTitle')}</span><History size={16} /></div>
+                  <div className="version-list">
+                    {projectVersions.map(v => (
+                      <div key={v.id} className={`version-item ${loadedVersionId === v.id ? 'active' : ''}`} onClick={() => handleLoadVersion(v)}>
+                        <span className="version-num">v{v.versionNumber}</span>
+                        <span className="version-label">{v.label}</span>
+                        {loadedVersionId === v.id && <CheckCircle2 size={12} className="active-icon" />}
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-          {activeProjectId && (
-            <div className="nav-group" style={{ marginTop: '1.5rem' }}>
-              <div className="nav-group-header"><span>{t('versionsTitle')}</span><History size={16} /></div>
-              <div className="version-list">
-                {projectVersions.map(v => (
-                  <div key={v.id} className={`version-item ${loadedVersionId === v.id ? 'active' : ''}`} onClick={() => handleLoadVersion(v)}>
-                    <span className="version-num">v{v.versionNumber}</span>
-                    <span className="version-label">{v.label}</span>
-                    {loadedVersionId === v.id && <CheckCircle2 size={12} className="active-icon" />}
-                  </div>
-                ))}
+              )}
+            </nav>
+            <div className="sidebar-footer">
+              <div className={`sync-badge ${repository.runtimeAvailable ? 'online' : 'offline'}`}>
+                {repository.runtimeAvailable ? 'Runtime Online' : 'Runtime Offline'}
               </div>
             </div>
-          )}
-        </nav>
-        <div className="sidebar-footer">
-          <div className={`sync-badge ${repository.runtimeAvailable ? 'online' : 'offline'}`}>
-            {repository.runtimeAvailable ? 'Runtime Online' : 'Runtime Offline'}
-          </div>
-        </div>
+          </>
+        )}
       </aside>
 
       <main className="main-content">
@@ -464,10 +494,14 @@ function App() {
 
       <style>{`
         .app-container { display: flex; height: 100vh; overflow: hidden; background: #f8fafc; }
-        .sidebar { width: 280px; background: #fff; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; }
+        .sidebar { width: 280px; background: #fff; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; transition: width 0.2s ease; }
+        .sidebar.collapsed { width: 78px; }
         .sidebar-header { padding: 1.5rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+        .sidebar.collapsed .sidebar-header { padding: 1rem 0.75rem; }
+        .sidebar-header-actions { display: flex; align-items: center; gap: 0.5rem; }
         .logo-text { font-size: 1.25rem; font-weight: 800; color: #1e293b; letter-spacing: -0.025em; }
         .logo-icon { color: #3b82f6; }
+        .sidebar-toggle-btn { border: 1px solid #cbd5e1; color: #64748b; }
         .sidebar-nav { flex: 1; overflow-y: auto; padding: 1.5rem; }
         .nav-group-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; color: #64748b; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
         .project-list, .version-list { display: flex; flex-direction: column; gap: 0.25rem; }
