@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { StudentRecord } from '../lib/excelParser';
 import { useI18n } from '../i18n';
-import { Clock } from 'lucide-react';
+
 
 interface SessionBreakdownProps {
     records: StudentRecord[];
@@ -12,11 +12,7 @@ interface SessionBreakdownProps {
 
 // Extract the session key (without time part) from a full schedule string
 const extractScheduleKey = (scheduleName: string): string => {
-    const withoutTime = scheduleName.replace(/ \(\d+:00 UTC\)/, '').trim();
-    // Return just 'Session X' to apply globally across all SAs
-    const parts = withoutTime.split(' ');
-    if (parts.length >= 2) return parts.slice(-2).join(' ');
-    return withoutTime;
+    return scheduleName.replace(/ \(\d+:00 UTC\)/, '').trim();
 };
 
 // Extract UTC hour from a schedule string
@@ -94,19 +90,7 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
             .sort((a, b) => a.sa.localeCompare(b.sa));
     }, [records, sessionTimeOverrides]);
 
-    // Collect all unique session keys across all SAs to build the time editor
-    const uniqueSessionSlots = useMemo(() => {
-        const slots = new Map<string, number>(); // scheduleKey -> original UTC hour
-        data.forEach(row => {
-            row.sessions.forEach(session => {
-                const key = extractScheduleKey(session.name);
-                if (!slots.has(key)) {
-                    slots.set(key, extractUtcHour(session.name));
-                }
-            });
-        });
-        return Array.from(slots.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-    }, [data]);
+
 
     // Effective UTC hour for a session name (override or original)
     const getEffectiveUtcHour = (sessionName: string): number => {
@@ -127,78 +111,7 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
         <div className="glass-panel" style={{ marginTop: '2rem', overflowX: 'auto' }}>
             <h3 style={{ marginBottom: '1rem', marginTop: 0 }}>{t('sessionsBreakdownBySA') || 'Sessions Breakdown by Solution Area'}</h3>
 
-            {/* Session Time Editor */}
-            {uniqueSessionSlots.length > 0 && onSessionTimeChange && (
-                <div style={{
-                    marginBottom: '1.5rem',
-                    padding: '1rem 1.25rem',
-                    background: 'rgba(59, 130, 246, 0.05)',
-                    border: '1px solid rgba(59, 130, 246, 0.15)',
-                    borderRadius: '10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: '1.25rem'
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary-color)', fontWeight: 600, fontSize: '0.9rem' }}>
-                        <Clock size={16} />
-                        Adjust Session Start Times (UTC)
-                    </div>
-                    {uniqueSessionSlots.map(([key, originalHour]) => {
-                        const currentHour = key in sessionTimeOverrides ? sessionTimeOverrides[key] : originalHour;
-                        const isModified = key in sessionTimeOverrides && sessionTimeOverrides[key] !== originalHour;
-                        return (
-                            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <label style={{
-                                    fontSize: '0.85rem',
-                                    fontWeight: 500,
-                                    color: isModified ? 'var(--primary-color)' : 'var(--text-secondary)',
-                                    whiteSpace: 'nowrap'
-                                }}>
-                                    {key.split(' ').slice(-2).join(' ')}:
-                                    {isModified && <span style={{ fontSize: '0.75rem', marginLeft: '0.35rem', color: 'var(--primary-color)', fontWeight: 700 }}>✎</span>}
-                                </label>
-                                <input
-                                    type="time"
-                                    value={`${currentHour.toString().padStart(2, '0')}:00`}
-                                    onChange={(e) => {
-                                        const [h] = e.target.value.split(':').map(Number);
-                                        if (!isNaN(h)) onSessionTimeChange(key, h);
-                                    }}
-                                    style={{
-                                        padding: '0.35rem 0.5rem',
-                                        borderRadius: '6px',
-                                        border: isModified ? '1px solid var(--primary-color)' : '1px solid #cbd5e1',
-                                        background: isModified ? 'rgba(59, 130, 246, 0.08)' : '#fff',
-                                        fontSize: '0.9rem',
-                                        color: 'var(--text-primary)',
-                                        fontWeight: isModified ? 600 : 400,
-                                        cursor: 'pointer',
-                                        outline: 'none'
-                                    }}
-                                />
-                                {isModified && (
-                                    <button
-                                        onClick={() => onSessionTimeChange(key, originalHour)}
-                                        title="Reset to original"
-                                        style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            color: '#94a3b8',
-                                            padding: '0.2rem',
-                                            fontSize: '0.8rem',
-                                            borderRadius: '4px'
-                                        }}
-                                    >
-                                        ↺
-                                    </button>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
+
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.95rem' }}>
                 <thead>
                     <tr style={{ borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>

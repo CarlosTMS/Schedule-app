@@ -92,12 +92,8 @@ export const getKnownUtcOffset = (office: string | undefined): number => {
 };
 
 /** Extract a stable key from a schedule string (strips the time part). */
-export const extractScheduleKey = (scheduleStr: string): string => {
-    const withoutTime = scheduleStr.replace(/ \(\d+:00 UTC\)/, '').trim();
-    const parts = withoutTime.split(' ');
-    if (parts.length >= 2) return parts.slice(-2).join(' ');
-    return withoutTime;
-};
+export const extractScheduleKey = (scheduleStr: string): string =>
+    scheduleStr.replace(/ \(\d+:00 UTC\)/, '').trim();
 
 /**
  * Resolve the effective UTC hour for a schedule string, applying an override if one exists.
