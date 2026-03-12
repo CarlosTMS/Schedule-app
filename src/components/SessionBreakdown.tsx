@@ -12,7 +12,11 @@ interface SessionBreakdownProps {
 
 // Extract the session key (without time part) from a full schedule string
 const extractScheduleKey = (scheduleName: string): string => {
-    return scheduleName.replace(/ \(\d+:00 UTC\)/, '').trim();
+    const withoutTime = scheduleName.replace(/ \(\d+:00 UTC\)/, '').trim();
+    // Return just 'Session X' to apply globally across all SAs
+    const parts = withoutTime.split(' ');
+    if (parts.length >= 2) return parts.slice(-2).join(' ');
+    return withoutTime;
 };
 
 // Extract UTC hour from a schedule string
@@ -57,7 +61,9 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
                 sessions: Object.entries(info.sessions)
                     .map(([name, students]) => {
                         const match = name.match(/(\d+):00 UTC/);
-                        const utcHour = match ? parseInt(match[1]) : 0;
+                        const originalUtcHour = match ? parseInt(match[1]) : 0;
+                        const scheduleKey = extractScheduleKey(name);
+                        const utcHour = scheduleKey in sessionTimeOverrides ? sessionTimeOverrides[scheduleKey] : originalUtcHour;
 
                         // Per-localTime buckets: both a count map and full record arrays
                         const localTimeBuckets: Record<string, StudentRecord[]> = {};
@@ -86,7 +92,7 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
                     .sort((a, b) => a.name.localeCompare(b.name))
             }))
             .sort((a, b) => a.sa.localeCompare(b.sa));
-    }, [records]);
+    }, [records, sessionTimeOverrides]);
 
     // Collect all unique session keys across all SAs to build the time editor
     const uniqueSessionSlots = useMemo(() => {

@@ -3,7 +3,7 @@ import { Presentation, MapPin, UserCircle2, AlertCircle } from 'lucide-react';
 import { sessions, getEligibleFaculty, autoAssignFaculty } from '../lib/facultyMatcher';
 import type { Faculty, SessionId } from '../lib/facultyMatcher';
 import { useI18n } from '../i18n';
-import { getLocalTimeStr, getKnownUtcOffset, getEffectiveScheduleUtcHour } from '../lib/timezones';
+import { getLocalTimeStr, getKnownUtcOffset, getEffectiveScheduleUtcHour, formatEffectiveSchedule } from '../lib/timezones';
 
 // Shared assignment shape used by Dashboard, FacultySchedule, and Summary
 export type FacultyAssignments = Record<string, Record<string, Record<SessionId, Faculty | null>>>;
@@ -176,7 +176,7 @@ export function FacultySchedule({
                                         )}
                                         <td style={{ padding: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                                             <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                                {schedule.replace(`${selectedSA} `, '')}
+                                                {formatEffectiveSchedule(schedule, sessionTimeOverrides).replace(`${selectedSA} `, '')}
                                             </div>
                                             {assignedFaculty && (
                                                 <div style={{ fontSize: '0.8rem', marginTop: '0.2rem', color: isOutOfHours ? 'var(--danger-color)' : '#ce9600', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>

@@ -7,7 +7,7 @@ import { sessions, getEligibleSMEs, autoAssignSMEs } from '../lib/smeMatcher';
 import type { SME, SessionId } from '../lib/smeMatcher';
 import { getEligibleFaculty, autoAssignFaculty } from '../lib/facultyMatcher';
 import type { Faculty } from '../lib/facultyMatcher';
-import { getEffectiveScheduleUtcHour, getKnownUtcOffset } from '../lib/timezones';
+import { getEffectiveScheduleUtcHour, getKnownUtcOffset, formatEffectiveSchedule } from '../lib/timezones';
 import type { StudentRecord } from '../lib/excelParser';
 import type { SMECacheStatus } from '../lib/smeDataLoader';
 import type { SmeAssignments } from './SMESchedule';
@@ -233,7 +233,7 @@ export function Summary({
         config: { startHour, endHour },
         sessions: sessionRows.map(row => ({
             solution_area: row.sa,
-            schedule: row.schedule,
+            schedule: formatEffectiveSchedule(row.schedule, sessionTimeOverrides),
             session_topic: row.sessionDef.title,
             utc_hour: row.utcHour,
             attendees_count: row.attendees.length,
@@ -281,7 +281,7 @@ export function Summary({
         ];
         const rows = sessionRows.map(row => [
             row.sa,
-            row.schedule,
+            formatEffectiveSchedule(row.schedule, sessionTimeOverrides),
             row.sessionDef.title,
             row.utcHour,
             row.attendees.length,
@@ -314,7 +314,7 @@ export function Summary({
         ];
         const rows = sessionRows.map(row => [
             row.sa,
-            row.schedule,
+            formatEffectiveSchedule(row.schedule, sessionTimeOverrides),
             row.sessionDef.title,
             row.utcHour,
             row.attendees.length,
@@ -483,7 +483,7 @@ export function Summary({
                                             {/* Schedule */}
                                             <td style={tdStyle}>
                                                 <div style={{ fontWeight: 500, fontSize: '0.82rem' }}>
-                                                    {row.schedule.replace(`${row.sa} `, '')}
+                                                    {formatEffectiveSchedule(row.schedule, sessionTimeOverrides).replace(`${row.sa} `, '')}
                                                 </div>
                                             </td>
 

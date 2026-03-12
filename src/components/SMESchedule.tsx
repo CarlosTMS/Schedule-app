@@ -3,7 +3,7 @@ import { Users, MapPin, Building2, UserCircle2, AlertCircle, RefreshCw } from 'l
 import { sessions, getEligibleSMEs, autoAssignSMEs } from '../lib/smeMatcher';
 import type { SME, SessionId } from '../lib/smeMatcher';
 import type { SMECacheStatus } from '../lib/smeDataLoader';
-import { getLocalTimeStr, getKnownUtcOffset, getEffectiveScheduleUtcHour } from '../lib/timezones';
+import { getLocalTimeStr, getKnownUtcOffset, getEffectiveScheduleUtcHour, formatEffectiveSchedule } from '../lib/timezones';
 
 // Shared assignment shape used by Dashboard, SMESchedule, FacultySchedule, and Summary
 export type SmeAssignments = Record<string, Record<string, Record<SessionId, SME | null>>>;
@@ -174,7 +174,7 @@ export function SMESchedule({
                                         )}
                                         <td style={{ padding: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                                             <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                                {schedule.replace(`${selectedSA} `, '')}
+                                                {formatEffectiveSchedule(schedule, sessionTimeOverrides).replace(`${selectedSA} `, '')}
                                             </div>
                                             {assignedSME && (
                                                 <div style={{ fontSize: '0.8rem', marginTop: '0.2rem', color: isOutOfHours ? 'var(--danger-color)' : 'var(--primary-color)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>

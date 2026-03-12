@@ -92,8 +92,12 @@ export const getKnownUtcOffset = (office: string | undefined): number => {
 };
 
 /** Extract a stable key from a schedule string (strips the time part). */
-export const extractScheduleKey = (scheduleStr: string): string =>
-    scheduleStr.replace(/ \(\d+:00 UTC\)/, '').trim();
+export const extractScheduleKey = (scheduleStr: string): string => {
+    const withoutTime = scheduleStr.replace(/ \(\d+:00 UTC\)/, '').trim();
+    const parts = withoutTime.split(' ');
+    if (parts.length >= 2) return parts.slice(-2).join(' ');
+    return withoutTime;
+};
 
 /**
  * Resolve the effective UTC hour for a schedule string, applying an override if one exists.
@@ -108,6 +112,18 @@ export const getEffectiveScheduleUtcHour = (
     if (key in overrides) return overrides[key];
     const match = scheduleStr.match(/(\d+):00 UTC/);
     return match ? parseInt(match[1], 10) : 0;
+};
+
+/**
+ * Update the schedule string with the effective overridden UTC hour if one exists.
+ * e.g., "Cloud ERP Session 1 (08:00 UTC)" -> "Cloud ERP Session 1 (10:00 UTC)"
+ */
+export const formatEffectiveSchedule = (
+    scheduleStr: string,
+    overrides: Record<string, number> = {}
+): string => {
+    const effectiveHour = getEffectiveScheduleUtcHour(scheduleStr, overrides);
+    return scheduleStr.replace(/\(\d+:00 UTC\)/, `(${effectiveHour.toString().padStart(2, '0')}:00 UTC)`);
 };
 
 export const getLocalTimeStr = (
