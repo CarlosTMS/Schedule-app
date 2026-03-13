@@ -242,6 +242,27 @@ function App() {
     setLoadedVersionId(null);
   };
 
+  const handleDeleteVersion = async (version: RunVersion) => {
+    if (!activeProjectId) return;
+    if (!window.confirm(t('versionDeleteConfirm'))) return;
+
+    const ok = await repository.deleteVersion(activeProjectId, version.id);
+    if (!ok) {
+      setError(t('versionDeleteFailed'));
+      return;
+    }
+
+    const updatedVersions = await repository.getVersions(activeProjectId);
+    setProjectVersions(updatedVersions);
+
+    if (loadedVersionId === version.id) {
+      setLoadedVersionId(null);
+    }
+
+    const { projects: updatedProjs } = await repository.getSyncData();
+    setProjects(updatedProjs);
+  };
+
   const handleDeleteProject = async (id: string) => {
     if (!window.confirm(t('historyConfirmDelete'))) return;
     const ok = await repository.deleteProject(id);
@@ -377,15 +398,24 @@ function App() {
               {activeProjectId && (
                 <div className="nav-group" style={{ marginTop: '1.5rem' }}>
                   <div className="nav-group-header"><span>{t('versionsTitle')}</span><History size={16} /></div>
-                  <div className="version-list">
-                    {projectVersions.map(v => (
-                      <div key={v.id} className={`version-item ${loadedVersionId === v.id ? 'active' : ''}`} onClick={() => handleLoadVersion(v)}>
-                        <span className="version-num">v{v.versionNumber}</span>
-                        <span className="version-label">{v.label}</span>
+                <div className="version-list">
+                  {projectVersions.map(v => (
+                    <div key={v.id} className={`version-item ${loadedVersionId === v.id ? 'active' : ''}`} onClick={() => handleLoadVersion(v)}>
+                      <span className="version-num">v{v.versionNumber}</span>
+                      <span className="version-label">{v.label}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                         {loadedVersionId === v.id && <CheckCircle2 size={12} className="active-icon" />}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteVersion(v); }}
+                          className="btn-subtle danger"
+                          title={t('versionDelete')}
+                        >
+                          <Trash2 size={12} />
+                        </button>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
+                </div>
                 </div>
               )}
             </nav>

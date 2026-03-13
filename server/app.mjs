@@ -5,6 +5,7 @@
  * - Static frontend from /dist
  * - API endpoints:
  *   - GET/POST /api/public/summary
+ *   - GET/POST /api/public/vats
  *   - GET      /api/public/smes (proxy to upstream)
  *   - GET      /health
  */
@@ -19,6 +20,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '..');
 const DIST_DIR = path.join(ROOT_DIR, 'dist');
 const DATA_FILE = path.join(__dirname, 'data', 'summary.latest.json');
+const VATS_DATA_FILE = path.join(__dirname, 'data', 'vats.latest.json');
 
 const PORT = Number(process.env.PORT ?? 8080);
 const ALLOWED_ORIGIN = process.env.CORS_ORIGIN ?? '*';
@@ -142,6 +144,36 @@ const server = http.createServer(async (req, res) => {
     return jsonResponse(res, 405, { error: `Method not allowed: ${req.method}` });
   }
 
+  if (pathname === '/api/public/vats') {
+    if (req.method === 'GET') {
+      try {
+        ensureDataDir();
+        if (!fs.existsSync(VATS_DATA_FILE)) {
+          return jsonResponse(res, 404, { error: 'No VAT snapshot published yet.' });
+        }
+        const raw = fs.readFileSync(VATS_DATA_FILE, 'utf8');
+        const data = JSON.parse(raw);
+        return jsonResponse(res, 200, data);
+      } catch (err) {
+        return jsonResponse(res, 500, { error: String(err) });
+      }
+    }
+
+    if (req.method === 'POST') {
+      try {
+        const body = await readBody(req);
+        const parsed = JSON.parse(body);
+        ensureDataDir();
+        fs.writeFileSync(VATS_DATA_FILE, JSON.stringify(parsed, null, 2), 'utf8');
+        return jsonResponse(res, 200, { ok: true, saved_at: new Date().toISOString() });
+      } catch (err) {
+        return jsonResponse(res, 400, { error: `Invalid JSON body: ${err}` });
+      }
+    }
+
+    return jsonResponse(res, 405, { error: `Method not allowed: ${req.method}` });
+  }
+
   if (pathname === '/api/public/smes' && req.method === 'GET') {
     try {
       const upstream = await fetch(SME_SOURCE_URL, { headers: { Accept: 'application/json' } });
@@ -254,6 +286,11 @@ const server = http.createServer(async (req, res) => {
       const v = runtimeStore.getVersion(id);
       return v ? jsonResponse(res, 200, { ok: true, data: v }) : jsonResponse(res, 404, { ok: false });
     }
+    if (id && req.method === 'DELETE') {
+      const deleted = runtimeStore.deleteVersion(id);
+      if (!deleted.ok) return jsonResponse(res, 404, { ok: false, error: deleted.error });
+      return jsonResponse(res, 200, { ok: true, data: deleted });
+    }
   }
 
   if (pathname === '/api/runtime/sync/batch' && req.method === 'POST') {
@@ -280,4 +317,3 @@ server.listen(PORT, () => {
   console.log(`[app] Listening on http://localhost:${PORT}`);
   console.log(`[app] Static root: ${DIST_DIR}`);
 });
-

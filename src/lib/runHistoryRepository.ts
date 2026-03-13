@@ -333,6 +333,51 @@ class RunHistoryRepository {
         return null;
     }
 
+    async deleteVersion(projectId: string, versionId: string): Promise<boolean> {
+        let shouldDeleteLocal = false;
+        let nextActiveVersionId: string | null | undefined;
+
+        try {
+            const res = await fetch(`${API_BASE}/versions/${versionId}`, { method: 'DELETE' });
+            if (res.ok || res.status === 404) {
+                this.runtimeAvailable = true;
+                shouldDeleteLocal = true;
+                if (res.ok) {
+                    const data = await res.json();
+                    nextActiveVersionId = data?.data?.activeVersionId;
+                }
+            } else {
+                this.runtimeAvailable = false;
+                return false;
+            }
+        } catch {
+            this.runtimeAvailable = false;
+            return false;
+        }
+
+        if (!shouldDeleteLocal) return false;
+
+        const updatedVersions = readLocalVersions().filter(v => v.id !== versionId);
+        persistLocalVersions(updatedVersions);
+
+        const projects = readLocalProjects();
+        const pIdx = projects.findIndex(p => p.id === projectId);
+        if (pIdx !== -1) {
+            if (nextActiveVersionId !== undefined) {
+                projects[pIdx].activeVersionId = nextActiveVersionId;
+            } else if (projects[pIdx].activeVersionId === versionId) {
+                const latest = updatedVersions
+                    .filter(v => v.projectId === projectId)
+                    .sort((a, b) => b.versionNumber - a.versionNumber)[0];
+                projects[pIdx].activeVersionId = latest?.id ?? null;
+            }
+            projects[pIdx].updatedAt = new Date().toISOString();
+            persistLocalProjects(projects);
+        }
+
+        return true;
+    }
+
     async deleteProject(id: string): Promise<boolean> {
         let shouldDeleteLocal = false;
         let success = false;
