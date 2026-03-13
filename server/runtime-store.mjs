@@ -99,6 +99,36 @@ class RuntimeStore {
         return this.versions.find(v => v.id === id) || null;
     }
 
+    deleteVersion(id) {
+        const idx = this.versions.findIndex(v => v.id === id);
+        if (idx === -1) return { ok: false, error: 'Version not found' };
+
+        const removed = this.versions[idx];
+        this.versions.splice(idx, 1);
+
+        const project = this.getProject(removed.projectId);
+        if (!project) {
+            return { ok: true, projectId: removed.projectId, activeVersionId: null };
+        }
+
+        const projectVersions = this.getVersions(removed.projectId);
+        const latest = projectVersions.length > 0 ? projectVersions[0] : null;
+
+        // If deleted version was active, move active pointer to latest remaining or null.
+        if (project.activeVersionId === removed.id) {
+            project.activeVersionId = latest?.id ?? null;
+        }
+
+        project.updatedAt = new Date().toISOString();
+        project.revision = (project.revision || 1) + 1;
+
+        return {
+            ok: true,
+            projectId: removed.projectId,
+            activeVersionId: project.activeVersionId
+        };
+    }
+
     addVersion(version) {
         // Versions are immutable, we only add if doesn't exist
         if (this.versions.some(v => v.id === version.id)) {

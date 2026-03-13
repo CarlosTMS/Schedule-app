@@ -1,14 +1,51 @@
 import { useMemo, useState } from 'react';
 import type { StudentRecord } from '../lib/excelParser';
-import { AlertTriangle, Users, AlertCircle } from 'lucide-react';
+import { AlertTriangle, Users, AlertCircle, Send, CheckCircle } from 'lucide-react';
+import { useI18n } from '../i18n';
 
 interface VATVisualizerProps {
     records: StudentRecord[];
     onMoveDelegate?: (originalIndex: number, targetVat: string) => void;
 }
 
+interface VatsExport {
+    generated_at: string;
+    total_records: number;
+    total_vats: number;
+    vats: {
+        vat: string;
+        members_count: number;
+        solution_areas: string[];
+        schedules: string[];
+        members: {
+            name: string;
+            email: string;
+            country: string;
+            office: string;
+            solution_area: string;
+            specialization: string;
+            schedule: string;
+            utc_offset: number | undefined;
+        }[];
+    }[];
+}
+
+const resolveApiBase = (): string => {
+    const envBase = import.meta.env.VITE_API_BASE as string | undefined;
+    if (envBase && envBase.trim() !== '') return envBase;
+    const host = window.location.hostname;
+    const isLocal = host === 'localhost' || host === '127.0.0.1';
+    if (isLocal) return `${window.location.protocol}//${host}:8787`;
+    return window.location.origin;
+};
+
+const API_BASE = resolveApiBase();
+
 export function VATVisualizer({ records, onMoveDelegate }: VATVisualizerProps) {
+    const { t } = useI18n();
     const [filterSA, setFilterSA] = useState<string>('All');
+    const [publishingVats, setPublishingVats] = useState(false);
+    const [publishedVatsUrl, setPublishedVatsUrl] = useState<string | null>(null);
 
     const data = useMemo(() => {
         const formedVats: Record<string, StudentRecord[]> = {};
@@ -40,6 +77,62 @@ export function VATVisualizer({ records, onMoveDelegate }: VATVisualizerProps) {
             allSAs: Array.from(allSAs).sort()
         };
     }, [records]);
+
+    const buildVatsPayload = (): VatsExport => {
+        const grouped = new Map<string, StudentRecord[]>();
+        for (const r of records) {
+            const vat = (r.VAT || '').trim();
+            if (!vat || vat === 'Unassigned' || vat === 'Outlier-Size') continue;
+            const list = grouped.get(vat) || [];
+            list.push(r);
+            grouped.set(vat, list);
+        }
+
+        const vats = Array.from(grouped.entries())
+            .map(([vat, members]) => ({
+                vat,
+                members_count: members.length,
+                solution_areas: Array.from(new Set(members.map(m => m['Solution Week SA']).filter(Boolean))).sort() as string[],
+                schedules: Array.from(new Set(members.map(m => m.Schedule).filter(Boolean))).sort() as string[],
+                members: members.map(m => ({
+                    name: m['Full Name'] ?? '',
+                    email: '',
+                    country: m.Country ?? '',
+                    office: m.Office ?? '',
+                    solution_area: m['Solution Week SA'] ?? '',
+                    specialization: m['(AA) Secondary Specialization'] ?? '',
+                    schedule: m.Schedule ?? '',
+                    utc_offset: m._utcOffset,
+                }))
+            }))
+            .sort((a, b) => a.vat.localeCompare(b.vat));
+
+        return {
+            generated_at: new Date().toISOString(),
+            total_records: records.length,
+            total_vats: vats.length,
+            vats
+        };
+    };
+
+    const handlePublishVatsAPI = async () => {
+        setPublishingVats(true);
+        try {
+            const payload = buildVatsPayload();
+            const res = await fetch(`${API_BASE}/api/public/vats`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            setPublishedVatsUrl(`${API_BASE}/api/public/vats`);
+        } catch (err) {
+            setPublishedVatsUrl(null);
+            alert(t('publishFailed').replace('{err}', String(err)));
+        } finally {
+            setPublishingVats(false);
+        }
+    };
 
     const renderVatCard = (vatName: string, students: StudentRecord[], allVatsForSA: Record<string, StudentRecord[]>) => {
         const roles = students.map(s => s.Program || s.Role || s['(AA) Secondary Specialization'] || 'Unknown');
@@ -136,6 +229,23 @@ export function VATVisualizer({ records, onMoveDelegate }: VATVisualizerProps) {
         <div style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <h2 style={{ fontSize: '1.5rem', margin: 0 }}>VAT Explorer Matrix</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <button
+                        onClick={handlePublishVatsAPI}
+                        disabled={publishingVats}
+                        className="btn"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', background: '#0ea5e9', color: 'white', border: 'none', opacity: publishingVats ? 0.7 : 1 }}
+                    >
+                        <Send size={15} /> {publishingVats ? '...' : t('publishVatsAPI')}
+                    </button>
+                    {publishedVatsUrl && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.8rem', padding: '0.35rem 0.75rem', borderRadius: '9999px', background: 'rgba(14,165,233,0.1)', border: '1px solid rgba(14,165,233,0.3)', color: '#0369a1' }}>
+                            <CheckCircle size={13} />
+                            {t('vatsPublicURL')}:&nbsp;
+                            <a href={publishedVatsUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedVatsUrl}</a>
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '2rem' }}>

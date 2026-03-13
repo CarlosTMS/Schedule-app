@@ -127,6 +127,7 @@ export function Summary({
     const { t } = useI18n();
     const effectiveFacultyStartHour = facultyStartHour ?? startHour;
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+    const [showOnlyWarnings, setShowOnlyWarnings] = useState(false);
     const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
     const [publishing, setPublishing] = useState(false);
 
@@ -182,6 +183,9 @@ export function Summary({
             }
         }
     }
+
+    const warningsCount = sessionRows.filter(r => r.warnings.length > 0).length;
+    const visibleRows = showOnlyWarnings ? sessionRows.filter(r => r.warnings.length > 0) : sessionRows;
 
     // ── SME change handler ──────────────────────────────────────────────────
 
@@ -258,6 +262,7 @@ export function Summary({
             warnings: row.warnings.map(w => w.label),
         })),
     });
+
 
     // ── Export handlers ─────────────────────────────────────────────────────
 
@@ -353,6 +358,7 @@ export function Summary({
         }
     };
 
+
     // ─── Render ──────────────────────────────────────────────────────────────
 
     const warningColor = (type: SessionWarning['type']) => {
@@ -426,7 +432,6 @@ export function Summary({
                     >
                         <Send size={16} /> {publishing ? '...' : t('publishAPI')}
                     </button>
-
                     {publishedUrl && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', padding: '0.4rem 0.9rem', borderRadius: '9999px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', color: '#059669' }}>
                             <CheckCircle size={13} />
@@ -437,14 +442,36 @@ export function Summary({
                 </div>
             </div>
 
+            <div className="glass-panel" style={{ padding: '0.9rem 1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                    {t('warningSessionsCount')}: <strong style={{ color: warningsCount > 0 ? '#dc2626' : '#059669' }}>{warningsCount}</strong>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                        className="btn btn-secondary"
+                        onClick={() => setShowOnlyWarnings(false)}
+                        style={{ fontSize: '0.82rem', padding: '0.35rem 0.75rem', background: !showOnlyWarnings ? '#e2e8f0' : 'white' }}
+                    >
+                        {t('warningFilterAll')}
+                    </button>
+                    <button
+                        className="btn btn-secondary"
+                        onClick={() => setShowOnlyWarnings(true)}
+                        style={{ fontSize: '0.82rem', padding: '0.35rem 0.75rem', background: showOnlyWarnings ? '#fee2e2' : 'white', borderColor: showOnlyWarnings ? '#fecaca' : '#e2e8f0' }}
+                    >
+                        {t('warningFilterOnly')}
+                    </button>
+                </div>
+            </div>
+
             {/* ── Main table ── */}
-            {sessionRows.length === 0 ? (
+            {visibleRows.length === 0 ? (
                 <div className="glass-panel" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
                     {t('noSessions')}
                 </div>
             ) : (
                 <div className="glass-panel" style={{ overflowX: 'auto', padding: 0 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', minWidth: 900 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', minWidth: 1300 }}>
                         <thead>
                             <tr style={{ background: 'rgba(248,250,252,0.95)', borderBottom: '2px solid #e2e8f0' }}>
                                 <th style={thStyle}>{t('solutionArea')}</th>
@@ -459,7 +486,7 @@ export function Summary({
                             </tr>
                         </thead>
                         <tbody>
-                            {sessionRows.map((row, idx) => {
+                            {visibleRows.map((row, idx) => {
                                 const rowKey = `${row.sa}__${row.schedule}__${row.sessionDef.id}`;
                                 const isExpanded = expandedRows.has(rowKey);
                                 const hasWarning = row.warnings.length > 0;
@@ -499,7 +526,15 @@ export function Summary({
 
                                             {/* Attendees count */}
                                             <td style={{ ...tdStyle, textAlign: 'center' }}>
-                                                <span style={{ fontWeight: 600 }}>{row.attendees.length}</span>
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
+                                                    <span style={{ fontWeight: 600 }}>{row.attendees.length}</span>
+                                                    {row.attendees.length > 0 && (
+                                                        <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                                            {row.attendees.slice(0, 2).map(a => a['Full Name']).join(', ')}
+                                                            {row.attendees.length > 2 ? '…' : ''}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
 
                                             {/* SME dropdown */}
@@ -659,6 +694,8 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = {
     padding: '0.75rem 1rem',
     verticalAlign: 'middle',
+    whiteSpace: 'normal',
+    wordBreak: 'break-word',
 };
 
 const selectStyle: React.CSSProperties = {

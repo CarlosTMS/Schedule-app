@@ -6,7 +6,9 @@ Scheduling and assignment web app for Solution Weeks, built with React + TypeScr
 
 - Allocation engine for sessions and schedules.
 - SME and Faculty assignment workflows.
-- Summary tab with exports (Excel/CSV/JSON) and publish endpoint for summary snapshots.
+- Summary tab with exports (Excel/CSV/JSON), warnings filter, and publish endpoint for summary snapshots.
+- VAT tab publish action for public VAT snapshot API (`/api/public/vats`).
+- Project version history with delete-version support.
 - Bilingual UI (English/Spanish).
 - Autosave for run edits and configuration.
 - Collapsible left sidebar with persisted state across refreshes.
@@ -43,14 +45,17 @@ Served by `server/app.mjs`:
 - `GET /api/public/smes` (proxy to upstream SME API)
 - `GET /api/public/summary`
 - `POST /api/public/summary`
-- `GET /api/runtime/runs`
-- `POST /api/runtime/runs`
-- `PATCH /api/runtime/runs/:id/core`
-- `PATCH /api/runtime/runs/:id/dashboard`
-- `PATCH /api/runtime/runs/:id/meta`
-- `DELETE /api/runtime/runs/:id`
-- `POST /api/runtime/runs/:id/activate`
-- `GET /api/runtime/active`
+- `GET /api/public/vats`
+- `POST /api/public/vats`
+- `GET /api/runtime/projects`
+- `POST /api/runtime/projects`
+- `PATCH /api/runtime/projects/:id`
+- `DELETE /api/runtime/projects/:id`
+- `GET /api/runtime/projects/:id/versions`
+- `POST /api/runtime/projects/:id/versions`
+- `GET /api/runtime/versions/:id`
+- `DELETE /api/runtime/versions/:id`
+- `POST /api/runtime/sync/batch`
 
 ## Deploy to SAP BTP (Cloud Foundry)
 
