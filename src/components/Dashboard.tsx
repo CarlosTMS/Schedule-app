@@ -140,6 +140,19 @@ export function Dashboard({
         liftRecords(newRecords);
     };
 
+    const handleMoveToVAT = (recordIndices: number[], targetVat: string) => {
+        const newRecords = [...localRecords];
+        recordIndices.forEach(originalIndex => {
+            const idx = newRecords.findIndex(r => r._originalIndex === originalIndex);
+            if (idx !== -1) {
+                newRecords[idx] = { ...newRecords[idx], VAT: targetVat };
+                // If they have no valid schedule, we might want to warn or auto-assign, 
+                // but for now we just move the VAT which is what was requested.
+            }
+        });
+        liftRecords(newRecords);
+    };
+
     const handleFilterTypeChange = (type: string | null) => {
         setFilterType(type);
         setColumnFilters({ SA: '', Country: '', Office: '' });
@@ -467,7 +480,8 @@ export function Dashboard({
                     <div className="animated-fade-in">
                         <VATVisualizer
                             records={localRecords}
-                            onMoveDelegate={(idx, targetVat) => handleEdit(idx, 'VAT', targetVat)}
+                            onMoveDelegate={(idx, targetVat) => handleMoveToVAT([idx], targetVat)}
+                            onMoveMultipleDelegates={(indices, targetVat) => handleMoveToVAT(indices, targetVat)}
                         />
                     </div>
                 )}

@@ -23,7 +23,7 @@ export const getUtcOffset = (country: string, office: string): number => {
     if (normalizedCountry.includes('chile')) return -4;
 
     // EMEA
-    if (normalizedCountry.includes('germany') || normalizedCountry.includes('france') || normalizedCountry.includes('spain') || normalizedCountry.includes('italy')) return 1;
+    if (normalizedCountry.includes('germany') || normalizedCountry.includes('france') || normalizedCountry.includes('spain') || normalizedCountry.includes('italy') || normalizedCountry.includes('switzerland')) return 1;
     if (normalizedCountry.includes('uk') || normalizedCountry.includes('united kingdom') || normalizedCountry.includes('ireland')) return 0;
     if (normalizedCountry.includes('south africa')) return 2;
     if (normalizedCountry.includes('uae') || normalizedCountry.includes('united arab emirates')) return 4;

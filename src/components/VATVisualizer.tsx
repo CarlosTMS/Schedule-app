@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import type { StudentRecord } from '../lib/excelParser';
-import { AlertTriangle, Users, AlertCircle, Send, CheckCircle } from 'lucide-react';
+import { AlertTriangle, Users, AlertCircle, Plus, CheckSquare, Square, Zap, Info, ArrowRight, Send, CheckCircle } from 'lucide-react';
 import { useI18n } from '../i18n';
 
 interface VATVisualizerProps {
     records: StudentRecord[];
     onMoveDelegate?: (originalIndex: number, targetVat: string) => void;
+    onMoveMultipleDelegates?: (originalIndices: number[], targetVat: string) => void;
 }
 
 interface VatsExport {
@@ -30,6 +31,15 @@ interface VatsExport {
     }[];
 }
 
+interface Recommendation {
+    type: 'pair' | 'cross-sa' | 'single-role';
+    title: string;
+    description: string;
+    indices: number[];
+    sa: string;
+    names: string;
+}
+
 const resolveApiBase = (): string => {
     const envBase = import.meta.env.VITE_API_BASE as string | undefined;
     if (envBase && envBase.trim() !== '') return envBase;
@@ -41,9 +51,12 @@ const resolveApiBase = (): string => {
 
 const API_BASE = resolveApiBase();
 
-export function VATVisualizer({ records, onMoveDelegate }: VATVisualizerProps) {
+export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates }: VATVisualizerProps) {
     const { t } = useI18n();
     const [filterSA, setFilterSA] = useState<string>('All');
+    const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+    const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [publishingVats, setPublishingVats] = useState(false);
     const [publishedVatsUrl, setPublishedVatsUrl] = useState<string | null>(null);
 
@@ -225,6 +238,134 @@ export function VATVisualizer({ records, onMoveDelegate }: VATVisualizerProps) {
         );
     };
 
+    const getNextVatName = (sa: string) => {
+        let maxNum = 0;
+        records.forEach(r => {
+            if (r.VAT) {
+                const match = r.VAT.match(/VAT (\d+)/i);
+                if (match) {
+                    const num = parseInt(match[1], 10);
+                    if (num > maxNum) maxNum = num;
+                }
+            }
+        });
+        return `VAT ${maxNum + 1}-${sa}`;
+    };
+
+    const handleCreateNewVat = () => {
+        if (selectedIndices.size === 0) {
+            // Find first ungrouped in current filter
+            const ungroupedInSA = data.unassigned.filter(u => filterSA === 'All' || (u['Solution Week SA'] || 'Unknown SA') === filterSA);
+            if (ungroupedInSA.length === 0) {
+                alert("No ungrouped delegates to add to a new VAT.");
+                return;
+            }
+            const first = ungroupedInSA[0];
+            const sa = first['Solution Week SA'] || 'Unknown SA';
+            const nextName = getNextVatName(sa);
+            if (onMoveDelegate && first._originalIndex !== undefined) {
+                onMoveDelegate(first._originalIndex, nextName);
+            }
+        } else {
+            // Use selected
+            const indices = Array.from(selectedIndices);
+            const firstRecord = records.find(r => r._originalIndex === indices[0]);
+            const sa = firstRecord?.['Solution Week SA'] || 'Unknown SA';
+            const nextName = getNextVatName(sa);
+            if (onMoveMultipleDelegates) {
+                onMoveMultipleDelegates(indices, nextName);
+            } else if (onMoveDelegate) {
+                indices.forEach(idx => onMoveDelegate(idx, nextName));
+            }
+            setSelectedIndices(new Set());
+        }
+    };
+
+    const toggleSelection = (idx: number) => {
+        const next = new Set(selectedIndices);
+        if (next.has(idx)) next.delete(idx);
+        else next.add(idx);
+        setSelectedIndices(next);
+    };
+
+    const runAnalysis = () => {
+        setIsAnalyzing(true);
+        // Simulate thinking time for "premium" feel
+        setTimeout(() => {
+            const ungrouped = data.unassigned;
+            const recs: Recommendation[] = [];
+
+            // 1. Group by timezone
+            const byTZ: Record<number, StudentRecord[]> = {};
+            ungrouped.forEach(u => {
+                const tz = u._utcOffset || 0;
+                if (!byTZ[tz]) byTZ[tz] = [];
+                byTZ[tz].push(u);
+            });
+
+            Object.entries(byTZ).forEach(([tzStr, students]) => {
+                const tz = parseFloat(tzStr);
+
+                // Option A: Form pairs (Size 2) in same SA
+                const bySA: Record<string, StudentRecord[]> = {};
+                students.forEach(s => {
+                    const sa = s['Solution Week SA'] || 'Unknown SA';
+                    if (!bySA[sa]) bySA[sa] = [];
+                    bySA[sa].push(s);
+                });
+
+                Object.entries(bySA).forEach(([sa, saStudents]) => {
+                    if (saStudents.length === 2) {
+                        recs.push({
+                            type: 'pair',
+                            title: `Form a pair in ${sa}`,
+                            description: `These two individuals share the same SA and timezone (UTC${tz > 0 ? '+' : ''}${tz}).`,
+                            indices: saStudents.map(s => s._originalIndex),
+                            sa,
+                            names: saStudents.map(s => s['Full Name']).join(', ')
+                        });
+                    }
+                });
+
+                // Option B: Cross-SA VAT
+                if (students.length >= 3) {
+                    const sas = Array.from(new Set(students.map(s => s['Solution Week SA'] || 'Unknown SA')));
+                    if (sas.length > 1) {
+                        recs.push({
+                            type: 'cross-sa',
+                            title: `Form Cross-SA VAT (UTC${tz > 0 ? '+' : ''}${tz})`,
+                            description: `Combine delegates from ${sas.join(', ')} into a single VAT to clear the backlog.`,
+                            indices: students.slice(0, 4).map(s => s._originalIndex), // suggest up to 4
+                            sa: sas[0],
+                            names: students.slice(0, 3).map(s => s['Full Name']).join(', ') + (students.length > 3 ? '...' : '')
+                        });
+                    }
+                }
+
+                // Option C: Single Role VATs (Relaxing complexity)
+                Object.entries(bySA).forEach(([sa, saStudents]) => {
+                    if (saStudents.length >= 3) {
+                        const roles = saStudents.map(s => s.Program || s.Role || 'Unknown');
+                        const uniqueRoles = new Set(roles);
+                        if (uniqueRoles.size < saStudents.length) {
+                            recs.push({
+                                type: 'single-role',
+                                title: `Allow Duplicate Roles in ${sa}`,
+                                description: `These ${saStudents.length} delegates are compatible but share roles. Redoing them into a "relaxed" VAT would work.`,
+                                indices: saStudents.map(s => s._originalIndex),
+                                sa,
+                                names: saStudents.map(s => s['Full Name']).join(', ')
+                            });
+                        }
+                    }
+                });
+            });
+
+            setRecommendations(recs);
+            setIsAnalyzing(false);
+        }, 800);
+    };
+
     return (
         <div style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -248,30 +389,162 @@ export function VATVisualizer({ records, onMoveDelegate }: VATVisualizerProps) {
                 </div>
             </div>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '2rem' }}>
-                {['All', ...data.allSAs].map(sa => (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '2rem', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {['All', ...data.allSAs].map(sa => (
+                        <button
+                            key={sa}
+                            onClick={() => setFilterSA(sa)}
+                            style={{
+                                padding: '0.5rem 1rem',
+                                borderRadius: '9999px',
+                                border: '1px solid',
+                                borderColor: filterSA === sa ? '#ce9600' : '#e5e7eb', // matches var(--glass-border) roughly
+                                background: filterSA === sa ? '#ce9600' : 'rgba(255,255,255,0.5)',
+                                color: filterSA === sa ? 'white' : 'var(--text-primary)',
+                                fontWeight: filterSA === sa ? 600 : 400,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                boxShadow: filterSA === sa ? '0 4px 6px -1px rgba(234, 179, 8, 0.3)' : 'none'
+                            }}
+                        >
+                            {sa === 'All' ? 'All Solution Areas' : sa}
+                        </button>
+                    ))}
+                </div>
+
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.75rem' }}>
                     <button
-                        key={sa}
-                        onClick={() => setFilterSA(sa)}
+                        onClick={runAnalysis}
+                        disabled={isAnalyzing}
                         style={{
-                            padding: '0.5rem 1rem',
-                            borderRadius: '9999px',
-                            border: '1px solid',
-                            borderColor: filterSA === sa ? '#ce9600' : '#e5e7eb', // matches var(--glass-border) roughly
-                            background: filterSA === sa ? '#ce9600' : 'rgba(255,255,255,0.5)',
-                            color: filterSA === sa ? 'white' : 'var(--text-primary)',
-                            fontWeight: filterSA === sa ? 600 : 400,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.6rem 1.2rem',
+                            borderRadius: '8px',
+                            border: '1px solid #3b82f6',
+                            background: 'white',
+                            color: '#3b82f6',
+                            fontWeight: 600,
                             cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            boxShadow: filterSA === sa ? '0 4px 6px -1px rgba(234, 179, 8, 0.3)' : 'none'
+                            transition: 'all 0.2s',
+                            boxShadow: '0 2px 4px rgba(59, 130, 246, 0.1)'
                         }}
                     >
-                        {sa === 'All' ? 'All Solution Areas' : sa}
+                        <Zap size={18} className={isAnalyzing ? 'animate-pulse' : ''} />
+                        {isAnalyzing ? 'Analyzing...' : 'Run Optimizer'}
                     </button>
-                ))}
+
+                    <button
+                        onClick={handleCreateNewVat}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.6rem 1.2rem',
+                            borderRadius: '8px',
+                            border: 'none',
+                            background: 'var(--primary-color)',
+                            color: 'white',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)'
+                        }}
+                    >
+                        <Plus size={18} />
+                        {selectedIndices.size > 0 ? `Create VAT with ${selectedIndices.size} Selected` : 'Add New VAT'}
+                    </button>
+                </div>
             </div>
 
-            {/* Formed VATs Grid */}
+            {/* Recommendations Panel */}
+            {recommendations.length > 0 && (
+                <div style={{
+                    backgroundColor: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    borderRadius: '12px',
+                    padding: '1.5rem',
+                    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.08)'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#1e40af' }}>
+                            <Zap size={20} fill="#3b82f6" style={{ color: '#3b82f6' }} />
+                            Optimization Recommendations ({recommendations.length})
+                        </h3>
+                        <button
+                            onClick={() => setRecommendations([])}
+                            style={{ background: 'none', border: 'none', color: '#60a5fa', cursor: 'pointer', fontSize: '0.85rem' }}
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
+                        {recommendations.map((rec, i) => (
+                            <div key={i} style={{
+                                backgroundColor: 'white',
+                                padding: '1rem',
+                                borderRadius: '10px',
+                                border: '1px solid #dbeafe',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.75rem'
+                            }}>
+                                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                    <div style={{
+                                        backgroundColor: rec.type === 'pair' ? '#dcfce7' : rec.type === 'cross-sa' ? '#fef9c3' : '#ffedd5',
+                                        color: rec.type === 'pair' ? '#166534' : rec.type === 'cross-sa' ? '#854d0e' : '#9a3412',
+                                        width: '32px', height: '32px', borderRadius: '8px',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                                    }}>
+                                        <Info size={18} />
+                                    </div>
+                                    <div>
+                                        <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#1e3a8a' }}>{rec.title}</h4>
+                                        <p style={{ margin: '0.25rem 0 0', fontSize: '0.82rem', color: '#64748b', lineHeight: 1.4 }}>{rec.description}</p>
+                                    </div>
+                                </div>
+                                <div style={{ fontSize: '0.78rem', color: '#94a3b8', background: '#f8fafc', padding: '0.5rem', borderRadius: '4px' }}>
+                                    <Users size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                                    {rec.names}
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        const vatName = getNextVatName(rec.sa);
+                                        if (onMoveMultipleDelegates) {
+                                            onMoveMultipleDelegates(rec.indices, vatName);
+                                        } else if (onMoveDelegate) {
+                                            rec.indices.forEach((idx: number) => onMoveDelegate(idx, vatName));
+                                        }
+                                        setRecommendations(prev => prev.filter((_, idx) => idx !== i));
+                                    }}
+                                    style={{
+                                        marginTop: 'auto',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.5rem',
+                                        padding: '0.5rem',
+                                        borderRadius: '6px',
+                                        border: 'none',
+                                        background: '#3b82f6',
+                                        color: 'white',
+                                        fontSize: '0.85rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    Apply Fix <ArrowRight size={14} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             <div style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                 <h3 style={{ marginBottom: '1.5rem', fontSize: '1.2rem', color: 'var(--primary-color)' }}>Successfully Grouped VATs</h3>
 
@@ -301,12 +574,12 @@ export function VATVisualizer({ records, onMoveDelegate }: VATVisualizerProps) {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '0.75rem' }}>
                         {data.unassigned
                             .filter(u => filterSA === 'All' || (u['Solution Week SA'] || 'Unknown SA') === filterSA)
-                            .map((s, idx) => {
+                            .map(s => {
                                 const sa = s['Solution Week SA'] || 'Unknown SA';
                                 const validVatsForSA = data.vatsBySA[sa] ? Object.keys(data.vatsBySA[sa]) : [];
 
                                 return (
-                                    <div key={idx} style={{
+                                    <div key={s._originalIndex} style={{
                                         padding: '0.75rem',
                                         backgroundColor: '#fff',
                                         border: '1px solid #fed7aa',
@@ -316,13 +589,29 @@ export function VATVisualizer({ records, onMoveDelegate }: VATVisualizerProps) {
                                         gap: '0.25rem'
                                     }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <strong style={{ fontSize: '0.95rem' }}>{s['Full Name']}</strong>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                {s._originalIndex !== undefined && (
+                                                    <button
+                                                        onClick={() => toggleSelection(s._originalIndex!)}
+                                                        style={{
+                                                            background: 'none',
+                                                            border: 'none',
+                                                            padding: 0,
+                                                            cursor: 'pointer',
+                                                            color: selectedIndices.has(s._originalIndex) ? 'var(--primary-color)' : '#d1d5db'
+                                                        }}
+                                                    >
+                                                        {selectedIndices.has(s._originalIndex) ? <CheckSquare size={20} /> : <Square size={20} />}
+                                                    </button>
+                                                )}
+                                                <strong style={{ fontSize: '0.95rem' }}>{s['Full Name']}</strong>
+                                            </div>
                                             <span style={{ fontSize: '0.8rem', backgroundColor: '#ffedd5', color: '#9a3412', padding: '2px 6px', borderRadius: '12px' }}>
                                                 {s['Solution Week SA'] || 'No SA'}
                                             </span>
                                         </div>
-                                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{s.Program || s.Role || s['(AA) Secondary Specialization'] || 'Unknown Role'}</div>
-                                        <div style={{ fontSize: '0.8rem', color: '#6b7280', display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem' }}>
+                                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', paddingLeft: '1.75rem' }}>{s.Program || s.Role || s['(AA) Secondary Specialization'] || 'Unknown Role'}</div>
+                                        <div style={{ fontSize: '0.8rem', color: '#6b7280', display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem', paddingLeft: '1.75rem' }}>
                                             <span>{s.Country}</span>
                                             <span>UTC{s._utcOffset && s._utcOffset > 0 ? `+${s._utcOffset}` : s._utcOffset}</span>
                                         </div>
@@ -331,7 +620,10 @@ export function VATVisualizer({ records, onMoveDelegate }: VATVisualizerProps) {
                                                 <select
                                                     value=""
                                                     onChange={(e) => {
-                                                        if (e.target.value && s._originalIndex !== undefined) {
+                                                        if (e.target.value === 'CREATE_NEW' && s._originalIndex !== undefined) {
+                                                            const sa = s['Solution Week SA'] || 'Unknown SA';
+                                                            onMoveDelegate(s._originalIndex, getNextVatName(sa));
+                                                        } else if (e.target.value && s._originalIndex !== undefined) {
                                                             onMoveDelegate(s._originalIndex, e.target.value);
                                                         }
                                                     }}
@@ -347,6 +639,7 @@ export function VATVisualizer({ records, onMoveDelegate }: VATVisualizerProps) {
                                                     }}
                                                 >
                                                     <option value="" disabled>Move to existing VAT...</option>
+                                                    <option value="CREATE_NEW">+ Create New VAT (Auto-name)</option>
                                                     {validVatsForSA.map(v => (
                                                         <option key={v} value={v}>{v}</option>
                                                     ))}
