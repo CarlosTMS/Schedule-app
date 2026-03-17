@@ -32,9 +32,12 @@ export const getUtcOffset = (country: string, office: string): number => {
         normalizedCountry.includes('france') || 
         normalizedCountry.includes('spain') || 
         normalizedCountry.includes('italy') ||
-        normalizedCountry.includes('austria')
+        normalizedCountry.includes('austria') ||
+        normalizedCountry.includes('sweden')
     ) return 1;
     if (normalizedCountry.includes('egypt')) return 2;
+    if (normalizedCountry.includes('turkey') || normalizedCountry.includes('turkiye')) return 3;
+    if (normalizedCountry.includes('indonesia')) return 7;
     if (normalizedCountry.includes('uk') || normalizedCountry.includes('united kingdom') || normalizedCountry.includes('ireland')) return 0;
     if (normalizedCountry.includes('south africa')) return 2;
     if (normalizedCountry.includes('uae') || normalizedCountry.includes('united arab emirates')) return 4;
@@ -88,13 +91,15 @@ export const getKnownUtcOffset = (office: string | undefined): number => {
 
     // EMEA / MEE
     if (o.includes('london') || o.includes('ireland') || o.includes('uk')) return 0;
-    if (o.includes('amsterdam') || o.includes('netherlands') || o.includes('barcelona') || o.includes('frankfurt') || o.includes('germany') || o.includes('france') || o.includes('spain') || o.includes('italy') || o.includes('switzerland') || o.includes('oslo') || o.includes('denmark') || o.includes('madrid') || o.includes('emea') || o.includes('mee') || o.includes('austria') || o.includes('vienna')) return 1;
+    if (o.includes('amsterdam') || o.includes('netherlands') || o.includes('barcelona') || o.includes('frankfurt') || o.includes('germany') || o.includes('france') || o.includes('spain') || o.includes('italy') || o.includes('switzerland') || o.includes('oslo') || o.includes('denmark') || o.includes('madrid') || o.includes('emea') || o.includes('mee') || o.includes('austria') || o.includes('vienna') || o.includes('sweden') || o.includes('stockholm')) return 1;
     if (o.includes('south africa') || o.includes('greece') || o.includes('finland') || o.includes('israel') || o.includes('egypt') || o.includes('cairo')) return 2;
+    if (o.includes('turkey') || o.includes('turkiye') || o.includes('istanbul') || o.includes('ankara')) return 3;
     if (o.includes('dubai') || o.includes('uae')) return 4;
 
     // APJ
     if (o.includes('india') || o.includes('mumbai') || o.includes('delhi')) return 5.5;
-    if (o.includes('singapore') || o.includes('manila') || o.includes('perth') || o.includes('china') || o.includes('indonesia') || o.includes('malaysia')) return 8;
+    if (o.includes('singapore') || o.includes('manila') || o.includes('perth') || o.includes('china') || o.includes('philippines') || o.includes('malaysia')) return 8;
+    if (o.includes('indonesia') || o.includes('jakarta')) return 7;
     if (o.includes('tokyo') || o.includes('seoul') || o.includes('korea') || o.includes('japan')) return 9;
     if (o.includes('sydney') || o.includes('melbourne') || o.includes('australia')) return 10;
     if (o.includes('nz') || o.includes('new zealand')) return 12;
