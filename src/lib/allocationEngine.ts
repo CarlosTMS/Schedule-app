@@ -278,61 +278,72 @@ export const runAllocation = (
         const remaining = [...students];
         const formedVatsForSchedule: StudentRecord[][] = [];
 
+        const getRole = (r: StudentRecord): 'csm' | 'sa' | 'sales' | 'other' => {
+            const spec = (r['(AA) Secondary Specialization'] || '').toLowerCase();
+            if (spec.includes('csm')) return 'csm';
+            if (spec === 'sa' || spec.includes(' sa ') || spec.startsWith('sa ') || spec.endsWith(' sa') || spec.includes('solution advisor') || spec.includes('advisory')) return 'sa';
+            if (spec.includes('sales')) return 'sales';
+            return 'other';
+        };
+
+        const tryPick = (preferredRoles: string[], fallback: boolean = false): boolean => {
+            const idx = remaining.findIndex(r => {
+                const rRole = getRole(r);
+                const rOffset = typeof r._utcOffset === 'number' ? r._utcOffset : 0;
+
+                // Timezone check
+                if (vat.length > 0) {
+                    const offsets = vat.map(v => typeof v._utcOffset === 'number' ? v._utcOffset : 0);
+                    const minOffset = Math.min(...offsets, rOffset);
+                    const maxOffset = Math.max(...offsets, rOffset);
+                    let distance = maxOffset - minOffset;
+                    if (distance > 12) distance = 24 - distance;
+                    if (distance > assumptions.maxTimezoneDifference) return false;
+                }
+
+                if (fallback) return true;
+
+                // Role check: must match preferred roles AND not be a duplicate in the current VAT
+                const currentRolesInVat = vat.map(v => getRole(v));
+                if (preferredRoles.length > 0) {
+                    return preferredRoles.includes(rRole) && !currentRolesInVat.includes(rRole);
+                }
+                
+                // If no preferred list, just ensure it's not a duplicate
+                return !currentRolesInVat.includes(rRole);
+            });
+
+            if (idx !== -1) {
+                vat.push(remaining.splice(idx, 1)[0]);
+                return true;
+            }
+            return false;
+        };
+
+        const vat: StudentRecord[] = [];
+
         const tryFormVat = (size: number): boolean => {
             if (remaining.length < size) return false;
+            vat.length = 0;
 
-            const vat: StudentRecord[] = [];
+            // 1. Try to get one of each primary role
+            tryPick(['csm']);
+            tryPick(['sa']);
+            tryPick(['sales']);
 
-            const tryPick = (matchers: string[]) => {
-                const idx = remaining.findIndex(r => {
-                    const spec = (r['(AA) Secondary Specialization'] || '').toLowerCase();
-                    const rOffset = typeof r._utcOffset === 'number' ? r._utcOffset : 0;
-
-                    if (vat.length > 0) {
-                        const offsets = vat.map(v => typeof v._utcOffset === 'number' ? v._utcOffset : 0);
-                        const minOffset = Math.min(...offsets, rOffset);
-                        const maxOffset = Math.max(...offsets, rOffset);
-
-                        let distance = maxOffset - minOffset;
-                        if (distance > 12) {
-                            distance = 24 - distance;
-                        }
-
-                        if (distance > assumptions.maxTimezoneDifference) {
-                            return false;
-                        }
-                    }
-
-                    if (matchers.includes('')) return true;
-                    return matchers.some(m => {
-                        if (m === 'sa') return spec === 'sa' || spec.includes(' sa ') || spec.startsWith('sa ') || spec.endsWith(' sa') || spec.includes('solution advisor');
-                        return spec.includes(m.toLowerCase());
-                    });
-                });
-                if (idx !== -1) {
-                    vat.push(remaining.splice(idx, 1)[0]);
-                    return true;
-                }
-                return false;
-            };
-
-            if (assumptions.allowSingleRoleVat) {
-                for (let i = 0; i < size; i++) {
-                    tryPick(['']);
-                }
-            } else {
-                if (!tryPick(['csm'])) { tryPick(['']); }
-                if (!tryPick(['advisory', 'sa'])) { tryPick(['']); }
-                if (!tryPick(['sales'])) { tryPick(['']); }
+            // 2. If it's a size 4 VAT or we missed a role, try to pick any role NOT yet in the VAT
+            while (vat.length < size && remaining.length > 0) {
+                if (!tryPick([])) break; // tryPick([]) with preferredRoles=[] finds any non-duplicate
             }
 
-            let madeProgress = true;
-            while (vat.length < size && remaining.length > 0 && madeProgress) {
-                madeProgress = tryPick(['']);
+            // 3. Fallback: pick anyone if we still need to fill the size (Duplicate roles allowed)
+            while (vat.length < size && remaining.length > 0) {
+                if (!tryPick([], true)) break; 
             }
 
             if (vat.length < size) {
                 remaining.push(...vat);
+                vat.length = 0;
                 return false;
             }
 
@@ -385,26 +396,47 @@ export const runAllocation = (
                     if (vat.length >= maxAllowedSize) return false;
                     if (!assumptions.allowedVATSizes.includes(vat.length + 1)) return false;
 
+                    // Check Timezone
                     const offsets = vat.map(v => typeof v._utcOffset === 'number' ? v._utcOffset : 0);
                     const minOffset = Math.min(...offsets, rOffset);
                     const maxOffset = Math.max(...offsets, rOffset);
-
                     let distance = maxOffset - minOffset;
-                    if (distance > 12) {
-                        distance = 24 - distance;
-                    }
+                    if (distance > 12) distance = 24 - distance;
+                    if (distance > assumptions.maxTimezoneDifference) return false;
 
+                    // Check for role duplicate if we want to be strict
+                    // But here it's "Outliers" filling, so we are a bit more lenient,
+                    // though we still prefer a VAT where this role is NOT present.
+                    const rRole = getRole(r);
+                    const hasRole = vat.some(v => getRole(v) === rRole);
+                    
+                    // First pass: only return true if NO role duplicate
+                    // (We can do a two-pass approach but for simplicity let's prioritize non-dupes in finding suitableVat)
+                    return !hasRole;
+                });
+
+                // If no "perfect" role match found, fall back to any timezone-compatible VAT
+                const fallbackVat = !suitableVat && formedVatsForSchedule.find(vat => {
+                    if (vat.length >= maxAllowedSize) return false;
+                    if (!assumptions.allowedVATSizes.includes(vat.length + 1)) return false;
+                    const offsets = vat.map(v => typeof v._utcOffset === 'number' ? v._utcOffset : 0);
+                    const minOffset = Math.min(...offsets, rOffset);
+                    const maxOffset = Math.max(...offsets, rOffset);
+                    let distance = maxOffset - minOffset;
+                    if (distance > 12) distance = 24 - distance;
                     return distance <= assumptions.maxTimezoneDifference;
                 });
 
-                if (suitableVat) {
-                    suitableVat.push(r);
-                    r.VAT = suitableVat[0].VAT;
+                const targetVat = suitableVat || fallbackVat;
 
-                    suitableVat.forEach(v => {
-                        if (suitableVat.length !== 3) {
+                if (targetVat) {
+                    targetVat.push(r);
+                    r.VAT = targetVat[0].VAT;
+
+                    targetVat.forEach(v => {
+                        if (targetVat.length !== 3) {
                             v._isDiscrepancy = true;
-                            v._discrepancyReason = `VAT Size ${suitableVat.length}`;
+                            v._discrepancyReason = `VAT Size ${targetVat.length}`;
                         } else {
                             v._isDiscrepancy = false;
                             v._discrepancyReason = undefined;
