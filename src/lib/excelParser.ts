@@ -59,8 +59,11 @@ export const parseExcel = async (file: File): Promise<StudentRecord[]> => {
                         return '';
                     };
 
-                    let rawSA = getVal(['Solution Area', 'Solution Areas']);
                     const bgValue = getVal(['(AA) Business Group', 'Business Group']);
+                    const swsSA = getVal(['Solution Weeks SA']);
+                    const swSA = getVal(['Solution Week SA']);
+
+                    let rawSA = swSA || swsSA || getVal(['Solution Area', 'Solution Areas']);
 
                     if (!rawSA) {
                         const rawSALower = bgValue.trim().toLowerCase();
@@ -77,7 +80,8 @@ export const parseExcel = async (file: File): Promise<StudentRecord[]> => {
                         'Office': getVal(['Office', 'Location']),
                         'Solution Area': rawSA,
                         '(AA) Secondary Specialization': getVal(['(AA) Secondary Specialization', 'Secondary Specialization', 'Specialization', 'Role', 'Program']),
-                        'Solution Week SA': getVal(['Solution Week SA', 'Solution Weeks SA']),
+                        'Solution Week SA': swSA || swsSA,
+                        'Solution Weeks SA': swsSA,
                         '(AA) Business Group': bgValue,
                         Role: getVal(['Role']),
                         Program: getVal(['Program']),

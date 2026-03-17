@@ -55,47 +55,67 @@ export const runAllocation = (
 
     // 2. Random Distribution
     const applyDistribution = (associates: StudentRecord[], dists: DistributionTarget[]) => {
-        const totalUnassigned = associates.length;
-        if (totalUnassigned === 0) return;
+        const total = associates.length;
+        if (total === 0) return;
 
-        const distributionCounts = dists.map(d => {
-            const count = Math.round((d.percentage / 100) * totalUnassigned);
-            return { sa: d.sa, count };
+        // Group by role to ensure balanced VAT formation potential in each SA
+        const byRole: Record<string, StudentRecord[]> = {};
+        associates.forEach(r => {
+            const spec = (r['(AA) Secondary Specialization'] || '').toLowerCase();
+            let role = 'other';
+            if (spec.includes('csm')) role = 'csm';
+            else if (spec.includes('sa') || spec.includes('advisor') || spec.includes('solution advisor')) role = 'advisor';
+            else if (spec.includes('sales')) role = 'sales';
+            
+            if (!byRole[role]) byRole[role] = [];
+            byRole[role].push(r);
         });
 
-        const currentTotal = distributionCounts.reduce((t, d) => t + d.count, 0);
-        if (currentTotal > totalUnassigned && distributionCounts.length > 0) {
-            distributionCounts[0].count -= (currentTotal - totalUnassigned);
-        } else if (currentTotal < totalUnassigned && distributionCounts.length > 0) {
-            distributionCounts[0].count += (totalUnassigned - currentTotal);
+        // Sort each role group by UTC offset to maximize session viability cluster
+        Object.values(byRole).forEach(list => {
+            list.sort((a, b) => (a._utcOffset || 0) - (b._utcOffset || 0));
+        });
+
+        // Determine targets for each SA
+        const saTargets = dists.map(d => ({ sa: d.sa, target: Math.round((d.percentage / 100) * total), current: 0 }));
+        const currentTotal = saTargets.reduce((sum, t) => sum + t.target, 0);
+        if (currentTotal !== total && saTargets.length > 0) {
+            saTargets[0].target += (total - currentTotal);
         }
 
-        const shuffledAssociates = [...associates].sort(() => 0.5 - Math.random());
-        let pointer = 0;
-        distributionCounts.forEach(dist => {
-            for (let i = 0; i < dist.count; i++) {
-                if (pointer < shuffledAssociates.length) {
-                    shuffledAssociates[pointer]['Solution Week SA'] = dist.sa;
-                    shuffledAssociates[pointer]['Solution Area'] = dist.sa;
-                    pointer++;
+        // Shuffle SA order to avoid alphabetical bias while filling targets
+        const saOrder = [...saTargets].sort(() => Math.random() - 0.5);
+
+        // Distribute role stacks into SAs
+        Object.values(byRole).forEach(roleList => {
+            roleList.forEach(associate => {
+                const saObj = saOrder.find(s => s.current < s.target);
+                if (saObj) {
+                    associate['Solution Week SA'] = saObj.sa;
+                    associate['Solution Area'] = saObj.sa;
+                    saObj.current++;
+                } else {
+                    const fallback = saOrder[0];
+                    associate['Solution Week SA'] = fallback.sa;
+                    associate['Solution Area'] = fallback.sa;
                 }
-            }
+            });
         });
     };
 
     const unassignedAssociates = records.filter(r => {
-        const swSA = r['Solution Week SA'] || '';
-        const t = swSA.trim().toLowerCase();
+        const swsSA = r['Solution Weeks SA'] || '';
+        const t = swsSA.trim().toLowerCase();
         return !t || t === '-' || t === 'tbd' || t === 'n/a' || t === 'na' || t === 'unassigned' || t === 'unknown';
     });
 
     const fsAssociates = unassignedAssociates.filter(r => {
-        const bg = (r['(AA) Business Group'] || '').toUpperCase().trim();
-        return bg === 'F&S' || bg === 'FAND' || bg.includes('FACULTY');
+        const bg = (r['(AA) Business Group'] || '').toUpperCase();
+        return bg.includes('F&S') || bg.includes('FAND') || bg.includes('FACULTY');
     });
     const aeAssociates = unassignedAssociates.filter(r => {
-        const bg = (r['(AA) Business Group'] || '').toUpperCase().trim();
-        return bg === 'IAE' || bg.includes('ACCOUNT') || bg.includes('GENERALIST');
+        const bg = (r['(AA) Business Group'] || '').toUpperCase();
+        return bg.includes('IAE') || bg.includes('ACCOUNT') || bg.includes('GENERALIST');
     });
 
     applyDistribution(fsAssociates, fsDistributions);
