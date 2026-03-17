@@ -155,7 +155,7 @@ export function FacultyDebriefSchedule({ records, startHour, endHour, sessionLen
                                                             <div>
                                                                 <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{a['Full Name']}</div>
                                                                 <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                                                                    {a['Solution Week SA']} | {a.Program || a['(AA) Secondary Specialization'] || 'Unknown Program'}
+                                                                    {a['Solution Weeks SA']} | {a.Program || a['(AA) Secondary Specialization'] || 'Unknown Program'}
                                                                 </div>
                                                             </div>
                                                             <div style={{ textAlign: 'right', fontSize: '0.7rem', color: '#64748b' }}>
@@ -179,11 +179,17 @@ export function FacultyDebriefSchedule({ records, startHour, endHour, sessionLen
                                                     fontSize: '0.75rem'
                                                 }}>
                                                     {(() => {
-                                                        const reqSA = batch.associates.map(a => a['Solution Week SA']);
-                                                        const saCounts = reqSA.reduce((acc, curr) => { acc[curr || 'Unknown'] = (acc[curr || 'Unknown'] || 0) + 1; return acc; }, {} as Record<string, number>);
+                                                        const reqSA = batch.associates.map(a => a['Solution Weeks SA'] || 'Unknown');
+                                                        const saCounts = reqSA.reduce((acc: Record<string, number>, curr: string) => { 
+                                                            acc[curr] = (acc[curr] || 0) + 1; 
+                                                            return acc; 
+                                                        }, {});
 
-                                                        const reqGeo = batch.associates.map(a => a.Country);
-                                                        const geoCounts = reqGeo.reduce((acc, curr) => { acc[curr || 'Unknown'] = (acc[curr || 'Unknown'] || 0) + 1; return acc; }, {} as Record<string, number>);
+                                                        const reqGeo = batch.associates.map(a => a.Country || 'Unknown');
+                                                        const geoCounts = reqGeo.reduce((acc: Record<string, number>, curr: string) => { 
+                                                            acc[curr] = (acc[curr] || 0) + 1; 
+                                                            return acc; 
+                                                        }, {});
 
                                                         return (
                                                             <>

@@ -29,7 +29,7 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
         const bySA: Record<string, { totalInSA: number, allocated: number, sessions: Record<string, StudentRecord[]> }> = {};
 
         records.forEach(r => {
-            const sa = r['Solution Week SA'];
+            const sa = r['Solution Weeks SA'];
             const schedule = r.Schedule;
 
             if (!sa || sa === 'Unassigned') return;
@@ -213,24 +213,49 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
                                                     <div key={localTime} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                                         <span>- {count} {t('peopleAt')} {localTime}</span>
                                                         {onMoveToSession && otherSession && indices.length > 0 && (
-                                                            <button
-                                                                onClick={() => onMoveToSession(indices, otherSession.name)}
-                                                                title={`Move ${count} people to ${otherSession.name.replace(`${row.sa} `, '')}`}
-                                                                style={{
-                                                                    background: 'rgba(99,102,241,0.08)',
-                                                                    border: '1px solid rgba(99,102,241,0.25)',
-                                                                    borderRadius: '4px',
-                                                                    cursor: 'pointer',
-                                                                    color: '#6366f1',
-                                                                    padding: '0 5px',
-                                                                    fontSize: '0.8rem',
-                                                                    lineHeight: '1.4',
-                                                                    fontWeight: 600,
-                                                                    flexShrink: 0
-                                                                }}
-                                                            >
-                                                                {arrowDir}
-                                                            </button>
+                                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', marginLeft: 'auto' }}>
+                                                                <input 
+                                                                    type="number" 
+                                                                    min={1} 
+                                                                    max={count}
+                                                                    defaultValue={count}
+                                                                    key={`qty-${scheduleKey}-${localTime}-${count}`} // forced reset on count change
+                                                                    id={`qty-${scheduleKey}-${localTime}`}
+                                                                    style={{
+                                                                        width: '45px',
+                                                                        padding: '1px 3px',
+                                                                        fontSize: '0.75rem',
+                                                                        borderRadius: '3px',
+                                                                        border: '1px solid #cbd5e1',
+                                                                        background: 'white'
+                                                                    }}
+                                                                />
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const input = document.getElementById(`qty-${scheduleKey}-${localTime}`) as HTMLInputElement;
+                                                                        const qty = parseInt(input?.value || '0');
+                                                                        if (qty > 0) {
+                                                                            const toMove = indices.slice(0, Math.min(qty, indices.length));
+                                                                            onMoveToSession(toMove, otherSession.name);
+                                                                        }
+                                                                    }}
+                                                                    title={`Move people to ${otherSession.name.replace(`${row.sa} `, '')}`}
+                                                                    style={{
+                                                                        background: 'rgba(99,102,241,0.08)',
+                                                                        border: '1px solid rgba(99,102,241,0.25)',
+                                                                        borderRadius: '4px',
+                                                                        cursor: 'pointer',
+                                                                        color: '#6366f1',
+                                                                        padding: '0 5px',
+                                                                        fontSize: '0.8rem',
+                                                                        lineHeight: '1.4',
+                                                                        fontWeight: 600,
+                                                                        flexShrink: 0
+                                                                    }}
+                                                                >
+                                                                    {arrowDir}
+                                                                </button>
+                                                            </div>
                                                         )}
                                                     </div>
                                                 );

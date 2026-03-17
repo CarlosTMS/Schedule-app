@@ -132,10 +132,23 @@ export function Dashboard({
 
     const handleMoveToSession = (recordIndices: number[], targetSchedule: string) => {
         const newRecords = [...localRecords];
-        recordIndices.forEach(originalIndex => {
-            const idx = newRecords.findIndex(r => r._originalIndex === originalIndex);
-            if (idx !== -1) {
-                newRecords[idx] = { ...newRecords[idx], Schedule: targetSchedule };
+        const vatsToMove = new Set<string>();
+
+        // 1. Identify all VAT names that involve these indices
+        recordIndices.forEach(idx => {
+            const r = newRecords.find(rec => rec._originalIndex === idx);
+            if (r?.VAT && r.VAT !== 'Outlier-Size' && r.VAT !== 'Unassigned') {
+                vatsToMove.add(r.VAT);
+            }
+        });
+
+        // 2. Move everyone who is EITHER in the target indices OR in an affected VAT
+        newRecords.forEach((r, i) => {
+            const isTarget = recordIndices.includes(r._originalIndex || -1);
+            const isInTargetVat = r.VAT && vatsToMove.has(r.VAT);
+            
+            if (isTarget || isInTargetVat) {
+                newRecords[i] = { ...r, Schedule: targetSchedule };
             }
         });
         liftRecords(newRecords);
@@ -182,12 +195,24 @@ export function Dashboard({
 
     const handleMoveToVAT = (recordIndices: number[], targetVat: string) => {
         const newRecords = [...localRecords];
+        
+        // Find a template record already in that VAT to copy SA and Schedule if moving cross-SA
+        const template = targetVat !== 'Unassigned' 
+            ? localRecords.find(r => r.VAT === targetVat && r.VAT !== 'Unassigned' && r.VAT !== 'Outlier-Size') 
+            : null;
+
         recordIndices.forEach(originalIndex => {
             const idx = newRecords.findIndex(r => r._originalIndex === originalIndex);
             if (idx !== -1) {
-                newRecords[idx] = { ...newRecords[idx], VAT: targetVat };
-                // If they have no valid schedule, we might want to warn or auto-assign, 
-                // but for now we just move the VAT which is what was requested.
+                const updatedRecord = { ...newRecords[idx], VAT: targetVat };
+                
+                // If we have a template member in the target VAT, sync their SA and Schedule
+                if (template) {
+                    updatedRecord['Solution Weeks SA'] = template['Solution Weeks SA'];
+                    updatedRecord.Schedule = template.Schedule;
+                }
+                
+                newRecords[idx] = updatedRecord;
             }
         });
         liftRecords(newRecords);
@@ -203,7 +228,7 @@ export function Dashboard({
 
     // Derived Schedules mapped to SAs for SME/Faculty injection
     const schedulesBySA = localRecords.reduce((acc, r) => {
-        const sa = r['Solution Week SA'];
+        const sa = r['Solution Weeks SA'];
         const schedule = r.Schedule;
         if (sa && schedule && schedule !== 'Outlier-Schedule' && schedule !== 'Unassigned') {
             if (!acc[sa]) acc[sa] = new Set();
@@ -220,12 +245,12 @@ export function Dashboard({
     };
 
     const baseFilteredRecords = getFilteredRecords();
-    const uniqueSAs = Array.from(new Set(baseFilteredRecords.map(r => r['Solution Week SA']))).filter(Boolean).sort();
+    const uniqueSAs = Array.from(new Set(baseFilteredRecords.map(r => r['Solution Weeks SA']))).filter(Boolean).sort() as string[];
     const uniqueCountries = Array.from(new Set(baseFilteredRecords.map(r => r.Country))).filter(Boolean).sort();
     const uniqueOffices = Array.from(new Set(baseFilteredRecords.map(r => r.Office))).filter(Boolean).sort();
 
     const filteredRecords = baseFilteredRecords.filter(r => {
-        if (columnFilters.SA && r['Solution Week SA'] !== columnFilters.SA) return false;
+        if (columnFilters.SA && r['Solution Weeks SA'] !== columnFilters.SA) return false;
         if (columnFilters.Country && r.Country !== columnFilters.Country) return false;
         if (columnFilters.Office && r.Office !== columnFilters.Office) return false;
         return true;
@@ -526,6 +551,7 @@ export function Dashboard({
                             onSyncVatsToSessions={handleSyncVatsToSessions}
                             onUndoSync={handleUndoSync}
                             hasSyncHistory={syncHistory.length > 0}
+                            sessionTimeOverrides={sessionTimeOverrides}
                         />
                     </div>
                 )}
@@ -587,7 +613,7 @@ export function Dashboard({
                                             <td style={{ padding: '0.75rem 1rem' }}>{r.Country}</td>
                                             <td style={{ padding: '0.75rem 1rem' }}>{r.Office}</td>
                                             <td style={{ padding: '0.75rem 1rem' }}>{r['(AA) Secondary Specialization'] || 'Unknown'}</td>
-                                            <td style={{ padding: '0.75rem 1rem' }}><span style={{ padding: '0.2rem 0.5rem', background: '#e0f2fe', color: '#0369a1', borderRadius: '12px', fontSize: '0.8rem' }}>{r['Solution Week SA']}</span></td>
+                                            <td style={{ padding: '0.75rem 1rem' }}><span style={{ padding: '0.2rem 0.5rem', background: '#e0f2fe', color: '#0369a1', borderRadius: '12px', fontSize: '0.8rem' }}>{r['Solution Weeks SA']}</span></td>
                                             <td style={{ padding: '0.75rem 1rem' }}>{r._utcOffset !== undefined ? `UTC${r._utcOffset > 0 ? '+' : ''}${r._utcOffset}` : 'N/A'}</td>
                                             <td style={{ padding: '0.75rem 1rem' }}>
                                                 {filterType === 'schedule' ? (

@@ -150,7 +150,7 @@ export function Summary({
             for (const session of sessions) {
                 const utcHour = getEffectiveScheduleUtcHour(schedule, sessionTimeOverrides);
                 const attendees = records.filter(
-                    r => r['Solution Week SA'] === sa && r.Schedule === schedule && r.Schedule !== 'Outlier-Schedule'
+                    r => r['Solution Weeks SA'] === sa && r.Schedule === schedule && r.Schedule !== 'Outlier-Schedule'
                 );
 
                 const assignedSME = smeAssignmentsForSA[schedule]?.[session.id] ?? null;

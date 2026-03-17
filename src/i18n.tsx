@@ -152,7 +152,8 @@ const translations = {
         projectRename: 'Rename Project',
         projectDelete: 'Delete Project',
         statusDraft: 'Draft',
-        statusVersion: 'Versioned'
+        statusVersion: 'Versioned',
+        setupConfig: 'Run Configuration'
     },
     es: {
         appTitle: 'Programador de Habilitación de SAP Associates',
@@ -303,7 +304,8 @@ const translations = {
         projectRename: 'Renombrar Proyecto',
         projectDelete: 'Eliminar Proyecto',
         statusDraft: 'Borrador',
-        statusVersion: 'Versionado'
+        statusVersion: 'Versionado',
+        setupConfig: 'Configuración de la Corrida'
     }
 
 };

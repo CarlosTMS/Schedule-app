@@ -10,6 +10,7 @@ interface VATVisualizerProps {
     onSyncVatsToSessions?: () => void;
     onUndoSync?: () => void;
     hasSyncHistory?: boolean;
+    sessionTimeOverrides?: Record<string, number>;
 }
 
 interface VatsExport {
@@ -43,7 +44,16 @@ interface Recommendation {
     names: string;
 }
 
-const SUN_THU_COUNTRIES = ['saudi arabia', 'kuwait', 'qatar', 'bahrain', 'oman', 'jordan', 'egypt', 'israel'];
+const SUN_THU_COUNTRIES = [
+    'saudi arabia', 'arabia saudita', 
+    'kuwait', 
+    'qatar', 
+    'bahrain', 'bahrein', 
+    'oman', 
+    'jordan', 'jordania', 
+    'egypt', 'egipto', 
+    'israel'
+];
 
 const resolveApiBase = (): string => {
     const envBase = import.meta.env.VITE_API_BASE as string | undefined;
@@ -56,7 +66,22 @@ const resolveApiBase = (): string => {
 
 const API_BASE = resolveApiBase();
 
-export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates, onSyncVatsToSessions, onUndoSync, hasSyncHistory }: VATVisualizerProps) {
+// Helper to extract session name without time
+const extractScheduleKey = (name: string) => name.replace(/ \(\d+:00 UTC\)/, '').trim();
+const extractUtcHour = (name: string) => {
+    const m = name.match(/(\d+):00 UTC/);
+    return m ? parseInt(m[1]) : 0;
+};
+
+export function VATVisualizer({ 
+    records, 
+    onMoveDelegate, 
+    onMoveMultipleDelegates, 
+    onSyncVatsToSessions, 
+    onUndoSync, 
+    hasSyncHistory,
+    sessionTimeOverrides = {}
+}: VATVisualizerProps) {
     const { t } = useI18n();
     const [filterSA, setFilterSA] = useState<string>('All');
     const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
@@ -71,7 +96,7 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
         const allSAs = new Set<string>();
 
         records.forEach(r => {
-            const sa = r['Solution Week SA'] || 'Unknown SA';
+            const sa = r['Solution Weeks SA'] || 'Unknown SA';
             allSAs.add(sa);
 
             if (r.VAT === 'Outlier-Size' || r.VAT === 'Unassigned' || !r.VAT) {
@@ -84,7 +109,7 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
 
         const vatsBySA: Record<string, typeof formedVats> = {};
         Object.entries(formedVats).forEach(([vatName, students]) => {
-            const sa = students[0]['Solution Week SA'] || 'Unknown SA';
+            const sa = students[0]['Solution Weeks SA'] || 'Unknown SA';
             if (!vatsBySA[sa]) vatsBySA[sa] = {};
             vatsBySA[sa][vatName] = students;
         });
@@ -141,14 +166,14 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
             .map(([vat, members]) => ({
                 vat,
                 members_count: members.length,
-                solution_areas: Array.from(new Set(members.map(m => m['Solution Week SA']).filter(Boolean))).sort() as string[],
+                solution_areas: Array.from(new Set(members.map(m => m['Solution Weeks SA']).filter(Boolean))).sort() as string[],
                 schedules: Array.from(new Set(members.map(m => m.Schedule).filter(Boolean))).sort() as string[],
                 members: members.map(m => ({
                     name: m['Full Name'] ?? '',
                     email: '',
                     country: m.Country ?? '',
                     office: m.Office ?? '',
-                    solution_area: m['Solution Week SA'] ?? '',
+                    solution_area: m['Solution Weeks SA'] ?? '',
                     specialization: m['(AA) Secondary Specialization'] ?? '',
                     schedule: m.Schedule ?? '',
                     utc_offset: m._utcOffset,
@@ -183,7 +208,7 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
         }
     };
 
-    const renderVatCard = (vatName: string, students: StudentRecord[], allVatsForSA: Record<string, StudentRecord[]>) => {
+    const renderVatCard = (vatName: string, students: StudentRecord[]) => {
         const roles = students.map(s => s.Program || s.Role || s['(AA) Secondary Specialization'] || 'Unknown');
         const roleCounts = roles.reduce((acc, r) => {
             acc[r] = (acc[r] || 0) + 1;
@@ -192,9 +217,7 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
 
         const hasDuplicates = Object.values(roleCounts).some(c => c > 1);
         const isUndersized = students.length < 3;
-        // Other VATs in the same SA (excluding current one)
-        const otherVats = Object.keys(allVatsForSA).filter(v => v !== vatName);
-
+        
         const isSunThuVat = students.some(s => 
             SUN_THU_COUNTRIES.some(c => (s.Country || '').toLowerCase().includes(c))
         );
@@ -214,7 +237,13 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                     <div>
                         <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>{vatName}</h4>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                            {students[0].Schedule ? students[0].Schedule.split('(')[1]?.replace(')', '') || 'Unknown Time' : ''}
+                            {(() => {
+                                const schedule = students[0].Schedule;
+                                if (!schedule) return '';
+                                const key = extractScheduleKey(schedule);
+                                const utcHour = key in sessionTimeOverrides ? sessionTimeOverrides[key] : extractUtcHour(schedule);
+                                return `${utcHour}:00 UTC`;
+                            })()}
                         </span>
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -245,7 +274,7 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                                         <div>UTC{s._utcOffset && s._utcOffset > 0 ? `+${s._utcOffset}` : s._utcOffset}</div>
                                     </div>
                                 </div>
-                                {onMoveDelegate && otherVats.length > 0 && (
+                                {onMoveDelegate && (
                                     <select
                                         value=""
                                         onChange={(e) => {
@@ -265,10 +294,19 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                                             cursor: 'pointer'
                                         }}
                                     >
-                                        <option value="" disabled>Move to another VAT…</option>
-                                        {otherVats.map(v => (
-                                            <option key={v} value={v}>{v}</option>
-                                        ))}
+                                        <option value="" disabled>Actions…</option>
+                                        <option value="Unassigned" style={{ color: '#ef4444' }}>× Remove from VAT</option>
+                                        {Object.entries(data.vatsBySA).map(([sa, saVats]) => {
+                                            return (
+                                                <optgroup key={sa} label={sa}>
+                                                    {Object.keys(saVats)
+                                                        .filter(v => v !== vatName) // Exclude the current VAT
+                                                        .map(v => (
+                                                            <option key={v} value={v}>{v}</option>
+                                                        ))}
+                                                </optgroup>
+                                            );
+                                        })}
                                     </select>
                                 )}
                             </div>
@@ -296,13 +334,13 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
     const handleCreateNewVat = () => {
         if (selectedIndices.size === 0) {
             // Find first ungrouped in current filter
-            const ungroupedInSA = data.unassigned.filter(u => filterSA === 'All' || (u['Solution Week SA'] || 'Unknown SA') === filterSA);
+            const ungroupedInSA = data.unassigned.filter(u => filterSA === 'All' || (u['Solution Weeks SA'] || 'Unknown SA') === filterSA);
             if (ungroupedInSA.length === 0) {
                 alert("No ungrouped delegates to add to a new VAT.");
                 return;
             }
             const first = ungroupedInSA[0];
-            const sa = first['Solution Week SA'] || 'Unknown SA';
+            const sa = first['Solution Weeks SA'] || 'Unknown SA';
             const nextName = getNextVatName(sa);
             if (onMoveDelegate && first._originalIndex !== undefined) {
                 onMoveDelegate(first._originalIndex, nextName);
@@ -311,7 +349,7 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
             // Use selected
             const indices = Array.from(selectedIndices);
             const firstRecord = records.find(r => r._originalIndex === indices[0]);
-            const sa = firstRecord?.['Solution Week SA'] || 'Unknown SA';
+            const sa = firstRecord?.['Solution Weeks SA'] || 'Unknown SA';
             const nextName = getNextVatName(sa);
             if (onMoveMultipleDelegates) {
                 onMoveMultipleDelegates(indices, nextName);
@@ -347,7 +385,7 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
             // Group by SA/TZ to suggest specific VATs
             const bySA: Record<string, StudentRecord[]> = {};
             sunThuDelegates.forEach(s => {
-                const sa = s['Solution Week SA'] || 'Unknown SA';
+                const sa = s['Solution Weeks SA'] || 'Unknown SA';
                 if (!bySA[sa]) bySA[sa] = [];
                 bySA[sa].push(s);
             });
@@ -395,7 +433,7 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                 // Option A: Form pairs (Size 2) in same SA
                 const bySA: Record<string, StudentRecord[]> = {};
                 students.forEach(s => {
-                    const sa = s['Solution Week SA'] || 'Unknown SA';
+                    const sa = s['Solution Weeks SA'] || 'Unknown SA';
                     if (!bySA[sa]) bySA[sa] = [];
                     bySA[sa].push(s);
                 });
@@ -415,7 +453,7 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
 
                 // Option B: Cross-SA VAT
                 if (students.length >= 3) {
-                    const sas = Array.from(new Set(students.map(s => s['Solution Week SA'] || 'Unknown SA')));
+                    const sas = Array.from(new Set(students.map(s => s['Solution Weeks SA'] || 'Unknown SA')));
                     if (sas.length > 1) {
                         recs.push({
                             type: 'cross-sa',
@@ -451,7 +489,7 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                     SUN_THU_COUNTRIES.some(c => (s.Country || '').toLowerCase().includes(c))
                 );
                 if (sunThuInTZ.length >= 2) {
-                    const sa = sunThuInTZ[0]['Solution Week SA'] || 'Unknown SA';
+                    const sa = sunThuInTZ[0]['Solution Weeks SA'] || 'Unknown SA';
                     recs.push({
                         type: 'sun-thu',
                         title: `Prioritize Sun-Thu Grouping (UTC${tz > 0 ? '+' : ''}${tz})`,
@@ -769,10 +807,10 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                 {Object.entries(data.vatsBySA)
                     .filter(([sa]) => filterSA === 'All' || sa === filterSA)
                     .map(([sa, vats]) => (
-                        <div key={sa} style={{ marginBottom: '2rem' }}>
-                            <h4 style={{ borderBottom: '1px solid #e5e7eb', paddingBottom: '0.5rem', marginBottom: '1rem', color: 'var(--text-secondary)' }}>{sa}</h4>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
-                                {Object.entries(vats).map(([vatName, students]) => renderVatCard(vatName, students, vats))}
+                        <div key={sa} style={{ marginBottom: '3rem' }}>
+                            <h3 style={{ borderBottom: '2px solid #3b82f6', display: 'inline-block', paddingBottom: '0.25rem', marginBottom: '1.5rem', color: '#1e3a8a' }}>{sa}</h3>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
+                                {Object.entries(vats).map(([vn, students]) => renderVatCard(vn, students))}
                             </div>
                         </div>
                     ))}
@@ -783,7 +821,7 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                 <div style={{ backgroundColor: '#fffaf5', border: '1px solid #fed7aa', padding: '1.5rem', borderRadius: '8px' }}>
                     <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem', color: '#c2410c', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <AlertCircle size={24} />
-                        Ungrouped Delegates ({data.unassigned.filter(u => filterSA === 'All' || (u['Solution Week SA'] || 'Unknown SA') === filterSA).length})
+                        Ungrouped Delegates ({data.unassigned.filter(u => filterSA === 'All' || (u['Solution Weeks SA'] || 'Unknown SA') === filterSA).length})
                     </h3>
                     <p style={{ color: '#9a3412', marginBottom: '1.5rem', fontSize: '0.95rem' }}>
                         These individuals could not form a perfect VAT. This usually happens when there are leftover pairs/individuals in a Solution Area that don't reach the required Minimum VAT size, or their timezones are too far apart to pair up.
@@ -791,9 +829,9 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '0.75rem' }}>
                         {data.unassigned
-                            .filter(u => filterSA === 'All' || (u['Solution Week SA'] || 'Unknown SA') === filterSA)
+                            .filter(u => filterSA === 'All' || (u['Solution Weeks SA'] || 'Unknown SA') === filterSA)
                             .map(s => {
-                                const sa = s['Solution Week SA'] || 'Unknown SA';
+                                const sa = s['Solution Weeks SA'] || 'Unknown SA';
                                 const validVatsForSA = data.vatsBySA[sa] ? Object.keys(data.vatsBySA[sa]) : [];
 
                                 return (
@@ -825,7 +863,7 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                                                 <strong style={{ fontSize: '0.95rem' }}>{s['Full Name']}</strong>
                                             </div>
                                             <span style={{ fontSize: '0.8rem', backgroundColor: '#ffedd5', color: '#9a3412', padding: '2px 6px', borderRadius: '12px' }}>
-                                                {s['Solution Week SA'] || 'No SA'}
+                                                {s['Solution Weeks SA'] || 'No SA'}
                                             </span>
                                         </div>
                                         <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', paddingLeft: '1.75rem' }}>{s.Program || s.Role || s['(AA) Secondary Specialization'] || 'Unknown Role'}</div>
@@ -839,7 +877,7 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                                                     value=""
                                                     onChange={(e) => {
                                                         if (e.target.value === 'CREATE_NEW' && s._originalIndex !== undefined) {
-                                                            const sa = s['Solution Week SA'] || 'Unknown SA';
+                                                            const sa = s['Solution Weeks SA'] || 'Unknown SA';
                                                             onMoveDelegate(s._originalIndex, getNextVatName(sa));
                                                         } else if (e.target.value && s._originalIndex !== undefined) {
                                                             onMoveDelegate(s._originalIndex, e.target.value);

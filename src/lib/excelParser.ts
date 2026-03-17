@@ -9,15 +9,12 @@ export interface StudentRecord {
     'Full Name': string;
     'Country': string;
     'Office': string;
-    'Solution Area': string;
     '(AA) Secondary Specialization': string;
-    'Solution Week SA': string;
+    'Solution Weeks SA': string;
     'First Name'?: string;
     'Last Name'?: string;
-    'Program'?: string;
-    'Region'?: string;
     'Role'?: string;
-    'Solution Weeks SA'?: string;
+    'Program'?: string;
     '(AA) Business Group'?: string;
 
     // Internal fields appended during processing
@@ -60,28 +57,17 @@ export const parseExcel = async (file: File): Promise<StudentRecord[]> => {
                     };
 
                     const bgValue = getVal(['(AA) Business Group', 'Business Group']);
-                    const swsSA = getVal(['Solution Weeks SA']);
-                    const swSA = getVal(['Solution Week SA']);
+                    const swsSA = getVal(['Solution Weeks SA', 'Solution Week SA']);
 
-                    let rawSA = swSA || swsSA || getVal(['Solution Area', 'Solution Areas']);
-
-                    if (!rawSA) {
-                        const rawSALower = bgValue.trim().toLowerCase();
-                        if (rawSALower === 'iae' || rawSALower === 'industry account executive' || rawSALower === 'ae - generalist') {
-                            rawSA = 'AE - Generalist';
-                        } else {
-                            rawSA = bgValue;
-                        }
-                    }
+                    // If no Solution Weeks SA provided, it's Unassigned
+                    const rawSA = swsSA || 'Unassigned';
 
                     return {
                         'Full Name': getVal(['Full Name', 'Name']),
                         'Country': getVal(['Country']),
                         'Office': getVal(['Office', 'Location']),
-                        'Solution Area': rawSA,
                         '(AA) Secondary Specialization': getVal(['(AA) Secondary Specialization', 'Secondary Specialization', 'Specialization', 'Role', 'Program']),
-                        'Solution Week SA': swSA || swsSA,
-                        'Solution Weeks SA': swsSA,
+                        'Solution Weeks SA': rawSA,
                         '(AA) Business Group': bgValue,
                         Role: getVal(['Role']),
                         Program: getVal(['Program']),

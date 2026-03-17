@@ -334,12 +334,12 @@ function App() {
 
   const uniqueValuesMap = useMemo(() => {
     const map: Record<string, string[]> = {
-      'Country': [], 'Office': [], 'Solution Area': [], '(AA) Secondary Specialization': []
+      'Country': [], 'Office': [], 'Solution Weeks SA': [], '(AA) Secondary Specialization': []
     };
     records.forEach(r => {
       if (r.Country && !map['Country'].includes(r.Country)) map['Country'].push(r.Country);
       if (r.Office && !map['Office'].includes(r.Office)) map['Office'].push(r.Office);
-      if (r['Solution Area'] && !map['Solution Area'].includes(r['Solution Area'])) map['Solution Area'].push(r['Solution Area']);
+      if (r['Solution Weeks SA'] && !map['Solution Weeks SA'].includes(r['Solution Weeks SA'])) map['Solution Weeks SA'].push(r['Solution Weeks SA']);
       if (r['(AA) Secondary Specialization'] && !map['(AA) Secondary Specialization'].includes(r['(AA) Secondary Specialization'])) map['(AA) Secondary Specialization'].push(r['(AA) Secondary Specialization']);
     });
     return map;
@@ -475,6 +475,16 @@ function App() {
           <FileUpload onFileSelect={handleFileSelect} />
         ) : !result ? (
           <div className="fade-in" style={{ padding: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ margin: 0 }}>{t('setupConfig')}</h2>
+              <button 
+                onClick={() => { if (window.confirm(t('historyConfirmDelete'))) setRecords([]); }} 
+                className="btn btn-secondary"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <RotateCcw size={16} /> {t('uploadDifferent')}
+              </button>
+            </div>
             <Configurator assumptions={assumptions} onAssumptionsChange={setAssumptions} startHour={startHour} endHour={endHour} onTimeChange={(s, e) => { setStartHour(s); setEndHour(e); }} />
             <div className="grid-2-cols" style={{ marginTop: '1.5rem' }}>
               <RuleBuilder rules={rules} onChange={setRules} uniqueValuesMap={uniqueValuesMap} />

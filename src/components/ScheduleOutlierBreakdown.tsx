@@ -33,7 +33,7 @@ export function ScheduleOutlierBreakdown({ records }: ScheduleOutlierBreakdownPr
                                 <td style={{ padding: '1rem 0.75rem', fontWeight: 500, verticalAlign: 'top' }}>
                                     {outlier['Full Name']}
                                 </td>
-                                <td style={{ padding: '1rem 0.75rem', verticalAlign: 'top' }}>{outlier['Solution Week SA'] || outlier['Solution Area'] || 'Unassigned'}</td>
+                                <td style={{ padding: '1rem 0.75rem', verticalAlign: 'top' }}>{outlier['Solution Weeks SA'] || 'Unassigned'}</td>
                                 <td style={{ padding: '1rem 0.75rem', verticalAlign: 'top' }}>{outlier['(AA) Secondary Specialization']}</td>
                                 <td style={{ padding: '1rem 0.75rem', verticalAlign: 'top' }}>{outlier.Country}</td>
                                 <td style={{ padding: '1rem 0.75rem', verticalAlign: 'top', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>

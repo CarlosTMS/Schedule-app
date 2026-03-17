@@ -1,0 +1,9 @@
+
+> scheduler-app@0.0.0 build
+> tsc -b && vite build
+
+src/components/FacultyDebriefSchedule.tsx(158,72): error TS2551: Property 'Solution Week SA' does not exist on type 'StudentRecord'. Did you mean 'Solution Weeks SA'?
+src/components/FacultyDebriefSchedule.tsx(182,99): error TS2551: Property 'Solution Week SA' does not exist on type 'StudentRecord'. Did you mean 'Solution Weeks SA'?
+src/components/FacultyDebriefSchedule.tsx(207,110): error TS2571: Object is of type 'unknown'.
+src/components/FacultyDebriefSchedule.tsx(207,117): error TS2571: Object is of type 'unknown'.
+src/components/FacultyDebriefSchedule.tsx(210,111): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.

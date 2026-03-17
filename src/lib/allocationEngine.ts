@@ -46,8 +46,8 @@ export const runAllocation = (
     records.forEach(r => {
         for (const rule of rules) {
             if (r[rule.field as keyof StudentRecord] === rule.value) {
-                // When manual rules fire, they override everything into 'Solution Week SA'
-                r['Solution Week SA'] = rule.targetSA;
+                // When manual rules fire, they override everything into 'Solution Weeks SA'
+                r['Solution Weeks SA'] = rule.targetSA;
                 break;
             }
         }
@@ -91,22 +91,19 @@ export const runAllocation = (
             roleList.forEach(associate => {
                 const saObj = saOrder.find(s => s.current < s.target);
                 if (saObj) {
-                    associate['Solution Week SA'] = saObj.sa;
-                    associate['Solution Area'] = saObj.sa;
+                    associate['Solution Weeks SA'] = saObj.sa;
                     saObj.current++;
                 } else {
                     const fallback = saOrder[0];
-                    associate['Solution Week SA'] = fallback.sa;
-                    associate['Solution Area'] = fallback.sa;
+                    associate['Solution Weeks SA'] = fallback.sa;
                 }
             });
         });
     };
 
     const unassignedAssociates = records.filter(r => {
-        const swsSA = r['Solution Weeks SA'] || '';
-        const t = swsSA.trim().toLowerCase();
-        return !t || t === '-' || t === 'tbd' || t === 'n/a' || t === 'na' || t === 'unassigned' || t === 'unknown';
+        const swsSA = (r['Solution Weeks SA'] || '').trim().toLowerCase();
+        return !swsSA || swsSA === '-' || swsSA === 'tbd' || swsSA === 'n/a' || swsSA === 'na' || swsSA === 'unassigned' || swsSA === 'unknown' || swsSA.includes('??');
     });
 
     const fsAssociates = unassignedAssociates.filter(r => {
@@ -123,7 +120,7 @@ export const runAllocation = (
 
     // Paso C: Session Balancing
     const bySA = records.reduce((acc, r) => {
-        const sa = r['Solution Week SA'] || r['Solution Area'] || 'Unassigned';
+        const sa = r['Solution Weeks SA'] || 'Unassigned';
         if (!acc[sa]) acc[sa] = [];
         acc[sa].push(r);
         return acc;
@@ -235,6 +232,35 @@ export const runAllocation = (
             }
         }
 
+        // --- FALLBACK Leniency ---
+        // If we found NO solution for this SA and it has students, try lowering minSessionSize to 2
+        if (bestCombo.length === 0 && unassignedStudents.length > 0 && effectiveMinSessionSize > 2) {
+             effectiveMinSessionSize = 2;
+             // Re-evaluate (copying logic loop briefly for fallback)
+             for (const combo of allCombinations) {
+                 const availableStudents = unassignedStudents.filter(s => (s._availInfo || []).some(h => combo.includes(h)));
+                 if (availableStudents.length < combo.length * 2) continue;
+                 const comboAssignment = new Map<number, StudentRecord[]>();
+                 combo.forEach(h => comboAssignment.set(h, []));
+                 let coverage = 0;
+                 for (const s of availableStudents) {
+                     const h = combo.find(ch => (s._availInfo || []).includes(ch) && comboAssignment.get(ch)!.length < assumptions.maxSessionSize);
+                     if (h !== undefined) {
+                         comboAssignment.get(h)!.push(s);
+                         coverage++;
+                     }
+                 }
+                 const valid = combo.every(h => comboAssignment.get(h)!.length >= 2);
+                 if (valid && coverage > bestCoverage) {
+                     bestCoverage = coverage;
+                     bestCombo = combo;
+                     bestAssignment = new Map();
+                     combo.forEach(h => bestAssignment.set(h, [...comboAssignment.get(h)!]));
+                 }
+             }
+        }
+        // -------------------------
+
         // 4. Apply best assignment
         if (bestCombo.length > 0) {
             const coveredIds = new Set<number>();
@@ -280,9 +306,12 @@ export const runAllocation = (
 
         const getRole = (r: StudentRecord): 'csm' | 'sa' | 'sales' | 'other' => {
             const spec = (r['(AA) Secondary Specialization'] || '').toLowerCase();
-            if (spec.includes('csm')) return 'csm';
-            if (spec === 'sa' || spec.includes(' sa ') || spec.startsWith('sa ') || spec.endsWith(' sa') || spec.includes('solution advisor') || spec.includes('advisory')) return 'sa';
-            if (spec.includes('sales')) return 'sales';
+            const roleStr = (r.Role || '').toLowerCase();
+            const combined = `${spec} ${roleStr}`;
+            
+            if (combined.includes('csm')) return 'csm';
+            if (combined.includes('sa') || combined.includes('solution advisor') || combined.includes('advisory')) return 'sa';
+            if (combined.includes('sales') || combined.includes('account executive')) return 'sales';
             return 'other';
         };
 
@@ -347,7 +376,7 @@ export const runAllocation = (
                 return false;
             }
 
-            const sa = vat[0]['Solution Week SA'];
+            const sa = vat[0]['Solution Weeks SA'];
             const vatName = `VAT ${vatCounter}-${sa}`;
 
             vat.forEach(v => {
