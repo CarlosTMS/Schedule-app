@@ -15,10 +15,24 @@ interface RandomizerProps {
 
 export function Randomizer({ title, description, distributions, onChange, targetSAs }: RandomizerProps) {
     useEffect(() => {
-        if (distributions.length === 0 && targetSAs.length > 0) {
-            const initial = targetSAs.map(sa => ({ sa, percentage: 0 }));
-            if (initial.length > 0) initial[0].percentage = 100;
-            onChange(initial);
+        // Reconcile distributions with targetSAs (add missing, remove obsolete)
+        const currentSAs = distributions.map(d => d.sa);
+        const missingSAs = targetSAs.filter(sa => !currentSAs.includes(sa));
+        const hasObsolete = distributions.some(d => !targetSAs.includes(d.sa));
+
+        if (missingSAs.length > 0 || hasObsolete) {
+            const newDistributions = distributions
+                .filter(d => targetSAs.includes(d.sa)) // remove obsolete
+                .concat(missingSAs.map(sa => ({ sa, percentage: 0 }))); // add missing
+            
+            // If it was empty or we just added something and total isn't 100, we could prioritize,
+            // but for simple reconciliation we just add them at 0%.
+            // If it was completely empty (initial load with no draft), set first to 100%.
+            if (distributions.length === 0 && newDistributions.length > 0) {
+                newDistributions[0].percentage = 100;
+            }
+            
+            onChange(newDistributions);
         }
     }, [targetSAs, distributions, onChange]);
 
