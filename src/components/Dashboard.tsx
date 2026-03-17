@@ -69,6 +69,7 @@ export function Dashboard({
     // Internal fallback state — used when parent does NOT pass controlled props
     const [internalRecords, setInternalRecords] = useState(result.records);
     const [internalMetrics, setInternalMetrics] = useState(result.metrics);
+    const [syncHistory, setSyncHistory] = useState<StudentRecord[][]>([]);
 
     const localRecords = controlledRecords ?? internalRecords;
     const localMetrics = controlledMetrics ?? internalMetrics;
@@ -138,6 +139,45 @@ export function Dashboard({
             }
         });
         liftRecords(newRecords);
+    };
+
+    const handleSyncVatsToSessions = () => {
+        // Prepare to store history
+        setSyncHistory(prev => [...prev.slice(-4), [...localRecords.map(r => ({ ...r })) ]]);
+
+        const newRecords = [...localRecords.map(r => ({ ...r }))];
+        
+        // Group by VAT
+        const vats: Record<string, StudentRecord[]> = {};
+        newRecords.forEach(r => {
+            if (r.VAT && r.VAT !== 'Unassigned' && r.VAT !== 'Outlier-Size') {
+                if (!vats[r.VAT]) vats[r.VAT] = [];
+                vats[r.VAT].push(r);
+            }
+        });
+
+        // For each VAT, find the consensus schedule (or just use the first one available)
+        Object.values(vats).forEach((members) => {
+            const schedules = members.map(m => m.Schedule).filter(s => s && s !== 'Outlier-Schedule' && s !== 'Unassigned');
+            if (schedules.length > 0) {
+                const targetSchedule = schedules[0]; // Simple consensus: use the first valid schedule found in the group
+                members.forEach(m => {
+                    const idx = newRecords.findIndex(r => r._originalIndex === m._originalIndex);
+                    if (idx !== -1) {
+                        newRecords[idx].Schedule = targetSchedule;
+                    }
+                });
+            }
+        });
+
+        liftRecords(newRecords);
+    };
+
+    const handleUndoSync = () => {
+        if (syncHistory.length === 0) return;
+        const previous = syncHistory[syncHistory.length - 1];
+        setSyncHistory(prev => prev.slice(0, -1));
+        liftRecords(previous);
     };
 
     const handleMoveToVAT = (recordIndices: number[], targetVat: string) => {
@@ -410,6 +450,7 @@ export function Dashboard({
                             sessionTimeOverrides={sessionTimeOverrides}
                             onSessionTimeChange={handleSessionTimeChange}
                             onMoveToSession={handleMoveToSession}
+                            maxSessionSize={result.config.assumptions.maxSessionSize}
                         />
                     </div>
                 )}
@@ -482,6 +523,9 @@ export function Dashboard({
                             records={localRecords}
                             onMoveDelegate={(idx, targetVat) => handleMoveToVAT([idx], targetVat)}
                             onMoveMultipleDelegates={(indices, targetVat) => handleMoveToVAT(indices, targetVat)}
+                            onSyncVatsToSessions={handleSyncVatsToSessions}
+                            onUndoSync={handleUndoSync}
+                            hasSyncHistory={syncHistory.length > 0}
                         />
                     </div>
                 )}

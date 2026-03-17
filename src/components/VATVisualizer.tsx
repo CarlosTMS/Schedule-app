@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
 import type { StudentRecord } from '../lib/excelParser';
-import { AlertTriangle, Users, AlertCircle, Plus, CheckSquare, Square, Zap, Info, ArrowRight, Send, CheckCircle, CalendarDays } from 'lucide-react';
+import { AlertTriangle, Users, AlertCircle, Plus, CheckSquare, Square, Zap, Info, ArrowRight, Send, CheckCircle, CalendarDays, Calendar, RotateCcw } from 'lucide-react';
 import { useI18n } from '../i18n';
 
 interface VATVisualizerProps {
     records: StudentRecord[];
     onMoveDelegate?: (originalIndex: number, targetVat: string) => void;
     onMoveMultipleDelegates?: (originalIndices: number[], targetVat: string) => void;
+    onSyncVatsToSessions?: () => void;
+    onUndoSync?: () => void;
+    hasSyncHistory?: boolean;
 }
 
 interface VatsExport {
@@ -40,7 +43,7 @@ interface Recommendation {
     names: string;
 }
 
-const SUN_THU_COUNTRIES = ['saudi arabia', 'uae', 'united arab emirates', 'kuwait', 'qatar', 'bahrain', 'oman', 'jordan', 'egypt', 'israel'];
+const SUN_THU_COUNTRIES = ['saudi arabia', 'kuwait', 'qatar', 'bahrain', 'oman', 'jordan', 'egypt', 'israel'];
 
 const resolveApiBase = (): string => {
     const envBase = import.meta.env.VITE_API_BASE as string | undefined;
@@ -53,7 +56,7 @@ const resolveApiBase = (): string => {
 
 const API_BASE = resolveApiBase();
 
-export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates }: VATVisualizerProps) {
+export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates, onSyncVatsToSessions, onUndoSync, hasSyncHistory }: VATVisualizerProps) {
     const { t } = useI18n();
     const [filterSA, setFilterSA] = useState<string>('All');
     const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
@@ -600,6 +603,54 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                         <Zap size={18} className={isAnalyzing ? 'animate-pulse' : ''} />
                         Optimizer
                     </button>
+
+                    <div style={{ width: '1px', background: '#e5e7eb', margin: '0 0.25rem' }} />
+
+                    {onUndoSync && hasSyncHistory && (
+                        <button
+                            onClick={onUndoSync}
+                            title="Undo Session Sync"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                padding: '0.6rem 0.8rem',
+                                borderRadius: '8px',
+                                border: '1px solid #f87171',
+                                background: 'white',
+                                color: '#ef4444',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                            }}
+                        >
+                            <RotateCcw size={16} />
+                            Undo
+                        </button>
+                    )}
+
+                    {onSyncVatsToSessions && (
+                        <button
+                            onClick={onSyncVatsToSessions}
+                            title="Push VAT Groups to Sessions Breakdown"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                padding: '0.6rem 1rem',
+                                borderRadius: '8px',
+                                border: '1px solid #8b5cf6',
+                                background: 'white',
+                                color: '#7c3aed',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                            }}
+                        >
+                            <Calendar size={18} />
+                            Sync to Sessions
+                        </button>
+                    )}
 
                     <div style={{ width: '1px', background: '#e5e7eb', margin: '0 0.25rem' }} />
 

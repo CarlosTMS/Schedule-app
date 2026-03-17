@@ -8,6 +8,7 @@ interface SessionBreakdownProps {
     sessionTimeOverrides?: Record<string, number>; // scheduleKey (e.g. "Cloud ERP Session 1") -> UTC hour
     onSessionTimeChange?: (scheduleKey: string, newUtcHour: number) => void;
     onMoveToSession?: (recordIndices: number[], targetSchedule: string) => void;
+    maxSessionSize?: number;
 }
 
 // Extract the session key (without time part) from a full schedule string
@@ -21,7 +22,7 @@ const extractUtcHour = (scheduleName: string): number => {
     return match ? parseInt(match[1]) : 0;
 };
 
-export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSessionTimeChange, onMoveToSession }: SessionBreakdownProps) {
+export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSessionTimeChange, onMoveToSession, maxSessionSize = 40 }: SessionBreakdownProps) {
     const { t } = useI18n();
 
     const data = useMemo(() => {
@@ -138,7 +139,24 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
 
                             return (
                                 <>
-                                    <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>{s.count} {t('people')}:</div>
+                                    <div style={{ fontWeight: 600, marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <span style={{ color: s.count > maxSessionSize ? '#ef4444' : 'inherit' }}>
+                                            {s.count} {t('people')}:
+                                        </span>
+                                        {s.count > maxSessionSize && (
+                                            <span style={{ 
+                                                fontSize: '0.7rem', 
+                                                backgroundColor: '#fee2e2', 
+                                                color: '#dc2626', 
+                                                padding: '2px 6px', 
+                                                borderRadius: '4px',
+                                                border: '1px solid #fecaca',
+                                                fontWeight: 800
+                                            }}>
+                                                OVER CAPACITY ({maxSessionSize})
+                                            </span>
+                                        )}
+                                    </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
                                         <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
                                             {sessionLabel.replace(/ \(\d+:00 UTC\)/, '')}
