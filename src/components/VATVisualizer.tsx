@@ -93,6 +93,36 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
         };
     }, [records]);
 
+    const kpis = useMemo(() => {
+        let sunThu = 0;
+        let s3 = 0;
+        let s4 = 0;
+        let dupes = 0;
+
+        Object.values(data.vatsBySA).forEach(saVats => {
+            Object.values(saVats).forEach(students => {
+                if (students.some(s => SUN_THU_COUNTRIES.some(c => (s.Country || '').toLowerCase().includes(c)))) {
+                    sunThu++;
+                }
+                if (students.length === 3) s3++;
+                if (students.length === 4) s4++;
+                
+                const roles = students.map(s => s.Program || s.Role || s['(AA) Secondary Specialization'] || 'Unknown');
+                const uniqueRoles = new Set(roles);
+                if (uniqueRoles.size < students.length) {
+                    dupes++;
+                }
+            });
+        });
+
+        return [
+            { label: 'Sun-Thu Teams', value: sunThu, color: '#10b981', icon: <CalendarDays size={20} /> },
+            { label: 'Size 3 VATs', value: s3, color: '#3b82f6', icon: <Users size={20} /> },
+            { label: 'Size 4 VATs', value: s4, color: '#6366f1', icon: <Users size={20} /> },
+            { label: 'Role Conflicts', value: dupes, color: '#f59e0b', icon: <AlertTriangle size={20} /> },
+        ];
+    }, [data.vatsBySA]);
+
     const buildVatsPayload = (): VatsExport => {
         const grouped = new Map<string, StudentRecord[]>();
         for (const r of records) {
@@ -455,6 +485,38 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                         </div>
                     )}
                 </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '0.5rem' }}>
+                {kpis.map((kpi, idx) => (
+                    <div key={idx} style={{
+                        background: 'white',
+                        padding: '1.5rem',
+                        borderRadius: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        border: `1px solid ${kpi.color}30`,
+                        boxShadow: `0 4px 6px -1px ${kpi.color}10`,
+                        position: 'relative',
+                        overflow: 'hidden'
+                    }}>
+                        <div style={{
+                            position: 'absolute',
+                            top: '-5px',
+                            right: '-5px',
+                            opacity: 0.1,
+                            color: kpi.color,
+                            transform: 'scale(2.5)'
+                        }}>
+                            {kpi.icon}
+                        </div>
+                        <span style={{ fontSize: '2.5rem', fontWeight: 800, color: kpi.color, lineHeight: 1 }}>{kpi.value}</span>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>{kpi.label}</span>
+                    </div>
+                ))}
             </div>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '2rem', alignItems: 'center' }}>
