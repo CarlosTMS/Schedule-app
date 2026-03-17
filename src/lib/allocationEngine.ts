@@ -90,12 +90,12 @@ export const runAllocation = (
     });
 
     const fsAssociates = unassignedAssociates.filter(r => {
-        const combined = `${r.Role || ''} ${r['Solution Area'] || ''} ${r['(AA) Secondary Specialization'] || ''}`.toUpperCase().replace(/\s+/g, '');
-        return combined.includes('F&S') || combined.includes('FAND');
+        const bg = (r['(AA) Business Group'] || '').toUpperCase().trim();
+        return bg === 'F&S' || bg === 'FAND' || bg.includes('FACULTY');
     });
     const aeAssociates = unassignedAssociates.filter(r => {
-        const combined = `${r.Role || ''} ${r['Solution Area'] || ''} ${r['(AA) Secondary Specialization'] || ''}`.toLowerCase().replace(/\s+/g, '');
-        return combined.includes('account') || combined.includes('iae') || combined.includes('ae-generalist');
+        const bg = (r['(AA) Business Group'] || '').toUpperCase().trim();
+        return bg === 'IAE' || bg.includes('ACCOUNT') || bg.includes('GENERALIST');
     });
 
     applyDistribution(fsAssociates, fsDistributions);

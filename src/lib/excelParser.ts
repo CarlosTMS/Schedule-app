@@ -18,6 +18,7 @@ export interface StudentRecord {
     'Region'?: string;
     'Role'?: string;
     'Solution Weeks SA'?: string;
+    '(AA) Business Group'?: string;
 
     // Internal fields appended during processing
     _originalIndex: number;
@@ -58,10 +59,16 @@ export const parseExcel = async (file: File): Promise<StudentRecord[]> => {
                         return '';
                     };
 
-                    let rawSA = getVal(['Solution Area', 'Solution Areas', '(AA) Business Group', 'Business Group']);
-                    const rawSALower = rawSA.trim().toLowerCase();
-                    if (rawSALower === 'iae' || rawSALower === 'industry account executive' || rawSALower === 'ae - generalist') {
-                        rawSA = 'AE - Generalist';
+                    let rawSA = getVal(['Solution Area', 'Solution Areas']);
+                    const bgValue = getVal(['(AA) Business Group', 'Business Group']);
+
+                    if (!rawSA) {
+                        const rawSALower = bgValue.trim().toLowerCase();
+                        if (rawSALower === 'iae' || rawSALower === 'industry account executive' || rawSALower === 'ae - generalist') {
+                            rawSA = 'AE - Generalist';
+                        } else {
+                            rawSA = bgValue;
+                        }
                     }
 
                     return {
@@ -71,6 +78,7 @@ export const parseExcel = async (file: File): Promise<StudentRecord[]> => {
                         'Solution Area': rawSA,
                         '(AA) Secondary Specialization': getVal(['(AA) Secondary Specialization', 'Secondary Specialization', 'Specialization', 'Role', 'Program']),
                         'Solution Week SA': getVal(['Solution Week SA', 'Solution Weeks SA']),
+                        '(AA) Business Group': bgValue,
                         Role: getVal(['Role']),
                         Program: getVal(['Program']),
                         _originalIndex: index,
@@ -134,7 +142,7 @@ export const generateExcel = (data: StudentRecord[], config?: Partial<RunSnapsho
         }
 
         configData.push({ Parameter: "", Value: "" }); // Blank row
-        configData.push({ Parameter: "RANDOM DISTRIBUTION ENGINE (%) - ACCOUNT EXECUTIVE", Value: "" });
+        configData.push({ Parameter: "RANDOM DISTRIBUTION ENGINE (%) - IAE", Value: "" });
         if (config.aeDistributions) {
             config.aeDistributions.forEach((dist) => {
                 configData.push({ Parameter: dist.sa, Value: `${dist.percentage}%` });

@@ -50,13 +50,13 @@ function App() {
   const [rules, setRules] = useState<AllocationRule[]>([]);
   const [fsDistributions, setFsDistributions] = useState<DistributionTarget[]>([
     { sa: 'Cloud ERP', percentage: 50 },
-    { sa: 'Procurement', percentage: 0 },
     { sa: 'oCFO', percentage: 50 },
   ]);
   const [aeDistributions, setAeDistributions] = useState<DistributionTarget[]>([
-    { sa: 'Cloud ERP', percentage: 40 },
-    { sa: 'Data & AI', percentage: 30 },
-    { sa: 'BTP', percentage: 30 },
+    { sa: 'Cloud ERP', percentage: 25 },
+    { sa: 'Data & AI', percentage: 25 },
+    { sa: 'BTP', percentage: 25 },
+    { sa: 'oCFO', percentage: 25 },
   ]);
 
   // ── Dashboard live editing state ──────────────────────────────────────────
@@ -479,8 +479,8 @@ function App() {
             <div className="grid-2-cols" style={{ marginTop: '1.5rem' }}>
               <RuleBuilder rules={rules} onChange={setRules} uniqueValuesMap={uniqueValuesMap} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <Randomizer title="Faculty Source Distribution" description="Distribute sessions across Faculty pools." distributions={fsDistributions} onChange={setFsDistributions} targetSAs={['Cloud ERP', 'Procurement', 'oCFO']} />
-                <Randomizer title="Associate Assignment Targets" description="Targets for Associates without manual rules." distributions={aeDistributions} onChange={setAeDistributions} targetSAs={['Cloud ERP', 'Data & AI', 'BTP', 'HCM', 'SCM', 'CX']} />
+                <Randomizer title="F&S Assignment Targets" description="Distribute 'F&S' associates without manual rules." distributions={fsDistributions} onChange={setFsDistributions} targetSAs={['Cloud ERP', 'oCFO']} />
+                <Randomizer title="IAE Assignment Targets" description="Distribute 'IAE' associates without manual rules." distributions={aeDistributions} onChange={setAeDistributions} targetSAs={['Cloud ERP', 'Data & AI', 'BTP', 'oCFO']} />
               </div>
             </div>
             <div className="action-footer">
