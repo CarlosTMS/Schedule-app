@@ -32,13 +32,15 @@ interface VatsExport {
 }
 
 interface Recommendation {
-    type: 'pair' | 'cross-sa' | 'single-role';
+    type: 'pair' | 'cross-sa' | 'single-role' | 'sun-thu';
     title: string;
     description: string;
     indices: number[];
     sa: string;
     names: string;
 }
+
+const SUN_THU_COUNTRIES = ['saudi arabia', 'uae', 'united arab emirates', 'kuwait', 'qatar', 'bahrain', 'oman', 'jordan', 'egypt', 'israel'];
 
 const resolveApiBase = (): string => {
     const envBase = import.meta.env.VITE_API_BASE as string | undefined;
@@ -288,6 +290,51 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
         setSelectedIndices(next);
     };
 
+    const groupSunThuOnly = () => {
+        setIsAnalyzing(true);
+        setTimeout(() => {
+            const ungrouped = data.unassigned;
+            const sunThuDelegates = ungrouped.filter(u => 
+                SUN_THU_COUNTRIES.some(c => (u.Country || '').toLowerCase().includes(c))
+            );
+
+            if (sunThuDelegates.length === 0) {
+                alert("No unassigned Sunday-Thursday delegates found.");
+                setIsAnalyzing(false);
+                return;
+            }
+
+            const recs: Recommendation[] = [];
+            // Group by SA/TZ to suggest specific VATs
+            const bySA: Record<string, StudentRecord[]> = {};
+            sunThuDelegates.forEach(s => {
+                const sa = s['Solution Week SA'] || 'Unknown SA';
+                if (!bySA[sa]) bySA[sa] = [];
+                bySA[sa].push(s);
+            });
+
+            Object.entries(bySA).forEach(([sa, students]) => {
+                if (students.length >= 2) {
+                    recs.push({
+                        type: 'sun-thu',
+                        title: `Group Sun-Thu Team in ${sa}`,
+                        description: `These ${students.length} delegates from Sun-Thu countries can be grouped to align their working weeks.`,
+                        indices: students.map(s => s._originalIndex!),
+                        sa,
+                        names: students.map(s => s['Full Name']).join(', ')
+                    });
+                }
+            });
+
+            if (recs.length === 0) {
+                alert("Could not find enough unassigned Sunday-Thursday delegates in the same Solution Area to form a VAT.");
+            } else {
+                setRecommendations(recs);
+            }
+            setIsAnalyzing(false);
+        }, 800);
+    };
+
     const runAnalysis = () => {
         setIsAnalyzing(true);
         // Simulate thinking time for "premium" feel
@@ -359,6 +406,22 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                         }
                     }
                 });
+
+                // Option D: Regional Grouping (Sunday-Thursday)
+                const sunThuInTZ = students.filter(s => 
+                    SUN_THU_COUNTRIES.some(c => (s.Country || '').toLowerCase().includes(c))
+                );
+                if (sunThuInTZ.length >= 2) {
+                    const sa = sunThuInTZ[0]['Solution Week SA'] || 'Unknown SA';
+                    recs.push({
+                        type: 'sun-thu',
+                        title: `Prioritize Sun-Thu Grouping (UTC${tz > 0 ? '+' : ''}${tz})`,
+                        description: `These ${sunThuInTZ.length} individuals from Sun-Thu countries should be grouped to align schedules.`,
+                        indices: sunThuInTZ.map(s => s._originalIndex!),
+                        sa,
+                        names: sunThuInTZ.map(s => s['Full Name']).join(', ')
+                    });
+                }
             });
 
             setRecommendations(recs);
@@ -399,21 +462,56 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                                 padding: '0.5rem 1rem',
                                 borderRadius: '9999px',
                                 border: '1px solid',
-                                borderColor: filterSA === sa ? '#ce9600' : '#e5e7eb', // matches var(--glass-border) roughly
-                                background: filterSA === sa ? '#ce9600' : 'rgba(255,255,255,0.5)',
-                                color: filterSA === sa ? 'white' : 'var(--text-primary)',
-                                fontWeight: filterSA === sa ? 600 : 400,
+                                borderColor: filterSA === sa ? '#ce9600' : '#e5e7eb',
+                                background: filterSA === sa ? 'rgba(206, 150, 0, 0.1)' : 'rgba(255,255,255,0.5)',
+                                color: filterSA === sa ? '#854d0e' : 'var(--text-primary)',
+                                fontWeight: filterSA === sa ? 700 : 400,
                                 cursor: 'pointer',
                                 transition: 'all 0.2s ease',
-                                boxShadow: filterSA === sa ? '0 4px 6px -1px rgba(234, 179, 8, 0.3)' : 'none'
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem'
                             }}
                         >
-                            {sa === 'All' ? 'All Solution Areas' : sa}
+                            {sa === 'All' ? 'All Areas' : sa}
+                            {filterSA === sa && <CheckCircle size={14} />}
                         </button>
                     ))}
                 </div>
 
-                <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.75rem' }}>
+                <div style={{ 
+                    marginLeft: 'auto', 
+                    display: 'flex', 
+                    gap: '0.75rem',
+                    padding: '0.5rem',
+                    background: 'rgba(255,255,255,0.7)',
+                    backdropFilter: 'blur(8px)',
+                    borderRadius: '12px',
+                    border: '1px solid #e5e7eb',
+                    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
+                }}>
+                    <button
+                        onClick={groupSunThuOnly}
+                        disabled={isAnalyzing}
+                        title="Maximize Sun-Thu Grouping"
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.6rem 1rem',
+                            borderRadius: '8px',
+                            border: '1px solid #10b981',
+                            background: 'white',
+                            color: '#059669',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                        }}
+                    >
+                        <Users size={18} />
+                        Group Sun-Thu
+                    </button>
+
                     <button
                         onClick={runAnalysis}
                         disabled={isAnalyzing}
@@ -421,20 +519,21 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.5rem',
-                            padding: '0.6rem 1.2rem',
+                            padding: '0.6rem 1rem',
                             borderRadius: '8px',
                             border: '1px solid #3b82f6',
                             background: 'white',
-                            color: '#3b82f6',
+                            color: '#2563eb',
                             fontWeight: 600,
                             cursor: 'pointer',
                             transition: 'all 0.2s',
-                            boxShadow: '0 2px 4px rgba(59, 130, 246, 0.1)'
                         }}
                     >
                         <Zap size={18} className={isAnalyzing ? 'animate-pulse' : ''} />
-                        {isAnalyzing ? 'Analyzing...' : 'Run Optimizer'}
+                        Optimizer
                     </button>
+
+                    <div style={{ width: '1px', background: '#e5e7eb', margin: '0 0.25rem' }} />
 
                     <button
                         onClick={handleCreateNewVat}
@@ -445,16 +544,16 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                             padding: '0.6rem 1.2rem',
                             borderRadius: '8px',
                             border: 'none',
-                            background: 'var(--primary-color)',
+                            background: 'linear-gradient(135deg, #2563eb 0%, #1e40af 100%)',
                             color: 'white',
                             fontWeight: 600,
                             cursor: 'pointer',
                             transition: 'all 0.2s',
-                            boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)'
+                            boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.3)'
                         }}
                     >
                         <Plus size={18} />
-                        {selectedIndices.size > 0 ? `Create VAT with ${selectedIndices.size} Selected` : 'Add New VAT'}
+                        {selectedIndices.size > 0 ? `Create (${selectedIndices.size})` : 'New VAT'}
                     </button>
                 </div>
             </div>
@@ -494,8 +593,8 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                             }}>
                                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                                     <div style={{
-                                        backgroundColor: rec.type === 'pair' ? '#dcfce7' : rec.type === 'cross-sa' ? '#fef9c3' : '#ffedd5',
-                                        color: rec.type === 'pair' ? '#166534' : rec.type === 'cross-sa' ? '#854d0e' : '#9a3412',
+                                        backgroundColor: rec.type === 'pair' ? '#dcfce7' : rec.type === 'sun-thu' ? '#d1fae5' : rec.type === 'cross-sa' ? '#fef9c3' : '#ffedd5',
+                                        color: rec.type === 'pair' ? '#166534' : rec.type === 'sun-thu' ? '#065f46' : rec.type === 'cross-sa' ? '#854d0e' : '#9a3412',
                                         width: '32px', height: '32px', borderRadius: '8px',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                                     }}>

@@ -5,7 +5,8 @@ export const getUtcOffset = (country: string, office: string): number => {
     const normalizedOffice = (office || '').toLowerCase().trim();
 
     // Americas
-    if (normalizedCountry.includes('united states') || normalizedCountry.includes('usa') || normalizedCountry.includes('us')) {
+    const isUSA = normalizedCountry === 'usa' || normalizedCountry === 'us' || normalizedCountry === 'united states' || normalizedCountry === 'united states of america';
+    if (isUSA) {
         if (normalizedOffice.includes('new york') || normalizedOffice.includes('east') || normalizedOffice.includes('atlanta')) return -5;
         if (normalizedOffice.includes('california') || normalizedOffice.includes('west') || normalizedOffice.includes('palo alto')) return -8;
         if (normalizedOffice.includes('chicago') || normalizedOffice.includes('central')) return -6;
@@ -23,7 +24,15 @@ export const getUtcOffset = (country: string, office: string): number => {
     if (normalizedCountry.includes('chile')) return -4;
 
     // EMEA
-    if (normalizedCountry.includes('germany') || normalizedCountry.includes('france') || normalizedCountry.includes('spain') || normalizedCountry.includes('italy') || normalizedCountry.includes('switzerland')) return 1;
+    if (
+        normalizedCountry === 'switzerland' || 
+        normalizedCountry === 'ch' || 
+        normalizedCountry === 'che' ||
+        normalizedCountry.includes('germany') || 
+        normalizedCountry.includes('france') || 
+        normalizedCountry.includes('spain') || 
+        normalizedCountry.includes('italy')
+    ) return 1;
     if (normalizedCountry.includes('uk') || normalizedCountry.includes('united kingdom') || normalizedCountry.includes('ireland')) return 0;
     if (normalizedCountry.includes('south africa')) return 2;
     if (normalizedCountry.includes('uae') || normalizedCountry.includes('united arab emirates')) return 4;
