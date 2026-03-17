@@ -120,8 +120,9 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
             { label: 'Size 3 VATs', value: s3, color: '#3b82f6', icon: <Users size={20} /> },
             { label: 'Size 4 VATs', value: s4, color: '#6366f1', icon: <Users size={20} /> },
             { label: 'Role Conflicts', value: dupes, color: '#f59e0b', icon: <AlertTriangle size={20} /> },
+            { label: 'Ungrouped', value: data.unassigned.length, color: '#ef4444', icon: <AlertCircle size={20} /> },
         ];
-    }, [data.vatsBySA]);
+    }, [data.vatsBySA, data.unassigned]);
 
     const buildVatsPayload = (): VatsExport => {
         const grouped = new Map<string, StudentRecord[]>();
