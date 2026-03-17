@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { StudentRecord } from '../lib/excelParser';
-import { AlertTriangle, Users, AlertCircle, Plus, CheckSquare, Square, Zap, Info, ArrowRight, Send, CheckCircle } from 'lucide-react';
+import { AlertTriangle, Users, AlertCircle, Plus, CheckSquare, Square, Zap, Info, ArrowRight, Send, CheckCircle, CalendarDays } from 'lucide-react';
 import { useI18n } from '../i18n';
 
 interface VATVisualizerProps {
@@ -161,12 +161,16 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
         // Other VATs in the same SA (excluding current one)
         const otherVats = Object.keys(allVatsForSA).filter(v => v !== vatName);
 
+        const isSunThuVat = students.some(s => 
+            SUN_THU_COUNTRIES.some(c => (s.Country || '').toLowerCase().includes(c))
+        );
+
         return (
             <div key={vatName} style={{
-                border: `2px solid ${hasDuplicates ? '#ffedd5' : isUndersized ? '#fee2e2' : '#e5e7eb'}`,
+                border: `2px solid ${isSunThuVat ? '#10b981' : hasDuplicates ? '#ffedd5' : isUndersized ? '#fee2e2' : '#e5e7eb'}`,
                 borderRadius: '8px',
                 padding: '1rem',
-                backgroundColor: hasDuplicates ? '#fffedd' : isUndersized ? '#fef2f2' : '#ffffff',
+                backgroundColor: isSunThuVat ? '#f0fdf4' : hasDuplicates ? '#fffedd' : isUndersized ? '#fef2f2' : '#ffffff',
                 boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
                 display: 'flex',
                 flexDirection: 'column',
@@ -180,6 +184,7 @@ export function VATVisualizer({ records, onMoveDelegate, onMoveMultipleDelegates
                         </span>
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        {isSunThuVat && <span title="Sunday - Thursday Schedule" style={{ color: '#059669' }}><CalendarDays size={18} /></span>}
                         {hasDuplicates && <span title="Duplicated Roles" style={{ color: '#ea580c' }}><Users size={18} /></span>}
                         {isUndersized && <span title="Undersized VAT" style={{ color: '#ef4444' }}><AlertTriangle size={18} /></span>}
                     </div>
