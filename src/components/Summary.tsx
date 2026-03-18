@@ -1,7 +1,8 @@
 import { useState, Fragment } from 'react';
 import {
     FileSpreadsheet, FileText, FileJson, Send, ChevronDown, ChevronRight,
-    AlertTriangle, CheckCircle, UserCircle2, Presentation, Mail, Building2, MapPin, Globe
+    AlertTriangle, CheckCircle, UserCircle2, Presentation, MapPin, Globe,
+    Building2, Mail
 } from 'lucide-react';
 import { sessions, getEligibleSMEs, autoAssignSMEs } from '../lib/smeMatcher';
 import type { SME, SessionId } from '../lib/smeMatcher';
@@ -9,11 +10,11 @@ import { getEligibleFaculty, autoAssignFaculty } from '../lib/facultyMatcher';
 import type { Faculty } from '../lib/facultyMatcher';
 import { getEffectiveScheduleUtcHour, getKnownUtcOffset, formatEffectiveSchedule } from '../lib/timezones';
 import type { StudentRecord } from '../lib/excelParser';
+import { generateExcel } from '../lib/excelParser';
 import type { SMECacheStatus } from '../lib/smeDataLoader';
 import type { SmeAssignments } from './SMESchedule';
 import type { FacultyAssignments } from './FacultySchedule';
 import { useI18n } from '../i18n';
-import * as XLSX from 'xlsx';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -298,9 +299,11 @@ export function Summary({
             row.assignedFaculty?.office ?? '',
             row.warnings.map(w => w.label).join('; '),
         ]);
+
         const csvContent = [header, ...rows]
             .map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
             .join('\n');
+        
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -311,30 +314,16 @@ export function Summary({
     };
 
     const handleExportExcel = () => {
-        const header = [
-            t('exportColSolutionArea'), t('exportColSchedule'), t('exportColSession'),
-            t('exportColUtcHour'), t('exportColAttendeesCount'),
-            t('exportColSmeName'), t('exportColSmeLob'), t('exportColSmeOffice'), t('exportColSmeEmail'),
-            t('exportColFacultyName'), t('exportColFacultyOffice'), t('exportColWarnings'),
-        ];
-        const rows = sessionRows.map(row => [
-            row.sa,
-            formatEffectiveSchedule(row.schedule, sessionTimeOverrides),
-            row.sessionDef.title,
-            row.utcHour,
-            row.attendees.length,
-            row.assignedSME?.name ?? '',
-            row.assignedSME?.lob ?? '',
-            row.assignedSME?.office_location ?? '',
-            row.assignedSME?.email ?? '',
-            row.assignedFaculty?.name ?? '',
-            row.assignedFaculty?.office ?? '',
-            row.warnings.map(w => w.label).join('; '),
-        ]);
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-        XLSX.utils.book_append_sheet(wb, ws, 'Summary');
-        XLSX.writeFile(wb, `summary_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        const enrichedRecords = records.map(r => {
+            const sessionMatch = sessionRows.find(sr => sr.sa === r['Solution Weeks SA'] && sr.schedule === r.Schedule);
+            return {
+                ...r,
+                'Asignacion de SMEs': sessionMatch?.assignedSME?.name || '',
+                'Asignacion de Faculty': sessionMatch?.assignedFaculty?.name || ''
+            };
+        });
+
+        generateExcel(enrichedRecords, buildExportPayload().config);
     };
 
     // ── Publish to local API ────────────────────────────────────────────────

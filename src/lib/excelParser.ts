@@ -29,6 +29,8 @@ export interface StudentRecord {
     // Output fields
     'Schedule'?: string;
     'VAT'?: string;
+    'Asignacion de SMEs'?: string;
+    'Asignacion de Faculty'?: string;
 }
 
 export const parseExcel = async (file: File): Promise<StudentRecord[]> => {
@@ -97,11 +99,14 @@ export const generateExcel = (data: StudentRecord[], config?: Partial<RunSnapsho
         return cleanRecord;
     });
 
-    const worksheet = xlsx.utils.json_to_sheet(exportData);
     const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.json_to_sheet(exportData);
     xlsx.utils.book_append_sheet(workbook, worksheet, "Results");
 
     if (config) {
+        // If we have full snapshot context (from Summary), we can enrich the results with SME/Faculty
+        // However, the records in 'data' might already have been enriched by Summary's buildExportPayload logic
+        // if we pass them correctly. To be safe and robust, let's keep the config sheet logic.
         const configData: { Parameter: string; Value: string | number | undefined }[] = [
             { Parameter: "Working Hours Start (UTC)", Value: config.startHour },
             { Parameter: "Working Hours End (UTC)", Value: config.endHour },

@@ -74,6 +74,11 @@
             "Faculty Name": "Pau Pujol",
             "City Location": "Barcelona",
             "Country Location": "Spain"
+        },
+        {
+            "Faculty Name": "Nick",
+            "City Location": "Atlanta",
+            "Country Location": "USA"
         }
     ]
 }

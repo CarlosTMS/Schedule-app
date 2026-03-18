@@ -16,6 +16,16 @@
             "sa": "Cloud ERP"
         },
         {
+            "name": "Juan",
+            "office": "Madrid",
+            "sa": "Cloud ERP"
+        },
+        {
+            "name": "Nick",
+            "office": "Atlanta",
+            "sa": "Cloud ERP"
+        },
+        {
             "name": "Jessica",
             "office": "San Francisco",
             "sa": "oCFO"
@@ -31,6 +41,16 @@
             "sa": "oCFO"
         },
         {
+            "name": "Juan",
+            "office": "Madrid",
+            "sa": "oCFO"
+        },
+        {
+            "name": "Nick",
+            "office": "Atlanta",
+            "sa": "oCFO"
+        },
+        {
             "name": "Jessica",
             "office": "San Francisco",
             "sa": "Procurement"
@@ -43,6 +63,16 @@
         {
             "name": "Amy",
             "office": "Perth",
+            "sa": "Procurement"
+        },
+        {
+            "name": "Juan",
+            "office": "Madrid",
+            "sa": "Procurement"
+        },
+        {
+            "name": "Nick",
+            "office": "Atlanta",
             "sa": "Procurement"
         },
         {
@@ -61,6 +91,16 @@
             "sa": "BTP"
         },
         {
+            "name": "Juan",
+            "office": "Madrid",
+            "sa": "BTP"
+        },
+        {
+            "name": "Nick",
+            "office": "Atlanta",
+            "sa": "BTP"
+        },
+        {
             "name": "Fernando",
             "office": "San Francisco",
             "sa": "Data & AI"
@@ -73,6 +113,16 @@
         {
             "name": "Carlos",
             "office": "Frankfurt",
+            "sa": "Data & AI"
+        },
+        {
+            "name": "Juan",
+            "office": "Madrid",
+            "sa": "Data & AI"
+        },
+        {
+            "name": "Nick",
+            "office": "Atlanta",
             "sa": "Data & AI"
         },
         {
@@ -93,6 +143,16 @@
         {
             "name": "Hanna",
             "office": "Oslo",
+            "sa": "BTM"
+        },
+        {
+            "name": "Juan",
+            "office": "Madrid",
+            "sa": "BTM"
+        },
+        {
+            "name": "Nick",
+            "office": "Atlanta",
             "sa": "BTM"
         },
         {
@@ -116,6 +176,11 @@
             "sa": "CX"
         },
         {
+            "name": "Nick",
+            "office": "Atlanta",
+            "sa": "CX"
+        },
+        {
             "name": "Godfrey",
             "office": "San Francisco",
             "sa": "HCM"
@@ -128,6 +193,16 @@
         {
             "name": "Hanna",
             "office": "Oslo",
+            "sa": "HCM"
+        },
+        {
+            "name": "Juan",
+            "office": "Madrid",
+            "sa": "HCM"
+        },
+        {
+            "name": "Nick",
+            "office": "Atlanta",
             "sa": "HCM"
         },
         {
@@ -148,6 +223,16 @@
         {
             "name": "Lilly",
             "office": "Frankfurt",
+            "sa": "SCM"
+        },
+        {
+            "name": "Juan",
+            "office": "Madrid",
+            "sa": "SCM"
+        },
+        {
+            "name": "Nick",
+            "office": "Atlanta",
             "sa": "SCM"
         }
     ]
