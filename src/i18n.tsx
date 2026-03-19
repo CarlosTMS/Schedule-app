@@ -33,6 +33,7 @@ const translations = {
         navSessions: 'Sessions Breakdown',
         navSMEs: 'SME Assignment',
         navFaculty: 'Faculty Assignment',
+        navBlockers: 'Calendar Blockers',
         navVATs: 'VAT Explorer',
         navData: 'Data Explorer',
         sessionTopic: 'Session Topic',
@@ -155,6 +156,22 @@ const translations = {
         statusDraft: 'Draft',
         statusVersion: 'Versioned',
         setupConfig: 'Run Configuration'
+        ,
+        blockersTitle: 'Calendar Blockers',
+        blockersDesc: 'Generate Outlook-friendly ICS blockers from the current session assignments.',
+        blockersAudienceBoth: 'SMEs + Faculty',
+        blockersSelectAll: 'Select all',
+        blockersClearSelection: 'Clear selection',
+        blockersDownloadSelected: 'Download Selected ICS',
+        blockersDownloadAll: 'Download All ICS',
+        blockersSessionsCount: 'Sessions prepared',
+        blockersLocalPreview: 'Local Time Preview',
+        blockersRecipients: 'Recipients',
+        blockersRecipientEmails: 'Recipient Emails',
+        blockersNoRecipientEmails: 'No email available',
+        blockersMissingEmails: 'Missing emails',
+        blockersDownloadIcs: 'Download ICS',
+        blockersCopyRecipients: 'Copy Emails'
     },
     es: {
         appTitle: 'Programador de Habilitación de SAP Associates',
@@ -186,6 +203,7 @@ const translations = {
         navSessions: 'Desglose de Sesiones',
         navSMEs: 'Asignación de SMEs',
         navFaculty: 'Asignación de Faculty',
+        navBlockers: 'Bloqueadores de Calendario',
         navVATs: 'Explorador de VATs',
         navData: 'Explorador de Datos',
         sessionTopic: 'Tema de la Sesión',
@@ -307,7 +325,22 @@ const translations = {
         projectDelete: 'Eliminar Proyecto',
         statusDraft: 'Borrador',
         statusVersion: 'Versionado',
-        setupConfig: 'Configuración de la Corrida'
+        setupConfig: 'Configuración de la Corrida',
+        blockersTitle: 'Bloqueadores de Calendario',
+        blockersDesc: 'Genera blockers ICS compatibles con Outlook a partir de las asignaciones actuales.',
+        blockersAudienceBoth: 'SMEs + Faculty',
+        blockersSelectAll: 'Seleccionar todo',
+        blockersClearSelection: 'Limpiar selección',
+        blockersDownloadSelected: 'Descargar ICS seleccionados',
+        blockersDownloadAll: 'Descargar todos los ICS',
+        blockersSessionsCount: 'Sesiones preparadas',
+        blockersLocalPreview: 'Vista local',
+        blockersRecipients: 'Destinatarios',
+        blockersRecipientEmails: 'Emails destinatarios',
+        blockersNoRecipientEmails: 'Sin email disponible',
+        blockersMissingEmails: 'Faltan emails',
+        blockersDownloadIcs: 'Descargar ICS',
+        blockersCopyRecipients: 'Copiar emails'
     }
 
 };

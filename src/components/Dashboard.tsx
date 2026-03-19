@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react';
-import { Download, Users, AlertTriangle, CheckCircle, Clock, ShieldAlert, LayoutDashboard, Calendar, Presentation, UserSquare2, Database, BarChart3 } from 'lucide-react';
+import { Download, Users, AlertTriangle, CheckCircle, Clock, ShieldAlert, LayoutDashboard, Calendar, Presentation, UserSquare2, Database, BarChart3, CalendarPlus } from 'lucide-react';
 import { calculateMetrics } from '../lib/allocationEngine';
 import type { AllocationResult } from '../lib/allocationEngine';
 import { generateExcel } from '../lib/excelParser';
@@ -14,6 +14,7 @@ import { FacultySchedule } from './FacultySchedule';
 import type { FacultyAssignments } from './FacultySchedule';
 import { FacultyDebriefSchedule } from './FacultyDebriefSchedule';
 import { Summary } from './Summary';
+import { CalendarBlockers } from './CalendarBlockers';
 import { useI18n } from '../i18n';
 import { loadSMEData, forceFetchSMEData } from '../lib/smeDataLoader';
 import type { SMECacheStatus } from '../lib/smeDataLoader';
@@ -43,9 +44,11 @@ interface DashboardProps {
     onLocalRecordsChange?: (records: StudentRecord[]) => void;
     localMetrics?: AllocationResult['metrics'];
     onLocalMetricsChange?: (metrics: AllocationResult['metrics']) => void;
+    projectName?: string | null;
+    versionLabel?: string | null;
 }
 
-type TabType = 'overview' | 'sessions' | 'smes' | 'faculty' | 'summary' | 'debrief' | 'vats' | 'data';
+type TabType = 'overview' | 'sessions' | 'smes' | 'faculty' | 'summary' | 'blockers' | 'debrief' | 'vats' | 'data';
 
 export function Dashboard({
     result, onReset, previousMetrics, sessionLength = 90,
@@ -63,6 +66,8 @@ export function Dashboard({
     onLocalRecordsChange,
     localMetrics: controlledMetrics,
     onLocalMetricsChange,
+    projectName,
+    versionLabel,
 }: DashboardProps) {
 
     const { t } = useI18n();
@@ -303,6 +308,7 @@ export function Dashboard({
         { id: 'smes', icon: UserSquare2, label: t('navSMEs') },
         { id: 'faculty', icon: Presentation, label: t('navFaculty') },
         { id: 'summary', icon: BarChart3, label: t('navSummary') },
+        { id: 'blockers', icon: CalendarPlus, label: t('navBlockers') },
         { id: 'vats', icon: Users, label: t('navVATs') },
         { id: 'data', icon: Database, label: t('navData') },
     ] as const;
@@ -546,6 +552,24 @@ export function Dashboard({
                             onFacultyAssignmentsChange={setManualFacultyAssignments}
                             smeList={smeList}
                             smeStatus={smeStatus}
+                        />
+                    </div>
+                )}
+
+                {activeTab === 'blockers' && (
+                    <div className="animated-fade-in">
+                        <CalendarBlockers
+                            schedulesBySA={schedulesBySA}
+                            startHour={result.config.startHour}
+                            endHour={result.config.endHour}
+                            facultyStartHour={facultyStartHour}
+                            sessionTimeOverrides={sessionTimeOverrides}
+                            sessionInstanceTimeOverrides={sessionInstanceTimeOverrides}
+                            manualSmeAssignments={manualSmeAssignments}
+                            manualFacultyAssignments={manualFacultyAssignments}
+                            smeList={smeList}
+                            projectName={projectName}
+                            versionLabel={versionLabel}
                         />
                     </div>
                 )}

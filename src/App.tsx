@@ -573,6 +573,8 @@ function App() {
             onManualFacultyAssignmentsChange={setManualFacultyAssignments}
             onLocalMetricsChange={setDashboardMetrics}
             onLocalRecordsChange={setDashboardRecords}
+            projectName={projects.find(p => p.id === activeProjectId)?.name ?? null}
+            versionLabel={loadedVersionId ? `v${projectVersions.find(v => v.id === loadedVersionId)?.versionNumber ?? ''}` : null}
             versionInfo={
               loadedVersionId ? (
                 <div className="version-status-box" style={{ padding: '0.5rem', marginTop: '0.5rem' }}>
