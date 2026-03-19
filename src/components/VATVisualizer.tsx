@@ -16,6 +16,8 @@ interface VATVisualizerProps {
 interface VatsExport {
     generated_at: string;
     total_records: number;
+    source_records_count: number;
+    excluded_records_count: number;
     total_vats: number;
     vats: {
         vat: string;
@@ -83,6 +85,10 @@ export function VATVisualizer({
     sessionTimeOverrides = {}
 }: VATVisualizerProps) {
     const { t } = useI18n();
+    const getAssignedSA = (record: StudentRecord): string => {
+        const legacy = (record as StudentRecord & { 'Solution Week SA'?: string })['Solution Week SA'];
+        return record['Solution Weeks SA'] || legacy || '';
+    };
     const [filterSA, setFilterSA] = useState<string>('All');
     const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
     const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
@@ -96,7 +102,7 @@ export function VATVisualizer({
         const allSAs = new Set<string>();
 
         records.forEach(r => {
-            const sa = r['Solution Weeks SA'] || 'Unknown SA';
+            const sa = getAssignedSA(r) || 'Unknown SA';
             allSAs.add(sa);
 
             if (r.VAT === 'Outlier-Size' || r.VAT === 'Unassigned' || !r.VAT) {
@@ -109,7 +115,7 @@ export function VATVisualizer({
 
         const vatsBySA: Record<string, typeof formedVats> = {};
         Object.entries(formedVats).forEach(([vatName, students]) => {
-            const sa = students[0]['Solution Weeks SA'] || 'Unknown SA';
+            const sa = getAssignedSA(students[0]) || 'Unknown SA';
             if (!vatsBySA[sa]) vatsBySA[sa] = {};
             vatsBySA[sa][vatName] = students;
         });
@@ -156,7 +162,7 @@ export function VATVisualizer({
         const grouped = new Map<string, StudentRecord[]>();
         for (const r of records) {
             const vat = (r.VAT || '').trim();
-            if (!vat || vat === 'Unassigned' || vat === 'Outlier-Size') continue;
+            if (!vat || vat === 'Unassigned' || vat === 'Outlier-Size' || !r.Schedule || r.Schedule === 'Outlier-Schedule') continue;
             const list = grouped.get(vat) || [];
             list.push(r);
             grouped.set(vat, list);
@@ -166,14 +172,14 @@ export function VATVisualizer({
             .map(([vat, members]) => ({
                 vat,
                 members_count: members.length,
-                solution_areas: Array.from(new Set(members.map(m => m['Solution Weeks SA']).filter(Boolean))).sort() as string[],
+                solution_areas: Array.from(new Set(members.map(m => getAssignedSA(m)).filter(Boolean))).sort() as string[],
                 schedules: Array.from(new Set(members.map(m => m.Schedule).filter(Boolean))).sort() as string[],
                 members: members.map(m => ({
                     name: m['Full Name'] ?? '',
-                    email: '',
+                    email: m.Email ?? '',
                     country: m.Country ?? '',
                     office: m.Office ?? '',
-                    solution_area: m['Solution Weeks SA'] ?? '',
+                    solution_area: getAssignedSA(m),
                     specialization: m['(AA) Secondary Specialization'] ?? '',
                     schedule: m.Schedule ?? '',
                     utc_offset: m._utcOffset,
@@ -181,9 +187,13 @@ export function VATVisualizer({
             }))
             .sort((a, b) => a.vat.localeCompare(b.vat));
 
+        const exportedRecordsCount = vats.reduce((sum, vat) => sum + vat.members_count, 0);
+
         return {
             generated_at: new Date().toISOString(),
-            total_records: records.length,
+            total_records: exportedRecordsCount,
+            source_records_count: records.length,
+            excluded_records_count: records.length - exportedRecordsCount,
             total_vats: vats.length,
             vats
         };

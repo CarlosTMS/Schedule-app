@@ -9,6 +9,7 @@ export interface StudentRecord {
     'Full Name': string;
     'Country': string;
     'Office': string;
+    'Email'?: string;
     '(AA) Secondary Specialization': string;
     'Solution Weeks SA': string;
     'First Name'?: string;
@@ -67,6 +68,7 @@ export const parseExcel = async (file: File): Promise<StudentRecord[]> => {
                         'Full Name': getVal(['Full Name', 'Name']),
                         'Country': getVal(['Country']),
                         'Office': getVal(['Office', 'Location']),
+                        'Email': getVal(['Email', 'E-mail', 'Email Address', 'Mail']),
                         '(AA) Secondary Specialization': getVal(['(AA) Secondary Specialization', 'Secondary Specialization', 'Specialization', 'Role', 'Program']),
                         'Solution Weeks SA': rawSA,
                         '(AA) Business Group': bgValue,
@@ -154,4 +156,3 @@ export const generateExcel = (data: StudentRecord[], config?: Partial<RunSnapsho
 
     xlsx.writeFile(workbook, filename);
 };
-

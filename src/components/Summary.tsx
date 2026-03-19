@@ -61,14 +61,16 @@ interface SummaryExportSession {
     attendees_count: number;
     attendees: {
         name: string;
+        email?: string;
         country: string;
         office: string;
         specialization: string;
         utc_offset: number | undefined;
     }[];
-    sme: { name: string; lob: string; office: string; email: string } | null;
+    sme: { name: string; lob: string; office_location: string; office: string; email: string } | null;
     faculty: { name: string; office: string } | null;
-    warnings: string[];
+    warnings: { code: SessionWarning['type']; label: string }[];
+    warning_codes: SessionWarning['type'][];
 }
 
 interface SummaryExport {
@@ -135,6 +137,17 @@ export function Summary({
     const [showOnlyWarnings, setShowOnlyWarnings] = useState(false);
     const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
     const [publishing, setPublishing] = useState(false);
+
+    const buildAssignmentSummary = (sa: string, schedule: string, kind: 'sme' | 'faculty'): string => {
+        return sessionRows
+            .filter(row => row.sa === sa && row.schedule === schedule)
+            .map(row => {
+                const assignee = kind === 'sme' ? row.assignedSME?.name : row.assignedFaculty?.name;
+                return assignee ? `${row.sessionDef.title}: ${assignee}` : null;
+            })
+            .filter((value): value is string => Boolean(value))
+            .join(' | ');
+    };
 
     // ── Build session rows ──────────────────────────────────────────────────
 
@@ -248,6 +261,7 @@ export function Summary({
             attendees_count: row.attendees.length,
             attendees: row.attendees.map(a => ({
                 name: a['Full Name'] ?? '',
+                email: a.Email ?? '',
                 country: a.Country ?? '',
                 office: a.Office ?? '',
                 specialization: a['(AA) Secondary Specialization'] ?? '',
@@ -257,6 +271,7 @@ export function Summary({
                 ? {
                     name: row.assignedSME.name,
                     lob: row.assignedSME.lob,
+                    office_location: row.assignedSME.office_location,
                     office: row.assignedSME.office_location,
                     email: row.assignedSME.email ?? '',
                 }
@@ -264,7 +279,8 @@ export function Summary({
             faculty: row.assignedFaculty
                 ? { name: row.assignedFaculty.name, office: row.assignedFaculty.office }
                 : null,
-            warnings: row.warnings.map(w => w.label),
+            warnings: row.warnings.map(w => ({ code: w.type, label: w.label })),
+            warning_codes: row.warnings.map(w => w.type),
         })),
     });
 
@@ -319,11 +335,10 @@ export function Summary({
 
     const handleExportExcel = () => {
         const enrichedRecords = records.map(r => {
-            const sessionMatch = sessionRows.find(sr => sr.sa === r['Solution Weeks SA'] && sr.schedule === r.Schedule);
             return {
                 ...r,
-                'Asignacion de SMEs': sessionMatch?.assignedSME?.name || '',
-                'Asignacion de Faculty': sessionMatch?.assignedFaculty?.name || ''
+                'Asignacion de SMEs': buildAssignmentSummary(getAssignedSA(r), r.Schedule || '', 'sme'),
+                'Asignacion de Faculty': buildAssignmentSummary(getAssignedSA(r), r.Schedule || '', 'faculty')
             };
         });
 

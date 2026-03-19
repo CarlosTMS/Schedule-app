@@ -3,6 +3,8 @@ import type { SmeAssignments } from '../components/SMESchedule';
 import type { FacultyAssignments } from '../components/FacultySchedule';
 import { sessions as sessionDefs } from './smeMatcher';
 import { calculateMetrics, type AllocationResult } from './allocationEngine';
+import type { SME, SessionId as SmeSessionId } from './smeMatcher';
+import type { Faculty, SessionId as FacultySessionId } from './facultyMatcher';
 
 export interface ParsedJsonSummary {
     records: StudentRecord[];
@@ -18,40 +20,75 @@ export const parseEnrichedExcel = (records: StudentRecord[]): ParsedJsonSummary 
     const manualFacultyAssignments: FacultyAssignments = {};
     const sessionTimeOverrides: Record<string, number> = {};
 
+    const getAssignedSA = (record: StudentRecord): string => {
+        const legacy = (record as StudentRecord & { 'Solution Week SA'?: string })['Solution Week SA'];
+        return record['Solution Weeks SA'] || legacy || '';
+    };
+
+    const parseAssignmentMap = (value?: string): Map<string, string> => {
+        const map = new Map<string, string>();
+        if (!value) return map;
+
+        const parts = value.split('|').map(part => part.trim()).filter(Boolean);
+        const structured = parts.every(part => part.includes(':'));
+        if (!structured) {
+            map.set('*', value.trim());
+            return map;
+        }
+
+        parts.forEach(part => {
+            const separatorIndex = part.indexOf(':');
+            if (separatorIndex === -1) return;
+            const topic = part.slice(0, separatorIndex).trim();
+            const assignee = part.slice(separatorIndex + 1).trim();
+            if (topic && assignee) map.set(topic, assignee);
+        });
+
+        return map;
+    };
+
+    const buildImportedSME = (name: string): SME => ({
+        name,
+        office_location: '',
+        lob: '',
+        overview: false,
+        process_mapping: false,
+        industry_relevance: false,
+        ai_strategy: false,
+        competitive_defense: false,
+        adoption_risk: false,
+    });
+
+    const buildImportedFaculty = (name: string, sa: string): Faculty => ({
+        name,
+        office: '',
+        sa
+    });
+
     records.forEach(rec => {
-        const sa = rec['Solution Weeks SA'];
+        const sa = getAssignedSA(rec);
         const scheduleFull = rec.Schedule;
         if (!sa || !scheduleFull) return;
 
-        // Try mapping SMEs and faculty from the custom string. 
-        // Note: The Excel export only stores ONE SME/Faculty per row, so we map it to ALL sessions for that SA.
-        const smeName = rec['Asignacion de SMEs'];
-        const facultyName = rec['Asignacion de Faculty'];
+        const smeAssignments = parseAssignmentMap(rec['Asignacion de SMEs']);
+        const facultyAssignments = parseAssignmentMap(rec['Asignacion de Faculty']);
 
-        if (smeName || facultyName) {
+        if (smeAssignments.size > 0 || facultyAssignments.size > 0) {
             sessionDefs.forEach(sessionDef => {
                 const topicId = sessionDef.id;
+                const smeName = smeAssignments.get(sessionDef.title) || smeAssignments.get('*');
+                const facultyName = facultyAssignments.get(sessionDef.title) || facultyAssignments.get('*');
 
                 if (smeName) {
                     if (!manualSmeAssignments[sa]) manualSmeAssignments[sa] = {};
-                    if (!manualSmeAssignments[sa][scheduleFull]) manualSmeAssignments[sa][scheduleFull] = {} as Record<import('../lib/smeMatcher').SessionId, import('../lib/smeMatcher').SME | null>;
-                    // Creating a dummy SME object since the Excel only has the name
-                    manualSmeAssignments[sa][scheduleFull][topicId as import('../lib/smeMatcher').SessionId] = { 
-                        name: smeName,
-                        office_location: '',
-                        lob: ''
-                    } as import('../lib/smeMatcher').SME;
+                    if (!manualSmeAssignments[sa][scheduleFull]) manualSmeAssignments[sa][scheduleFull] = {} as Record<SmeSessionId, SME | null>;
+                    manualSmeAssignments[sa][scheduleFull][topicId as SmeSessionId] = buildImportedSME(smeName);
                 }
 
                 if (facultyName) {
                     if (!manualFacultyAssignments[sa]) manualFacultyAssignments[sa] = {};
-                    if (!manualFacultyAssignments[sa][scheduleFull]) manualFacultyAssignments[sa][scheduleFull] = {} as Record<import('../lib/facultyMatcher').SessionId, import('../lib/facultyMatcher').Faculty | null>;
-                    manualFacultyAssignments[sa][scheduleFull][topicId as import('../lib/facultyMatcher').SessionId] = {
-                        name: facultyName,
-                        office: '',
-                        country: '',
-                        sa: [sa]
-                    } as unknown as import('../lib/facultyMatcher').Faculty;
+                    if (!manualFacultyAssignments[sa][scheduleFull]) manualFacultyAssignments[sa][scheduleFull] = {} as Record<FacultySessionId, Faculty | null>;
+                    manualFacultyAssignments[sa][scheduleFull][topicId as FacultySessionId] = buildImportedFaculty(facultyName, sa);
                 }
             });
         }
@@ -103,6 +140,25 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
     const userMap = new Map<string, StudentRecord>();
     let originalIndex = 0;
 
+    const normalizeSME = (value: Record<string, unknown>): SME => ({
+        name: String(value.name ?? ''),
+        lob: String(value.lob ?? ''),
+        office_location: String(value.office_location ?? value.office ?? ''),
+        overview: false,
+        process_mapping: false,
+        industry_relevance: false,
+        ai_strategy: false,
+        competitive_defense: false,
+        adoption_risk: false,
+        email: value.email ? String(value.email) : undefined,
+    });
+
+    const normalizeFaculty = (value: Record<string, unknown>, sa: string): Faculty => ({
+        name: String(value.name ?? ''),
+        office: String(value.office ?? ''),
+        sa: typeof value.sa === 'string' ? value.sa : sa
+    });
+
     if (!data.sessions || !Array.isArray(data.sessions)) {
         throw new Error("Invalid Summary JSON format");
     }
@@ -124,6 +180,7 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
                     'Full Name': name,
                     'Country': att.country as string,
                     'Office': att.office as string,
+                    'Email': att.email as string | undefined,
                     '(AA) Secondary Specialization': att.specialization as string,
                     'Solution Weeks SA': sa,
                     Schedule: scheduleFull,
@@ -142,14 +199,14 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
         if (topicId) {
             if (session.sme) {
                 if (!manualSmeAssignments[sa]) manualSmeAssignments[sa] = {};
-                if (!manualSmeAssignments[sa][scheduleFull]) manualSmeAssignments[sa][scheduleFull] = {} as Record<import('../lib/smeMatcher').SessionId, import('../lib/smeMatcher').SME | null>;
-                manualSmeAssignments[sa][scheduleFull][topicId as import('../lib/smeMatcher').SessionId] = session.sme as import('../lib/smeMatcher').SME;
+                if (!manualSmeAssignments[sa][scheduleFull]) manualSmeAssignments[sa][scheduleFull] = {} as Record<SmeSessionId, SME | null>;
+                manualSmeAssignments[sa][scheduleFull][topicId as SmeSessionId] = normalizeSME(session.sme as Record<string, unknown>);
             }
 
             if (session.faculty) {
                 if (!manualFacultyAssignments[sa]) manualFacultyAssignments[sa] = {};
-                if (!manualFacultyAssignments[sa][scheduleFull]) manualFacultyAssignments[sa][scheduleFull] = {} as Record<import('../lib/facultyMatcher').SessionId, import('../lib/facultyMatcher').Faculty | null>;
-                manualFacultyAssignments[sa][scheduleFull][topicId as import('../lib/facultyMatcher').SessionId] = session.faculty as import('../lib/facultyMatcher').Faculty;
+                if (!manualFacultyAssignments[sa][scheduleFull]) manualFacultyAssignments[sa][scheduleFull] = {} as Record<FacultySessionId, Faculty | null>;
+                manualFacultyAssignments[sa][scheduleFull][topicId as FacultySessionId] = normalizeFaculty(session.faculty as Record<string, unknown>, sa);
             }
         }
     });

@@ -53,6 +53,39 @@ const jsonResponse = (res, statusCode, body) => {
   res.end(JSON.stringify(body, null, 2));
 };
 
+const isObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const validateSummarySnapshot = (payload) => {
+  if (!isObject(payload)) return 'Summary payload must be an object';
+  if (!Array.isArray(payload.sessions)) return 'Summary payload must include a sessions array';
+
+  for (const session of payload.sessions) {
+    if (!isObject(session)) return 'Each summary session must be an object';
+    if (typeof session.solution_area !== 'string' || typeof session.schedule !== 'string' || typeof session.session_topic !== 'string') {
+      return 'Each summary session must include solution_area, schedule, and session_topic';
+    }
+    if (!Array.isArray(session.attendees)) return 'Each summary session must include an attendees array';
+    if (!Array.isArray(session.warning_codes)) return 'Each summary session must include warning_codes';
+  }
+
+  return null;
+};
+
+const validateVatsSnapshot = (payload) => {
+  if (!isObject(payload)) return 'VAT payload must be an object';
+  if (!Array.isArray(payload.vats)) return 'VAT payload must include a vats array';
+
+  for (const vat of payload.vats) {
+    if (!isObject(vat)) return 'Each VAT entry must be an object';
+    if (typeof vat.vat !== 'string' || typeof vat.members_count !== 'number') {
+      return 'Each VAT entry must include vat and members_count';
+    }
+    if (!Array.isArray(vat.members)) return 'Each VAT entry must include a members array';
+  }
+
+  return null;
+};
+
 const readBody = (req) =>
   new Promise((resolve, reject) => {
     const chunks = [];
@@ -133,6 +166,8 @@ const server = http.createServer(async (req, res) => {
       try {
         const body = await readBody(req);
         const parsed = JSON.parse(body);
+        const validationError = validateSummarySnapshot(parsed);
+        if (validationError) return jsonResponse(res, 400, { error: validationError });
         ensureDataDir();
         fs.writeFileSync(DATA_FILE, JSON.stringify(parsed, null, 2), 'utf8');
         return jsonResponse(res, 200, { ok: true, saved_at: new Date().toISOString() });
@@ -163,6 +198,8 @@ const server = http.createServer(async (req, res) => {
       try {
         const body = await readBody(req);
         const parsed = JSON.parse(body);
+        const validationError = validateVatsSnapshot(parsed);
+        if (validationError) return jsonResponse(res, 400, { error: validationError });
         ensureDataDir();
         fs.writeFileSync(VATS_DATA_FILE, JSON.stringify(parsed, null, 2), 'utf8');
         return jsonResponse(res, 200, { ok: true, saved_at: new Date().toISOString() });
