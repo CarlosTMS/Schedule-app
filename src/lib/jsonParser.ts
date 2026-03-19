@@ -112,7 +112,10 @@ export const parseEnrichedExcel = (records: StudentRecord[]): ParsedJsonSummary 
         aeDistributions: []
     };
 
-    recalculateVATs(records, config.assumptions);
+    const needsRecalculation = records.some(r => !r.VAT || r.VAT === 'Imported-JSON');
+    if (needsRecalculation) {
+        recalculateVATs(records, config.assumptions);
+    }
 
     const metrics = calculateMetrics(records);
 
@@ -190,7 +193,7 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
                     Schedule: scheduleFull,
                     _utcOffset: att.utc_offset as number,
                     _originalIndex: originalIndex++,
-                    VAT: 'Imported-JSON',
+                    VAT: (att.vat as string) || 'Imported-JSON',
                     Role: att.specialization as string
                 };
                 userMap.set(name, rec);
@@ -233,7 +236,10 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
         aeDistributions: []
     };
 
-    recalculateVATs(records, config.assumptions);
+    const needsRecalculation = records.some(r => !r.VAT || r.VAT === 'Imported-JSON');
+    if (needsRecalculation) {
+        recalculateVATs(records, config.assumptions);
+    }
 
     const metrics = calculateMetrics(records);
 

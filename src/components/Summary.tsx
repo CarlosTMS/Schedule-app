@@ -66,6 +66,7 @@ interface SummaryExportSession {
         office: string;
         specialization: string;
         utc_offset: number | undefined;
+        vat?: string;
     }[];
     sme: { name: string; lob: string; office_location: string; office: string; email: string } | null;
     faculty: { name: string; office: string } | null;
@@ -302,6 +303,7 @@ export function Summary({
                 office: a.Office ?? '',
                 specialization: a['(AA) Secondary Specialization'] ?? '',
                 utc_offset: a._utcOffset,
+                vat: a.VAT,
             })),
             sme: row.assignedSME
                 ? {
