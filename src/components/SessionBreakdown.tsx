@@ -24,12 +24,16 @@ const extractUtcHour = (scheduleName: string): number => {
 
 export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSessionTimeChange, onMoveToSession, maxSessionSize = 40 }: SessionBreakdownProps) {
     const { t } = useI18n();
+    const getAssignedSA = (r: StudentRecord): string => {
+        const legacy = (r as StudentRecord & { 'Solution Week SA'?: string })['Solution Week SA'];
+        return r['Solution Weeks SA'] || legacy || '';
+    };
 
     const data = useMemo(() => {
         const bySA: Record<string, { totalInSA: number, allocated: number, sessions: Record<string, StudentRecord[]> }> = {};
 
         records.forEach(r => {
-            const sa = r['Solution Weeks SA'];
+            const sa = getAssignedSA(r);
             const schedule = r.Schedule;
 
             if (!sa || sa === 'Unassigned') return;

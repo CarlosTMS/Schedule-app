@@ -169,7 +169,11 @@ export function SMESchedule({
                                     <tr key={`${session.id}-${schedule}`} style={{ borderBottom: showBorder ? '1px solid #cbd5e1' : (topicIsLast && scheduleIsLast ? 'none' : '1px solid #e2e8f0'), background: isOutOfHours ? 'rgba(239, 68, 68, 0.05)' : 'transparent' }}>
                                         {sIndex === 0 && (
                                             <td rowSpan={availableSchedules.length} style={{ padding: '1rem', fontWeight: 500, verticalAlign: 'top', borderRight: '1px solid #e2e8f0' }}>
-                                                {session.title}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                    <span>{session.title}</span>
+                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{session.onlineSessionDay}</span>
+                                                    <span style={{ fontSize: '0.75rem', color: '#0369a1' }}>{session.date}</span>
+                                                </div>
                                             </td>
                                         )}
                                         <td style={{ padding: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>

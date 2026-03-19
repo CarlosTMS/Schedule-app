@@ -82,11 +82,18 @@ function App() {
 
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectsRef = useRef<RunProject[]>(projects);
+  const projectRevisionRef = useRef<Record<string, number>>({});
   const errorRef = useRef<string | null>(error);
   const lastSyncedSnapshotRef = useRef<string>('');
 
   // Sync refs with state
   useEffect(() => { projectsRef.current = projects; }, [projects]);
+  useEffect(() => {
+    projectRevisionRef.current = projects.reduce<Record<string, number>>((acc, project) => {
+      if (project.revision !== undefined) acc[project.id] = project.revision;
+      return acc;
+    }, {});
+  }, [projects]);
   useEffect(() => { errorRef.current = error; }, [error]);
   useEffect(() => {
     try {
@@ -171,8 +178,10 @@ function App() {
       const snapshotStr = JSON.stringify(currentSnapshot);
       if (snapshotStr !== lastSyncedSnapshotRef.current) {
         setAutosaveStatus('saving');
-        const proj = projectsRef.current.find(p => p.id === activeProjectId);
-        repository.syncDraft(activeProjectId, currentSnapshot, proj?.revision || 1)
+        const expectedRevision = projectRevisionRef.current[activeProjectId]
+          ?? projectsRef.current.find(p => p.id === activeProjectId)?.revision
+          ?? 1;
+        repository.syncDraft(activeProjectId, currentSnapshot, expectedRevision)
           .then((res) => {
             if (res.status === 'conflict') {
               setAutosaveStatus('conflict');
@@ -186,11 +195,14 @@ function App() {
                 lastSyncedSnapshotRef.current = snapshotStr;
               }
               if (res.project) {
+                if (res.project.revision !== undefined) {
+                  projectRevisionRef.current[res.project.id] = res.project.revision;
+                }
                 setProjects(prev => prev.map(p => p.id === res.project!.id ? res.project! : p));
               }
             }
           });
-      } else if (autosaveStatus !== 'saving' && autosaveStatus !== 'conflict') {
+      } else {
         setAutosaveStatus('saved');
       }
     } else {
@@ -200,7 +212,7 @@ function App() {
 
     if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
     savedTimerRef.current = setTimeout(() => setAutosaveStatus('idle'), 3000);
-  }, [currentSnapshot, activeProjectId, records.length, autosaveStatus]);
+  }, [currentSnapshot, activeProjectId, records.length]);
 
 
 

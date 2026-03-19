@@ -41,7 +41,7 @@ interface SessionWarning {
 interface SessionRow {
     sa: string;
     schedule: string;
-    sessionDef: { id: SessionId; title: string };
+    sessionDef: (typeof sessions)[number];
     utcHour: number;
     attendees: StudentRecord[];
     assignedSME: SME | null;
@@ -127,6 +127,10 @@ export function Summary({
 }: SummaryProps) {
     const { t } = useI18n();
     const effectiveFacultyStartHour = facultyStartHour ?? startHour;
+    const getAssignedSA = (r: StudentRecord): string => {
+        const legacy = (r as StudentRecord & { 'Solution Week SA'?: string })['Solution Week SA'];
+        return r['Solution Weeks SA'] || legacy || '';
+    };
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [showOnlyWarnings, setShowOnlyWarnings] = useState(false);
     const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
@@ -151,7 +155,7 @@ export function Summary({
             for (const session of sessions) {
                 const utcHour = getEffectiveScheduleUtcHour(schedule, sessionTimeOverrides);
                 const attendees = records.filter(
-                    r => r['Solution Weeks SA'] === sa && r.Schedule === schedule && r.Schedule !== 'Outlier-Schedule'
+                    r => getAssignedSA(r) === sa && r.Schedule === schedule && r.Schedule !== 'Outlier-Schedule'
                 );
 
                 const assignedSME = smeAssignmentsForSA[schedule]?.[session.id] ?? null;
@@ -505,7 +509,11 @@ export function Summary({
 
                                             {/* Session topic */}
                                             <td style={tdStyle}>
-                                                <span style={{ fontWeight: 500 }}>{row.sessionDef.title}</span>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                                    <span style={{ fontWeight: 500 }}>{row.sessionDef.title}</span>
+                                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{row.sessionDef.onlineSessionDay}</span>
+                                                    <span style={{ fontSize: '0.72rem', color: '#0369a1' }}>{row.sessionDef.date}</span>
+                                                </div>
                                             </td>
 
                                             {/* UTC Hour */}

@@ -226,9 +226,14 @@ export function Dashboard({
     const availableSchedules = Array.from(new Set(localRecords.map(r => r.Schedule).filter(s => s && s !== 'Outlier-Schedule'))).sort() as string[];
     const availableVATs = Array.from(new Set(localRecords.map(r => r.VAT).filter(v => v && v !== 'Outlier-Size' && v !== 'Unassigned'))).sort();
 
+    const getAssignedSA = (r: StudentRecord): string => {
+        const legacy = (r as StudentRecord & { 'Solution Week SA'?: string })['Solution Week SA'];
+        return r['Solution Weeks SA'] || legacy || '';
+    };
+
     // Derived Schedules mapped to SAs for SME/Faculty injection
     const schedulesBySA = localRecords.reduce((acc, r) => {
-        const sa = r['Solution Weeks SA'];
+        const sa = getAssignedSA(r);
         const schedule = r.Schedule;
         if (sa && schedule && schedule !== 'Outlier-Schedule' && schedule !== 'Unassigned') {
             if (!acc[sa]) acc[sa] = new Set();
@@ -245,12 +250,12 @@ export function Dashboard({
     };
 
     const baseFilteredRecords = getFilteredRecords();
-    const uniqueSAs = Array.from(new Set(baseFilteredRecords.map(r => r['Solution Weeks SA']))).filter(Boolean).sort() as string[];
+    const uniqueSAs = Array.from(new Set(baseFilteredRecords.map(r => getAssignedSA(r)))).filter(Boolean).sort() as string[];
     const uniqueCountries = Array.from(new Set(baseFilteredRecords.map(r => r.Country))).filter(Boolean).sort();
     const uniqueOffices = Array.from(new Set(baseFilteredRecords.map(r => r.Office))).filter(Boolean).sort();
 
     const filteredRecords = baseFilteredRecords.filter(r => {
-        if (columnFilters.SA && r['Solution Weeks SA'] !== columnFilters.SA) return false;
+        if (columnFilters.SA && getAssignedSA(r) !== columnFilters.SA) return false;
         if (columnFilters.Country && r.Country !== columnFilters.Country) return false;
         if (columnFilters.Office && r.Office !== columnFilters.Office) return false;
         return true;

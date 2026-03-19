@@ -17,12 +17,12 @@ export interface SME {
 }
 
 export const sessions = [
-    { id: 'overview', title: 'Overview' },
-    { id: 'process_mapping', title: 'Process Mapping' },
-    { id: 'industry_relevance', title: 'Industry Relevance' },
-    { id: 'ai_strategy', title: 'AI Strategy' },
-    { id: 'competitive_defense', title: 'Competitive Defense' },
-    { id: 'adoption_risk', title: 'Adoption Risk' },
+    { id: 'overview', title: 'Overview', onlineSessionDay: 'Week 1 - Day 3', date: 'Wednesday, April 15, 2026' },
+    { id: 'process_mapping', title: 'Process Mapping', onlineSessionDay: 'Week 1 - Day 4', date: 'Thursday, April 16, 2026' },
+    { id: 'industry_relevance', title: 'Industry Relevance', onlineSessionDay: 'Week 2 - Day 1', date: 'Monday, April 20, 2026' },
+    { id: 'ai_strategy', title: 'AI Strategy', onlineSessionDay: 'Week 2 - Day 2', date: 'Tuesday, April 21, 2026' },
+    { id: 'competitive_defense', title: 'Competitive Defense', onlineSessionDay: 'Week 2 - Day 3', date: 'Wednesday, April 22, 2026' },
+    { id: 'adoption_risk', title: 'Adoption Risk', onlineSessionDay: 'Week 2 - Day 4', date: 'Thursday, April 23, 2026' },
 ] as const;
 
 export type SessionId = typeof sessions[number]['id'];
