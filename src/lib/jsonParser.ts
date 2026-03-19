@@ -2,7 +2,7 @@ import type { StudentRecord } from './excelParser';
 import type { SmeAssignments } from '../components/SMESchedule';
 import type { FacultyAssignments } from '../components/FacultySchedule';
 import { sessions as sessionDefs } from './smeMatcher';
-import { calculateMetrics, type AllocationResult } from './allocationEngine';
+import { calculateMetrics, recalculateVATs, type AllocationResult } from './allocationEngine';
 import type { SME, SessionId as SmeSessionId } from './smeMatcher';
 import type { Faculty, SessionId as FacultySessionId } from './facultyMatcher';
 
@@ -94,28 +94,32 @@ export const parseEnrichedExcel = (records: StudentRecord[]): ParsedJsonSummary 
         }
     });
 
+    const config = {
+        startHour: 8,
+        endHour: 18,
+        assumptions: {
+            minSessionSize: 10,
+            maxSessionSize: 40,
+            maxSessionsPerDay: 2,
+            allowedVATSizes: [3, 4],
+            sessionLength: 90,
+            maxTimezoneDifference: 5,
+            allowSingleRoleVat: false,
+            facultyStartHour: 6,
+        },
+        rules: [],
+        fsDistributions: [],
+        aeDistributions: []
+    };
+
+    recalculateVATs(records, config.assumptions);
+
     const metrics = calculateMetrics(records);
 
     const fakeResult: AllocationResult = {
         records,
         metrics,
-        config: {
-            startHour: 8,
-            endHour: 18,
-            assumptions: {
-                minSessionSize: 10,
-                maxSessionSize: 40,
-                maxSessionsPerDay: 2,
-                allowedVATSizes: [3, 4],
-                sessionLength: 90,
-                maxTimezoneDifference: 5,
-                allowSingleRoleVat: false,
-                facultyStartHour: 6,
-            },
-            rules: [],
-            fsDistributions: [],
-            aeDistributions: []
-        }
+        config
     };
 
     return {
@@ -211,28 +215,32 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
         }
     });
 
+    const config = {
+        startHour: data.config?.startHour || 8,
+        endHour: data.config?.endHour || 18,
+        assumptions: {
+            minSessionSize: 10,
+            maxSessionSize: 40,
+            maxSessionsPerDay: 2,
+            allowedVATSizes: [3, 4],
+            sessionLength: 90,
+            maxTimezoneDifference: 5,
+            allowSingleRoleVat: false,
+            facultyStartHour: 6,
+        },
+        rules: [],
+        fsDistributions: [],
+        aeDistributions: []
+    };
+
+    recalculateVATs(records, config.assumptions);
+
     const metrics = calculateMetrics(records);
 
     const fakeResult: AllocationResult = {
         records,
         metrics,
-        config: {
-            startHour: data.config?.startHour || 8,
-            endHour: data.config?.endHour || 18,
-            assumptions: {
-                minSessionSize: 10,
-                maxSessionSize: 40,
-                maxSessionsPerDay: 2,
-                allowedVATSizes: [3, 4],
-                sessionLength: 90,
-                maxTimezoneDifference: 5,
-                allowSingleRoleVat: false,
-                facultyStartHour: 6,
-            },
-            rules: [],
-            fsDistributions: [],
-            aeDistributions: []
-        }
+        config
     };
 
     return {
