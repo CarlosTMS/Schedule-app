@@ -69,7 +69,7 @@ export function FileUpload({ onFileSelect }: FileUploadProps) {
             <input
                 ref={inputRef}
                 type="file"
-                accept=".xlsx, .xls"
+                accept=".xlsx, .xls, .json"
                 onChange={handleChange}
                 style={{ display: 'none' }}
             />
@@ -83,8 +83,8 @@ export function FileUpload({ onFileSelect }: FileUploadProps) {
             ) : (
                 <>
                     <UploadCloud size={48} color="var(--primary-color)" style={{ marginBottom: '1rem' }} />
-                    <h3 style={{ margin: 0, marginBottom: '0.5rem' }}>Upload Excel Data</h3>
-                    <p style={{ color: 'var(--text-secondary)' }}>Drag and drop your SAP student dataset here, or click to browse</p>
+                    <h3 style={{ margin: 0, marginBottom: '0.5rem' }}>Upload JSON Summary or Excel Data</h3>
+                    <p style={{ color: 'var(--text-secondary)' }}>Drag and drop your exported summary (.json) or SAP student dataset (.xlsx) here, or click to browse</p>
                 </>
             )}
         </div>

@@ -10,6 +10,7 @@ import { Randomizer } from './components/Randomizer';
 import type { DistributionTarget } from './components/Randomizer';
 import { Dashboard } from './components/Dashboard';
 import { parseExcel } from './lib/excelParser';
+import { parseSummaryJson } from './lib/jsonParser';
 import type { StudentRecord } from './lib/excelParser';
 import { runAllocation } from './lib/allocationEngine';
 import type { AllocationResult } from './lib/allocationEngine';
@@ -330,15 +331,34 @@ function App() {
     setLoading(true);
     setError(null);
     try {
-      const parsed = await parseExcel(file);
-      setRecords(parsed);
-      setDashboardRecords([]);
-      setResult(null);
-      setPreviousMetrics(null);
-      setActiveProjectId(null);
-      setLoadedVersionId(null);
-    } catch {
-      setError("Failed to parse Excel file.");
+      if (file.name.endsWith('.json')) {
+        const parsed = await parseSummaryJson(file);
+        setRecords(parsed.records);
+        setDashboardRecords(parsed.records);
+        setManualSmeAssignments(parsed.manualSmeAssignments);
+        setManualFacultyAssignments(parsed.manualFacultyAssignments);
+        setSessionTimeOverrides(parsed.sessionTimeOverrides);
+        
+        // Ensure result is set to bypass configurator
+        setResult(parsed.fakeResult);
+        setDashboardMetrics(parsed.fakeResult.metrics);
+        
+        setPreviousMetrics(null);
+        setActiveProjectId(null);
+        setLoadedVersionId(null);
+      } else {
+        const parsed = await parseExcel(file);
+        setRecords(parsed);
+        setDashboardRecords([]);
+        setResult(null);
+        setPreviousMetrics(null);
+        setActiveProjectId(null);
+        setLoadedVersionId(null);
+      }
+    } catch (err) {
+      console.error(err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Failed to parse ${file.name.endsWith('.json') ? 'JSON' : 'Excel'} file. ${msg}`);
     } finally {
       setLoading(false);
     }
