@@ -13,6 +13,84 @@ export interface ParsedJsonSummary {
     fakeResult: AllocationResult;
 }
 
+export const parseEnrichedExcel = (records: StudentRecord[]): ParsedJsonSummary => {
+    const manualSmeAssignments: SmeAssignments = {};
+    const manualFacultyAssignments: FacultyAssignments = {};
+    const sessionTimeOverrides: Record<string, number> = {};
+
+    records.forEach(rec => {
+        const sa = rec['Solution Weeks SA'];
+        const scheduleFull = rec.Schedule;
+        if (!sa || !scheduleFull) return;
+
+        // Try mapping SMEs and faculty from the custom string. 
+        // Note: The Excel export only stores ONE SME/Faculty per row, so we map it to ALL sessions for that SA.
+        const smeName = rec['Asignacion de SMEs'];
+        const facultyName = rec['Asignacion de Faculty'];
+
+        if (smeName || facultyName) {
+            sessionDefs.forEach(sessionDef => {
+                const topicId = sessionDef.id;
+
+                if (smeName) {
+                    if (!manualSmeAssignments[sa]) manualSmeAssignments[sa] = {};
+                    if (!manualSmeAssignments[sa][scheduleFull]) manualSmeAssignments[sa][scheduleFull] = {} as Record<import('../lib/smeMatcher').SessionId, import('../lib/smeMatcher').SME | null>;
+                    // Creating a dummy SME object since the Excel only has the name
+                    manualSmeAssignments[sa][scheduleFull][topicId as import('../lib/smeMatcher').SessionId] = { 
+                        name: smeName,
+                        office_location: '',
+                        lob: ''
+                    } as import('../lib/smeMatcher').SME;
+                }
+
+                if (facultyName) {
+                    if (!manualFacultyAssignments[sa]) manualFacultyAssignments[sa] = {};
+                    if (!manualFacultyAssignments[sa][scheduleFull]) manualFacultyAssignments[sa][scheduleFull] = {} as Record<import('../lib/facultyMatcher').SessionId, import('../lib/facultyMatcher').Faculty | null>;
+                    manualFacultyAssignments[sa][scheduleFull][topicId as import('../lib/facultyMatcher').SessionId] = {
+                        name: facultyName,
+                        office: '',
+                        country: '',
+                        sa: [sa]
+                    } as unknown as import('../lib/facultyMatcher').Faculty;
+                }
+            });
+        }
+    });
+
+    const metrics = calculateMetrics(records);
+
+    const fakeResult: AllocationResult = {
+        records,
+        metrics,
+        config: {
+            startHour: 8,
+            endHour: 18,
+            assumptions: {
+                minSessionSize: 10,
+                maxSessionSize: 40,
+                maxSessionsPerDay: 2,
+                allowedVATSizes: [3, 4],
+                sessionLength: 90,
+                maxTimezoneDifference: 5,
+                allowSingleRoleVat: false,
+                facultyStartHour: 6,
+            },
+            rules: [],
+            fsDistributions: [],
+            aeDistributions: []
+        }
+    };
+
+    return {
+        records,
+        manualSmeAssignments,
+        manualFacultyAssignments,
+        sessionTimeOverrides,
+        config: fakeResult.config,
+        fakeResult
+    };
+};
+
 export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> => {
     const text = await file.text();
     const data = JSON.parse(text);

@@ -61,7 +61,6 @@ export const parseExcel = async (file: File): Promise<StudentRecord[]> => {
                     const bgValue = getVal(['(AA) Business Group', 'Business Group']);
                     const swsSA = getVal(['Solution Weeks SA', 'Solution Week SA']);
 
-                    // If no Solution Weeks SA provided, it's Unassigned
                     const rawSA = swsSA || 'Unassigned';
 
                     return {
@@ -73,6 +72,10 @@ export const parseExcel = async (file: File): Promise<StudentRecord[]> => {
                         '(AA) Business Group': bgValue,
                         Role: getVal(['Role']),
                         Program: getVal(['Program']),
+                        Schedule: getVal(['Schedule', 'Horario']),
+                        VAT: getVal(['VAT']),
+                        'Asignacion de SMEs': getVal(['Asignacion de SMEs', 'Assigned SME']),
+                        'Asignacion de Faculty': getVal(['Asignacion de Faculty', 'Assigned Faculty']),
                         _originalIndex: index,
                     };
                 });

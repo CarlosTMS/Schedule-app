@@ -10,7 +10,7 @@ import { Randomizer } from './components/Randomizer';
 import type { DistributionTarget } from './components/Randomizer';
 import { Dashboard } from './components/Dashboard';
 import { parseExcel } from './lib/excelParser';
-import { parseSummaryJson } from './lib/jsonParser';
+import { parseSummaryJson, parseEnrichedExcel } from './lib/jsonParser';
 import type { StudentRecord } from './lib/excelParser';
 import { runAllocation } from './lib/allocationEngine';
 import type { AllocationResult } from './lib/allocationEngine';
@@ -347,13 +347,32 @@ function App() {
         setActiveProjectId(null);
         setLoadedVersionId(null);
       } else {
-        const parsed = await parseExcel(file);
-        setRecords(parsed);
-        setDashboardRecords([]);
-        setResult(null);
-        setPreviousMetrics(null);
-        setActiveProjectId(null);
-        setLoadedVersionId(null);
+        const parsedEx = await parseExcel(file);
+        
+        // If the parsed Excel already has Schedule, treat it as an explicitly enriched return
+        if (parsedEx.length > 0 && parsedEx.some(r => r.Schedule)) {
+            const parsed = parseEnrichedExcel(parsedEx);
+            setRecords(parsed.records);
+            setDashboardRecords(parsed.records);
+            setManualSmeAssignments(parsed.manualSmeAssignments);
+            setManualFacultyAssignments(parsed.manualFacultyAssignments);
+            setSessionTimeOverrides(parsed.sessionTimeOverrides);
+            
+            // Bypass configurator
+            setResult(parsed.fakeResult);
+            setDashboardMetrics(parsed.fakeResult.metrics);
+            
+            setPreviousMetrics(null);
+            setActiveProjectId(null);
+            setLoadedVersionId(null);
+        } else {
+            setRecords(parsedEx);
+            setDashboardRecords([]);
+            setResult(null);
+            setPreviousMetrics(null);
+            setActiveProjectId(null);
+            setLoadedVersionId(null);
+        }
       }
     } catch (err) {
       console.error(err);
