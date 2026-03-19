@@ -376,7 +376,9 @@ export function Summary({
             return {
                 ...r,
                 'Asignacion de SMEs': buildAssignmentSummary(getAssignedSA(r), r.Schedule || '', 'sme'),
-                'Asignacion de Faculty': buildAssignmentSummary(getAssignedSA(r), r.Schedule || '', 'faculty')
+                'Asignacion de Faculty': buildAssignmentSummary(getAssignedSA(r), r.Schedule || '', 'faculty'),
+                'SME': buildAssignmentSummary(getAssignedSA(r), r.Schedule || '', 'sme'),
+                'Faculty': buildAssignmentSummary(getAssignedSA(r), r.Schedule || '', 'faculty')
             };
         });
 

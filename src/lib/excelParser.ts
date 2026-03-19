@@ -32,6 +32,8 @@ export interface StudentRecord {
     'VAT'?: string;
     'Asignacion de SMEs'?: string;
     'Asignacion de Faculty'?: string;
+    'SME'?: string;
+    'Faculty'?: string;
 }
 
 export const parseExcel = async (file: File): Promise<StudentRecord[]> => {
@@ -78,6 +80,8 @@ export const parseExcel = async (file: File): Promise<StudentRecord[]> => {
                         VAT: getVal(['VAT']),
                         'Asignacion de SMEs': getVal(['Asignacion de SMEs', 'Assigned SME']),
                         'Asignacion de Faculty': getVal(['Asignacion de Faculty', 'Assigned Faculty']),
+                        'SME': getVal(['SME']),
+                        'Faculty': getVal(['Faculty']),
                         _originalIndex: index,
                     };
                 });
