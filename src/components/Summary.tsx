@@ -71,7 +71,7 @@ interface SummaryExportSession {
         vat?: string;
     }[];
     sme: { name: string; lob: string; office_location: string; office: string; email: string } | null;
-    faculty: { name: string; office: string } | null;
+    faculty: { name: string; office: string; email?: string } | null;
     warnings: { code: SessionWarning['type']; label: string }[];
     warning_codes: SessionWarning['type'][];
 }
@@ -321,7 +321,7 @@ export function Summary({
                 }
                 : null,
             faculty: row.assignedFaculty
-                ? { name: row.assignedFaculty.name, office: row.assignedFaculty.office }
+                ? { name: row.assignedFaculty.name, office: row.assignedFaculty.office, email: row.assignedFaculty.email }
                 : null,
             warnings: row.warnings.map(w => ({ code: w.type, label: w.label })),
             warning_codes: row.warnings.map(w => w.type),

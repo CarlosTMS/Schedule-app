@@ -5,7 +5,70 @@ export interface Faculty {
     name: string;
     office: string;
     sa: string;
+    email?: string;
 }
+
+const normalizeText = (value: string): string =>
+    value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+
+const FACULTY_EMAIL_BY_ALIAS: Record<string, string> = {
+    'amy': 'amy.hawkins@sap.com',
+    'amy hawkins': 'amy.hawkins@sap.com',
+    'carlos': 'carlos.edgar.moreno@sap.com',
+    'carlos moreno': 'carlos.edgar.moreno@sap.com',
+    'daron': 'daron.smith@sap.com',
+    'daron smith': 'daron.smith@sap.com',
+    'david': 'david.uichanco@sap.com',
+    'david uichanco': 'david.uichanco@sap.com',
+    'fernando': 'fernando.sanchez@sap.com',
+    'fernando sanchez': 'fernando.sanchez@sap.com',
+    'godfrey': 'godfrey.leung@sap.com',
+    'godfrey leung': 'godfrey.leung@sap.com',
+    'hanna': 'hanna.kielland.aalen@sap.com',
+    'hanna kielland aalen': 'hanna.kielland.aalen@sap.com',
+    'jessica': 'jessica.zhang@sap.com',
+    'jessica zhang': 'jessica.zhang@sap.com',
+    'juan': 'juan.gonzalez02@sap.com',
+    'juan antonio gonzalez': 'juan.gonzalez02@sap.com',
+    'nelly': 'nelly.rebollo@sap.com',
+    'nelly rebollo': 'nelly.rebollo@sap.com',
+    'nick': 'nicholas.goffi@sap.com',
+    'nicholas goffi': 'nicholas.goffi@sap.com',
+    'pau': 'pau.pujol-xicoy@sap.com',
+    'pau pujol-xicoy': 'pau.pujol-xicoy@sap.com',
+    'sandra': 'sandra.bissels@sap.com',
+    'sandra bissels': 'sandra.bissels@sap.com',
+    'selene': 'selene.hernandez@sap.com',
+    'selene hernandez': 'selene.hernandez@sap.com',
+};
+
+const getFacultyEmail = (faculty: Pick<Faculty, 'name' | 'office'>): string | undefined => {
+    const fullKey = normalizeText(`${faculty.name}|${faculty.office}`);
+    const nameKey = normalizeText(faculty.name);
+
+    const byOfficeAlias: Record<string, string> = {
+        [normalizeText('amy|perth')]: 'amy.hawkins@sap.com',
+        [normalizeText('carlos|frankfurt')]: 'carlos.edgar.moreno@sap.com',
+        [normalizeText('daron|san francisco')]: 'daron.smith@sap.com',
+        [normalizeText('david|san francisco')]: 'david.uichanco@sap.com',
+        [normalizeText('fernando|san francisco')]: 'fernando.sanchez@sap.com',
+        [normalizeText('godfrey|san francisco')]: 'godfrey.leung@sap.com',
+        [normalizeText('hanna|oslo')]: 'hanna.kielland.aalen@sap.com',
+        [normalizeText('jessica|san francisco')]: 'jessica.zhang@sap.com',
+        [normalizeText('juan|madrid')]: 'juan.gonzalez02@sap.com',
+        [normalizeText('nelly|mexico df')]: 'nelly.rebollo@sap.com',
+        [normalizeText('nick|atlanta')]: 'nicholas.goffi@sap.com',
+        [normalizeText('pau|barcelona')]: 'pau.pujol-xicoy@sap.com',
+        [normalizeText('sandra|amsterdam')]: 'sandra.bissels@sap.com',
+        [normalizeText('selene|barcelona')]: 'selene.hernandez@sap.com',
+    };
+
+    return byOfficeAlias[fullKey] || FACULTY_EMAIL_BY_ALIAS[nameKey];
+};
 
 export const sessions = [
     { id: 'overview', title: 'Overview', onlineSessionDay: 'Week 1 - Day 3', date: 'Wednesday, April 15, 2026' },
@@ -19,9 +82,14 @@ export const sessions = [
 export type SessionId = typeof sessions[number]['id'];
 
 export const getEligibleFaculty = (solutionArea: string): Faculty[] => {
-    return (facultyData.solution_weeks_faculty_coverage as Faculty[]).filter((fac) => {
-        return fac.sa.toLowerCase() === solutionArea.toLowerCase();
-    });
+    return (facultyData.solution_weeks_faculty_coverage as Faculty[])
+        .filter((fac) => {
+            return fac.sa.toLowerCase() === solutionArea.toLowerCase();
+        })
+        .map((fac) => ({
+            ...fac,
+            email: fac.email || getFacultyEmail(fac),
+        }));
 };
 
 const getDistance = (localHour: number, startHour: number, endHour: number) => {
