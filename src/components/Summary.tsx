@@ -8,7 +8,7 @@ import { sessions, getEligibleSMEs, autoAssignSMEs } from '../lib/smeMatcher';
 import type { SME, SessionId } from '../lib/smeMatcher';
 import { getEligibleFaculty, autoAssignFaculty } from '../lib/facultyMatcher';
 import type { Faculty } from '../lib/facultyMatcher';
-import { extractScheduleKey, getEffectiveScheduleUtcHour, getKnownUtcOffset, formatEffectiveSchedule } from '../lib/timezones';
+import { extractScheduleKey, getEffectiveSessionUtcHour, getKnownUtcOffset, formatUtcHourLabel } from '../lib/timezones';
 import type { StudentRecord } from '../lib/excelParser';
 import { generateExcel } from '../lib/excelParser';
 import type { SMECacheStatus } from '../lib/smeDataLoader';
@@ -25,6 +25,7 @@ interface SummaryProps {
     endHour: number;
     facultyStartHour?: number;
     sessionTimeOverrides: Record<string, number>;
+    sessionInstanceTimeOverrides: Record<string, number>;
     manualSmeAssignments: SmeAssignments;
     onSmeAssignmentsChange: (next: SmeAssignments) => void;
     manualFacultyAssignments: FacultyAssignments;
@@ -56,6 +57,7 @@ interface SessionRow {
 interface SummaryExportSession {
     solution_area: string;
     schedule: string;
+    session_id: SessionId;
     session_topic: string;
     utc_hour: number;
     attendees_count: number;
@@ -83,6 +85,8 @@ interface SummaryExport {
     config: {
         startHour: number;
         endHour: number;
+        sessionTimeOverrides: Record<string, number>;
+        sessionInstanceTimeOverrides: Record<string, number>;
     };
     sessions: SummaryExportSession[];
 }
@@ -157,6 +161,7 @@ export function Summary({
     endHour,
     facultyStartHour,
     sessionTimeOverrides,
+    sessionInstanceTimeOverrides,
     manualSmeAssignments,
     onSmeAssignmentsChange,
     manualFacultyAssignments,
@@ -192,7 +197,7 @@ export function Summary({
 
         for (const schedule of schedules) {
             for (const session of sessions) {
-                const utcHour = getEffectiveScheduleUtcHour(schedule, sessionTimeOverrides);
+                const utcHour = getEffectiveSessionUtcHour(sa, schedule, session.id, sessionInstanceTimeOverrides, sessionTimeOverrides);
                 const attendees = records.filter(
                     r => getAssignedSA(r) === sa && r.Schedule === schedule && r.Schedule !== 'Outlier-Schedule'
                 );
@@ -289,10 +294,11 @@ export function Summary({
             sme_last_updated_at: smeStatus?.lastUpdatedAt ?? null,
             sme_source: smeStatus?.source ?? 'unknown',
         },
-        config: { startHour, endHour },
+        config: { startHour, endHour, sessionTimeOverrides, sessionInstanceTimeOverrides },
         sessions: sessionRows.map(row => ({
             solution_area: row.sa,
-            schedule: formatEffectiveSchedule(row.schedule, sessionTimeOverrides),
+            schedule: row.schedule,
+            session_id: row.sessionDef.id,
             session_topic: row.sessionDef.title,
             utc_hour: row.utcHour,
             attendees_count: row.attendees.length,
@@ -345,7 +351,7 @@ export function Summary({
         ];
         const rows = sessionRows.map(row => [
             row.sa,
-            formatEffectiveSchedule(row.schedule, sessionTimeOverrides),
+            `${extractScheduleKey(row.schedule)} (${formatUtcHourLabel(row.utcHour)})`,
             row.sessionDef.title,
             row.utcHour,
             row.attendees.length,
@@ -608,7 +614,10 @@ export function Summary({
                                             {/* Schedule */}
                                             <td style={tdStyle}>
                                                 <div style={{ fontWeight: 500, fontSize: '0.82rem' }}>
-                                                    {formatEffectiveSchedule(row.schedule, sessionTimeOverrides).replace(`${row.sa} `, '')}
+                                                    {extractScheduleKey(row.schedule).replace(`${row.sa} `, '')}
+                                                </div>
+                                                <div style={{ fontSize: '0.74rem', color: '#0369a1', fontWeight: 700, marginTop: '0.15rem' }}>
+                                                    {formatUtcHourLabel(row.utcHour)}
                                                 </div>
                                             </td>
 
@@ -623,7 +632,7 @@ export function Summary({
 
                                             {/* UTC Hour */}
                                             <td style={{ ...tdStyle, textAlign: 'center' }}>
-                                                <span style={{ fontWeight: 600, color: 'var(--primary-color)' }}>{row.utcHour}:00</span>
+                                                <span style={{ fontWeight: 600, color: 'var(--primary-color)' }}>{formatUtcHourLabel(row.utcHour).replace(' UTC', '')}</span>
                                             </td>
 
                                             {/* Attendees count */}

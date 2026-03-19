@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Users, MapPin, Building2, UserCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Users, MapPin, Building2, UserCircle2, AlertCircle, RefreshCw, Minus, Plus } from 'lucide-react';
 import { sessions, getEligibleSMEs, autoAssignSMEs } from '../lib/smeMatcher';
 import type { SME, SessionId } from '../lib/smeMatcher';
 import type { SMECacheStatus } from '../lib/smeDataLoader';
-import { getLocalTimeStr, getKnownUtcOffset, getEffectiveScheduleUtcHour, formatEffectiveSchedule } from '../lib/timezones';
+import { getKnownUtcOffset, getEffectiveSessionUtcHour, getLocalTimeForUtcHour, extractScheduleKey, formatUtcHourLabel, makeSessionInstanceOverrideKey, wrapUtcHour } from '../lib/timezones';
 
 // Shared assignment shape used by Dashboard, SMESchedule, FacultySchedule, and Summary
 export type SmeAssignments = Record<string, Record<string, Record<SessionId, SME | null>>>;
@@ -13,6 +13,8 @@ interface SMEScheduleProps {
     startHour: number;
     endHour: number;
     sessionTimeOverrides?: Record<string, number>;
+    sessionInstanceTimeOverrides?: Record<string, number>;
+    onSessionInstanceTimeOverridesChange?: (next: Record<string, number>) => void;
     smeList: SME[];
     smeStatus?: SMECacheStatus | null;
     onRefreshSMEs?: () => void;
@@ -26,6 +28,8 @@ export function SMESchedule({
     startHour,
     endHour,
     sessionTimeOverrides = {},
+    sessionInstanceTimeOverrides = {},
+    onSessionInstanceTimeOverridesChange,
     smeList,
     smeStatus,
     onRefreshSMEs,
@@ -62,6 +66,16 @@ export function SMESchedule({
                     [sessionId]: newSME,
                 },
             },
+        });
+    };
+
+    const handleSessionHourChange = (schedule: string, sessionId: SessionId, delta: number) => {
+        if (!onSessionInstanceTimeOverridesChange) return;
+        const key = makeSessionInstanceOverrideKey(selectedSA, schedule, sessionId);
+        const currentHour = getEffectiveSessionUtcHour(selectedSA, schedule, sessionId, sessionInstanceTimeOverrides, sessionTimeOverrides);
+        onSessionInstanceTimeOverridesChange({
+            ...sessionInstanceTimeOverrides,
+            [key]: wrapUtcHour(currentHour + delta),
         });
     };
 
@@ -157,8 +171,8 @@ export function SMESchedule({
                                 const showBorder = scheduleIsLast && !topicIsLast;
 
                                 let isOutOfHours = false;
+                                const utcHour = getEffectiveSessionUtcHour(selectedSA, schedule, session.id, sessionInstanceTimeOverrides, sessionTimeOverrides);
                                 if (assignedSME) {
-                                    const utcHour = getEffectiveScheduleUtcHour(schedule, sessionTimeOverrides);
                                     const localHour = (utcHour + getKnownUtcOffset(assignedSME.office_location) + 24) % 24;
                                     if (localHour < startHour || localHour >= endHour) {
                                         isOutOfHours = true;
@@ -178,12 +192,33 @@ export function SMESchedule({
                                         )}
                                         <td style={{ padding: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                                             <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                                {formatEffectiveSchedule(schedule, sessionTimeOverrides).replace(`${selectedSA} `, '')}
+                                                {extractScheduleKey(schedule).replace(`${selectedSA} `, '')}
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSessionHourChange(schedule, session.id, -1)}
+                                                    style={{ border: '1px solid #cbd5e1', background: '#fff', borderRadius: '6px', padding: '0.2rem', display: 'flex', cursor: 'pointer' }}
+                                                    title="Move session 1 hour earlier"
+                                                >
+                                                    <Minus size={12} />
+                                                </button>
+                                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--primary-color)' }}>
+                                                    {formatUtcHourLabel(utcHour)}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSessionHourChange(schedule, session.id, 1)}
+                                                    style={{ border: '1px solid #cbd5e1', background: '#fff', borderRadius: '6px', padding: '0.2rem', display: 'flex', cursor: 'pointer' }}
+                                                    title="Move session 1 hour later"
+                                                >
+                                                    <Plus size={12} />
+                                                </button>
                                             </div>
                                             {assignedSME && (
                                                 <div style={{ fontSize: '0.8rem', marginTop: '0.2rem', color: isOutOfHours ? 'var(--danger-color)' : 'var(--primary-color)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                                     {isOutOfHours && <AlertCircle size={12} />}
-                                                    {getLocalTimeStr(schedule, assignedSME.office_location, sessionTimeOverrides)}
+                                                    {getLocalTimeForUtcHour(utcHour, assignedSME.office_location)}
                                                 </div>
                                             )}
                                         </td>

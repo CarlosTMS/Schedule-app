@@ -64,6 +64,7 @@ function App() {
   const [dashboardRecords, setDashboardRecords] = useState<StudentRecord[]>([]);
   const [dashboardMetrics, setDashboardMetrics] = useState<AllocationResult['metrics'] | null>(null);
   const [sessionTimeOverrides, setSessionTimeOverrides] = useState<Record<string, number>>({});
+  const [sessionInstanceTimeOverrides, setSessionInstanceTimeOverrides] = useState<Record<string, number>>({});
   const [manualSmeAssignments, setManualSmeAssignments] = useState<SmeAssignments>({});
   const [manualFacultyAssignments, setManualFacultyAssignments] = useState<FacultyAssignments>({});
 
@@ -109,8 +110,8 @@ function App() {
   const currentSnapshot = useMemo((): RunSnapshot => ({
     records, assumptions, rules, fsDistributions, aeDistributions, startHour, endHour,
     result: (result && dashboardMetrics) ? { ...result, records: dashboardRecords, metrics: dashboardMetrics } : result as AllocationResult,
-    sessionTimeOverrides, manualSmeAssignments, manualFacultyAssignments
-  }), [records, assumptions, rules, fsDistributions, aeDistributions, startHour, endHour, result, dashboardRecords, dashboardMetrics, sessionTimeOverrides, manualSmeAssignments, manualFacultyAssignments]);
+    sessionTimeOverrides, sessionInstanceTimeOverrides, manualSmeAssignments, manualFacultyAssignments
+  }), [records, assumptions, rules, fsDistributions, aeDistributions, startHour, endHour, result, dashboardRecords, dashboardMetrics, sessionTimeOverrides, sessionInstanceTimeOverrides, manualSmeAssignments, manualFacultyAssignments]);
 
   const applySnapshot = useCallback((s: RunSnapshot) => {
     setRecords(s.records);
@@ -124,6 +125,7 @@ function App() {
     setResult(s.result);
     setDashboardMetrics(s.result?.metrics || null);
     setSessionTimeOverrides(s.sessionTimeOverrides);
+    setSessionInstanceTimeOverrides(s.sessionInstanceTimeOverrides ?? {});
     setManualSmeAssignments(s.manualSmeAssignments);
     setManualFacultyAssignments(s.manualFacultyAssignments);
     setPreviousMetrics(null);
@@ -338,6 +340,7 @@ function App() {
         setManualSmeAssignments(parsed.manualSmeAssignments);
         setManualFacultyAssignments(parsed.manualFacultyAssignments);
         setSessionTimeOverrides(parsed.sessionTimeOverrides);
+        setSessionInstanceTimeOverrides(parsed.sessionInstanceTimeOverrides ?? {});
         
         // Ensure result is set to bypass configurator
         setResult(parsed.fakeResult);
@@ -357,6 +360,7 @@ function App() {
             setManualSmeAssignments(parsed.manualSmeAssignments);
             setManualFacultyAssignments(parsed.manualFacultyAssignments);
             setSessionTimeOverrides(parsed.sessionTimeOverrides);
+            setSessionInstanceTimeOverrides(parsed.sessionInstanceTimeOverrides ?? {});
             
             // Bypass configurator
             setResult(parsed.fakeResult);
@@ -561,6 +565,8 @@ function App() {
             facultyStartHour={assumptions.facultyStartHour ?? 6}
             sessionTimeOverrides={sessionTimeOverrides}
             onSessionTimeOverridesChange={setSessionTimeOverrides}
+            sessionInstanceTimeOverrides={sessionInstanceTimeOverrides}
+            onSessionInstanceTimeOverridesChange={setSessionInstanceTimeOverrides}
             manualSmeAssignments={manualSmeAssignments}
             onManualSmeAssignmentsChange={setManualSmeAssignments}
             manualFacultyAssignments={manualFacultyAssignments}

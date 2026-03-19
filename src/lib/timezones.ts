@@ -1,4 +1,5 @@
 import type { StudentRecord } from './excelParser';
+import type { SessionId as SmeSessionId } from './smeMatcher';
 
 export const getUtcOffset = (country: string, office: string): number => {
     const normalizedCountry = (country || '').toLowerCase().trim();
@@ -132,6 +133,14 @@ export const getKnownUtcOffset = (office: string | undefined): number => {
 export const extractScheduleKey = (scheduleStr: string): string =>
     scheduleStr.replace(/ \(\d+:00 UTC\)/, '').trim();
 
+export const makeSessionInstanceOverrideKey = (
+    solutionArea: string,
+    scheduleStr: string,
+    sessionId: SmeSessionId
+): string => `${solutionArea}__${extractScheduleKey(scheduleStr)}__${sessionId}`;
+
+export const wrapUtcHour = (hour: number): number => ((hour % 24) + 24) % 24;
+
 /**
  * Resolve the effective UTC hour for a schedule string, applying an override if one exists.
  * @param scheduleStr  Full schedule string, e.g. "Cloud ERP Session 1 (14:00 UTC)"
@@ -145,6 +154,32 @@ export const getEffectiveScheduleUtcHour = (
     if (key in overrides) return overrides[key];
     const match = scheduleStr.match(/(\d+):00 UTC/);
     return match ? parseInt(match[1], 10) : 0;
+};
+
+export const getEffectiveSessionUtcHour = (
+    solutionArea: string,
+    scheduleStr: string,
+    sessionId: SmeSessionId,
+    sessionOverrides: Record<string, number> = {},
+    scheduleOverrides: Record<string, number> = {}
+): number => {
+    const key = makeSessionInstanceOverrideKey(solutionArea, scheduleStr, sessionId);
+    if (key in sessionOverrides) return sessionOverrides[key];
+    return getEffectiveScheduleUtcHour(scheduleStr, scheduleOverrides);
+};
+
+export const formatUtcHourLabel = (utcHour: number): string =>
+    `${wrapUtcHour(utcHour).toString().padStart(2, '0')}:00 UTC`;
+
+export const formatEffectiveSessionSchedule = (
+    solutionArea: string,
+    scheduleStr: string,
+    sessionId: SmeSessionId,
+    sessionOverrides: Record<string, number> = {},
+    scheduleOverrides: Record<string, number> = {}
+): string => {
+    const effectiveHour = getEffectiveSessionUtcHour(solutionArea, scheduleStr, sessionId, sessionOverrides, scheduleOverrides);
+    return scheduleStr.replace(/\(\d+:00 UTC\)/, `(${formatUtcHourLabel(effectiveHour).replace(' UTC', ' UTC')})`);
 };
 
 /**
@@ -167,6 +202,15 @@ export const getLocalTimeStr = (
     if (!assignedPersonOffice) return '';
 
     const utcHour = getEffectiveScheduleUtcHour(scheduleStr, overrides);
+    return getLocalTimeForUtcHour(utcHour, assignedPersonOffice);
+};
+
+export const getLocalTimeForUtcHour = (
+    utcHour: number,
+    assignedPersonOffice: string | undefined
+): string => {
+    if (!assignedPersonOffice) return '';
+
     const offset = getKnownUtcOffset(assignedPersonOffice);
     let localHour = utcHour + offset;
 

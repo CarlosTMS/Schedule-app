@@ -5,13 +5,14 @@ import { sessions as sessionDefs } from './smeMatcher';
 import { calculateMetrics, recalculateVATs, type AllocationResult } from './allocationEngine';
 import type { SME, SessionId as SmeSessionId } from './smeMatcher';
 import type { Faculty, SessionId as FacultySessionId } from './facultyMatcher';
-import { getUtcOffset } from './timezones';
+import { extractScheduleKey, getUtcOffset, makeSessionInstanceOverrideKey } from './timezones';
 
 export interface ParsedJsonSummary {
     records: StudentRecord[];
     manualSmeAssignments: SmeAssignments;
     manualFacultyAssignments: FacultyAssignments;
     sessionTimeOverrides: Record<string, number>;
+    sessionInstanceTimeOverrides: Record<string, number>;
     config: Record<string, unknown>;
     fakeResult: AllocationResult;
 }
@@ -20,6 +21,7 @@ export const parseEnrichedExcel = (records: StudentRecord[]): ParsedJsonSummary 
     const manualSmeAssignments: SmeAssignments = {};
     const manualFacultyAssignments: FacultyAssignments = {};
     const sessionTimeOverrides: Record<string, number> = {};
+    const sessionInstanceTimeOverrides: Record<string, number> = {};
 
     const getAssignedSA = (record: StudentRecord): string => {
         const legacy = (record as StudentRecord & { 'Solution Week SA'?: string })['Solution Week SA'];
@@ -134,6 +136,7 @@ export const parseEnrichedExcel = (records: StudentRecord[]): ParsedJsonSummary 
         manualSmeAssignments,
         manualFacultyAssignments,
         sessionTimeOverrides,
+        sessionInstanceTimeOverrides,
         config: fakeResult.config,
         fakeResult
     };
@@ -146,7 +149,8 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
     const records: StudentRecord[] = [];
     const manualSmeAssignments: SmeAssignments = {};
     const manualFacultyAssignments: FacultyAssignments = {};
-    const sessionTimeOverrides: Record<string, number> = {};
+    const sessionTimeOverrides: Record<string, number> = isRecordNumberMap(data.config?.sessionTimeOverrides) ? data.config.sessionTimeOverrides : {};
+    const sessionInstanceTimeOverrides: Record<string, number> = isRecordNumberMap(data.config?.sessionInstanceTimeOverrides) ? data.config.sessionInstanceTimeOverrides : {};
 
     const userMap = new Map<string, StudentRecord>();
     let originalIndex = 0;
@@ -177,12 +181,9 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
     data.sessions.forEach((session: Record<string, unknown>) => {
         const sa = session.solution_area as string;
         const scheduleFull = session.schedule as string;
-        // The exported schedule string already contains the time, e.g., "BTM Session 1 (07:00 UTC)"
-        // Re-extract the base key for overrides if necessary
-        const scheduleKey = scheduleFull.replace(/ \(\d+:00 UTC\)/, '').trim();
+        const scheduleKey = extractScheduleKey(scheduleFull);
         
         const utcHour = session.utc_hour as number;
-        sessionTimeOverrides[scheduleKey] = utcHour;
 
         (session.attendees as Record<string, unknown>[]).forEach((att) => {
             const name = att.name as string;
@@ -205,9 +206,10 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
             }
         });
 
-        const topicId = sessionDefs.find(s => s.title === session.session_topic)?.id;
+        const topicId = ((session.session_id as SmeSessionId | undefined) ?? sessionDefs.find(s => s.title === session.session_topic)?.id);
 
         if (topicId) {
+            sessionInstanceTimeOverrides[makeSessionInstanceOverrideKey(sa, scheduleFull, topicId)] = utcHour;
             if (session.sme) {
                 if (!manualSmeAssignments[sa]) manualSmeAssignments[sa] = {};
                 if (!manualSmeAssignments[sa][scheduleFull]) manualSmeAssignments[sa][scheduleFull] = {} as Record<SmeSessionId, SME | null>;
@@ -219,6 +221,8 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
                 if (!manualFacultyAssignments[sa][scheduleFull]) manualFacultyAssignments[sa][scheduleFull] = {} as Record<FacultySessionId, Faculty | null>;
                 manualFacultyAssignments[sa][scheduleFull][topicId as FacultySessionId] = normalizeFaculty(session.faculty as Record<string, unknown>, sa);
             }
+        } else {
+            sessionTimeOverrides[scheduleKey] = utcHour;
         }
     });
 
@@ -260,7 +264,13 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
         manualSmeAssignments,
         manualFacultyAssignments,
         sessionTimeOverrides,
+        sessionInstanceTimeOverrides,
         config: data.config,
         fakeResult
     };
+};
+
+const isRecordNumberMap = (value: unknown): value is Record<string, number> => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    return Object.values(value).every(item => typeof item === 'number');
 };

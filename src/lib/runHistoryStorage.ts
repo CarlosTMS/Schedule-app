@@ -35,6 +35,7 @@ export interface RunSnapshot {
     endHour: number;
     result: AllocationResult;
     sessionTimeOverrides: Record<string, number>;
+    sessionInstanceTimeOverrides: Record<string, number>;
     manualSmeAssignments: SmeAssignments;
     manualFacultyAssignments: FacultyAssignments;
 }
@@ -131,6 +132,7 @@ interface StoredRunV2 {
     endHour: number;
     result: AllocationResult;
     sessionTimeOverrides?: Record<string, number>;
+    sessionInstanceTimeOverrides?: Record<string, number>;
     manualSmeAssignments?: SmeAssignments;
     manualFacultyAssignments?: FacultyAssignments;
 }
@@ -172,6 +174,7 @@ export const migrateToV3 = (): void => {
                     endHour: r.endHour,
                     result: r.result,
                     sessionTimeOverrides: r.sessionTimeOverrides || {},
+                    sessionInstanceTimeOverrides: r.sessionInstanceTimeOverrides || {},
                     manualSmeAssignments: r.manualSmeAssignments || {},
                     manualFacultyAssignments: r.manualFacultyAssignments || {}
                 }

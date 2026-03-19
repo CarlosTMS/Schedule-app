@@ -153,6 +153,16 @@ export const generateExcel = (data: StudentRecord[], config?: Partial<RunSnapsho
             });
         }
 
+        if (config.sessionInstanceTimeOverrides && Object.keys(config.sessionInstanceTimeOverrides).length > 0) {
+            configData.push({ Parameter: "", Value: "" });
+            configData.push({ Parameter: "SESSION-LEVEL TIME OVERRIDES (UTC)", Value: "" });
+            Object.entries(config.sessionInstanceTimeOverrides)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .forEach(([key, hour]) => {
+                    configData.push({ Parameter: key, Value: `${hour}:00 UTC` });
+                });
+        }
+
 
         const configSheet = xlsx.utils.json_to_sheet(configData);
         xlsx.utils.book_append_sheet(workbook, configSheet, "Configuration");

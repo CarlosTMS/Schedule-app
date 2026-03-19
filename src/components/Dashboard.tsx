@@ -30,6 +30,8 @@ interface DashboardProps {
     // ── Controlled editable state (optional — if omitted, Dashboard uses internal state) ──
     sessionTimeOverrides?: Record<string, number>;
     onSessionTimeOverridesChange?: (v: Record<string, number>) => void;
+    sessionInstanceTimeOverrides?: Record<string, number>;
+    onSessionInstanceTimeOverridesChange?: (v: Record<string, number>) => void;
     manualSmeAssignments?: SmeAssignments;
     onManualSmeAssignmentsChange?: (v: SmeAssignments) => void;
     manualFacultyAssignments?: FacultyAssignments;
@@ -50,6 +52,8 @@ export function Dashboard({
     facultyStartHour = 6,
     sessionTimeOverrides: controlledOverrides,
     onSessionTimeOverridesChange,
+    sessionInstanceTimeOverrides: controlledSessionInstanceOverrides,
+    onSessionInstanceTimeOverridesChange,
     manualSmeAssignments: controlledSme,
     onManualSmeAssignmentsChange,
     manualFacultyAssignments: controlledFaculty,
@@ -84,11 +88,13 @@ export function Dashboard({
 
     // Internal fallback state — used when parent does NOT pass controlled props
     const [internalOverrides, setInternalOverrides] = useState<Record<string, number>>({});
+    const [internalSessionInstanceOverrides, setInternalSessionInstanceOverrides] = useState<Record<string, number>>({});
     const [internalSme, setInternalSme] = useState<SmeAssignments>({});
     const [internalFaculty, setInternalFaculty] = useState<FacultyAssignments>({});
 
     // Resolve: prefer controlled props, fall back to internal
     const sessionTimeOverrides = controlledOverrides ?? internalOverrides;
+    const sessionInstanceTimeOverrides = controlledSessionInstanceOverrides ?? internalSessionInstanceOverrides;
     const manualSmeAssignments = controlledSme ?? internalSme;
     const manualFacultyAssignments = controlledFaculty ?? internalFaculty;
 
@@ -96,6 +102,11 @@ export function Dashboard({
         const next = typeof v === 'function' ? v(sessionTimeOverrides) : v;
         if (onSessionTimeOverridesChange) onSessionTimeOverridesChange(next);
         else setInternalOverrides(next);
+    };
+    const setSessionInstanceTimeOverrides = (v: Record<string, number> | ((p: Record<string, number>) => Record<string, number>)) => {
+        const next = typeof v === 'function' ? v(sessionInstanceTimeOverrides) : v;
+        if (onSessionInstanceTimeOverridesChange) onSessionInstanceTimeOverridesChange(next);
+        else setInternalSessionInstanceOverrides(next);
     };
     const setManualSmeAssignments = (v: SmeAssignments | ((p: SmeAssignments) => SmeAssignments)) => {
         const next = typeof v === 'function' ? v(manualSmeAssignments) : v;
@@ -492,6 +503,8 @@ export function Dashboard({
                             startHour={result.config.startHour}
                             endHour={result.config.endHour}
                             sessionTimeOverrides={sessionTimeOverrides}
+                            sessionInstanceTimeOverrides={sessionInstanceTimeOverrides}
+                            onSessionInstanceTimeOverridesChange={setSessionInstanceTimeOverrides}
                             smeList={smeList}
                             smeStatus={smeStatus}
                             onRefreshSMEs={handleRefreshSMEs}
@@ -509,6 +522,8 @@ export function Dashboard({
                             endHour={result.config.endHour}
                             facultyStartHour={facultyStartHour}
                             sessionTimeOverrides={sessionTimeOverrides}
+                            sessionInstanceTimeOverrides={sessionInstanceTimeOverrides}
+                            onSessionInstanceTimeOverridesChange={setSessionInstanceTimeOverrides}
                             manualFacultyAssignments={manualFacultyAssignments}
                             onFacultyAssignmentsChange={setManualFacultyAssignments}
                         />
@@ -524,6 +539,7 @@ export function Dashboard({
                             endHour={result.config.endHour}
                             facultyStartHour={facultyStartHour}
                             sessionTimeOverrides={sessionTimeOverrides}
+                            sessionInstanceTimeOverrides={sessionInstanceTimeOverrides}
                             manualSmeAssignments={manualSmeAssignments}
                             onSmeAssignmentsChange={setManualSmeAssignments}
                             manualFacultyAssignments={manualFacultyAssignments}

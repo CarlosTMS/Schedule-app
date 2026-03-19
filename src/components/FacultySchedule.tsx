@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
-import { Presentation, MapPin, UserCircle2, AlertCircle } from 'lucide-react';
+import { Presentation, MapPin, UserCircle2, AlertCircle, Minus, Plus } from 'lucide-react';
 import { sessions, getEligibleFaculty, autoAssignFaculty } from '../lib/facultyMatcher';
 import type { Faculty, SessionId } from '../lib/facultyMatcher';
 import { useI18n } from '../i18n';
-import { getLocalTimeStr, getKnownUtcOffset, getEffectiveScheduleUtcHour, formatEffectiveSchedule } from '../lib/timezones';
+import { getKnownUtcOffset, getEffectiveSessionUtcHour, getLocalTimeForUtcHour, extractScheduleKey, formatUtcHourLabel, makeSessionInstanceOverrideKey, wrapUtcHour } from '../lib/timezones';
 
 // Shared assignment shape used by Dashboard, FacultySchedule, and Summary
 export type FacultyAssignments = Record<string, Record<string, Record<SessionId, Faculty | null>>>;
@@ -14,6 +14,8 @@ interface FacultyScheduleProps {
     endHour: number;
     facultyStartHour?: number;
     sessionTimeOverrides?: Record<string, number>;
+    sessionInstanceTimeOverrides?: Record<string, number>;
+    onSessionInstanceTimeOverridesChange?: (next: Record<string, number>) => void;
     /** Lifted-state assignments — from Dashboard */
     manualFacultyAssignments: FacultyAssignments;
     onFacultyAssignmentsChange: (next: FacultyAssignments) => void;
@@ -25,6 +27,8 @@ export function FacultySchedule({
     endHour,
     facultyStartHour,
     sessionTimeOverrides = {},
+    sessionInstanceTimeOverrides = {},
+    onSessionInstanceTimeOverridesChange,
     manualFacultyAssignments,
     onFacultyAssignmentsChange,
 }: FacultyScheduleProps) {
@@ -56,17 +60,16 @@ export function FacultySchedule({
     // Use lifted manual assignments if they exist for this SA; otherwise fallback to auto-assignments.
     const currentAssignments = allAssignments[selectedSA] || {};
 
-    const getConflict = (facultyName: string, targetSchedule: string, targetSA: string): string | null => {
-        const targetUtcHour = getEffectiveScheduleUtcHour(targetSchedule, sessionTimeOverrides);
+    const getConflict = (facultyName: string, targetSchedule: string, targetSessionId: SessionId, targetSA: string): string | null => {
+        const targetUtcHour = getEffectiveSessionUtcHour(targetSA, targetSchedule, targetSessionId, sessionInstanceTimeOverrides, sessionTimeOverrides);
         
         for (const sa of Object.keys(allAssignments)) {
             const saAssignments = allAssignments[sa];
             for (const schedule of Object.keys(saAssignments)) {
-                const utcHour = getEffectiveScheduleUtcHour(schedule, sessionTimeOverrides);
-                if (utcHour !== targetUtcHour) continue;
-                
                 const sessionAssignments = saAssignments[schedule];
                 for (const sessionId of Object.keys(sessionAssignments)) {
+                    const utcHour = getEffectiveSessionUtcHour(sa, schedule, sessionId as SessionId, sessionInstanceTimeOverrides, sessionTimeOverrides);
+                    if (utcHour !== targetUtcHour) continue;
                     // Only flag conflicts if they occur in a DIFFERENT Solution Area
                     if (sa === targetSA) continue;
                     
@@ -98,6 +101,16 @@ export function FacultySchedule({
                     [sessionId]: newFaculty,
                 },
             },
+        });
+    };
+
+    const handleSessionHourChange = (schedule: string, sessionId: SessionId, delta: number) => {
+        if (!onSessionInstanceTimeOverridesChange) return;
+        const key = makeSessionInstanceOverrideKey(selectedSA, schedule, sessionId);
+        const currentHour = getEffectiveSessionUtcHour(selectedSA, schedule, sessionId, sessionInstanceTimeOverrides, sessionTimeOverrides);
+        onSessionInstanceTimeOverridesChange({
+            ...sessionInstanceTimeOverrides,
+            [key]: wrapUtcHour(currentHour + delta),
         });
     };
 
@@ -157,14 +170,14 @@ export function FacultySchedule({
 
                                 let isOutOfHours = false;
                                 let conflictDetails: string | null = null;
+                                const utcHour = getEffectiveSessionUtcHour(selectedSA, schedule, session.id, sessionInstanceTimeOverrides, sessionTimeOverrides);
                                 
                                 if (assignedFaculty) {
-                                    const utcHour = getEffectiveScheduleUtcHour(schedule, sessionTimeOverrides);
                                     const localHour = (utcHour + getKnownUtcOffset(assignedFaculty.office) + 24) % 24;
                                     if (localHour < effectiveFacultyStartHour || localHour >= endHour) {
                                         isOutOfHours = true;
                                     }
-                                    conflictDetails = getConflict(assignedFaculty.name, schedule, selectedSA);
+                                    conflictDetails = getConflict(assignedFaculty.name, schedule, session.id, selectedSA);
                                 }
 
                                 return (
@@ -180,12 +193,33 @@ export function FacultySchedule({
                                         )}
                                         <td style={{ padding: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                                             <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                                {formatEffectiveSchedule(schedule, sessionTimeOverrides).replace(`${selectedSA} `, '')}
+                                                {extractScheduleKey(schedule).replace(`${selectedSA} `, '')}
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSessionHourChange(schedule, session.id, -1)}
+                                                    style={{ border: '1px solid #cbd5e1', background: '#fff', borderRadius: '6px', padding: '0.2rem', display: 'flex', cursor: 'pointer' }}
+                                                    title="Move session 1 hour earlier"
+                                                >
+                                                    <Minus size={12} />
+                                                </button>
+                                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ce9600' }}>
+                                                    {formatUtcHourLabel(utcHour)}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSessionHourChange(schedule, session.id, 1)}
+                                                    style={{ border: '1px solid #cbd5e1', background: '#fff', borderRadius: '6px', padding: '0.2rem', display: 'flex', cursor: 'pointer' }}
+                                                    title="Move session 1 hour later"
+                                                >
+                                                    <Plus size={12} />
+                                                </button>
                                             </div>
                                             {assignedFaculty && (
                                                 <div style={{ fontSize: '0.8rem', marginTop: '0.2rem', color: isOutOfHours ? 'var(--danger-color)' : '#ce9600', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                                     {isOutOfHours && <AlertCircle size={12} />}
-                                                    {getLocalTimeStr(schedule, assignedFaculty.office, sessionTimeOverrides)}
+                                                    {getLocalTimeForUtcHour(utcHour, assignedFaculty.office)}
                                                 </div>
                                             )}
                                         </td>
