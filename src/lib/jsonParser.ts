@@ -5,6 +5,7 @@ import { sessions as sessionDefs } from './smeMatcher';
 import { calculateMetrics, recalculateVATs, type AllocationResult } from './allocationEngine';
 import type { SME, SessionId as SmeSessionId } from './smeMatcher';
 import type { Faculty, SessionId as FacultySessionId } from './facultyMatcher';
+import { getUtcOffset } from './timezones';
 
 export interface ParsedJsonSummary {
     records: StudentRecord[];
@@ -66,6 +67,7 @@ export const parseEnrichedExcel = (records: StudentRecord[]): ParsedJsonSummary 
     });
 
     records.forEach(rec => {
+        rec._utcOffset = getUtcOffset(rec.Country, rec.Office);
         const sa = getAssignedSA(rec);
         const scheduleFull = rec.Schedule;
         if (!sa || !scheduleFull) return;
@@ -112,8 +114,10 @@ export const parseEnrichedExcel = (records: StudentRecord[]): ParsedJsonSummary 
         aeDistributions: []
     };
 
-    const needsRecalculation = records.some(r => !r.VAT || r.VAT === 'Imported-JSON');
-    if (needsRecalculation) {
+    const vatsPresentCount = records.filter(r => r.VAT && r.VAT !== 'Unassigned' && r.VAT !== 'Imported-JSON').length;
+    const isMainlyAssigned = vatsPresentCount > (records.length * 0.5);
+
+    if (!isMainlyAssigned) {
         recalculateVATs(records, config.assumptions);
     }
 
@@ -191,7 +195,7 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
                     '(AA) Secondary Specialization': att.specialization as string,
                     'Solution Weeks SA': sa,
                     Schedule: scheduleFull,
-                    _utcOffset: att.utc_offset as number,
+                    _utcOffset: typeof att.utc_offset === 'number' ? att.utc_offset : getUtcOffset(att.country as string, att.office as string),
                     _originalIndex: originalIndex++,
                     VAT: (att.vat as string) || 'Imported-JSON',
                     Role: att.specialization as string
@@ -236,8 +240,10 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
         aeDistributions: []
     };
 
-    const needsRecalculation = records.some(r => !r.VAT || r.VAT === 'Imported-JSON');
-    if (needsRecalculation) {
+    const vatsPresent = records.filter(r => r.VAT && r.VAT !== 'Unassigned' && r.VAT !== 'Imported-JSON').length;
+    const isMainlyAssigned = vatsPresent > (records.length * 0.5); // Use heuristic if more than half have VATs
+
+    if (!isMainlyAssigned) {
         recalculateVATs(records, config.assumptions);
     }
 
