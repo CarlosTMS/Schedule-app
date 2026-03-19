@@ -210,10 +210,10 @@ export function Summary({
                 const warnings: SessionWarning[] = [];
                 if (eligibleSMEs.length === 0) warnings.push({ type: 'noSME', label: t('warnNoSME') });
                 if (eligibleFaculty.length === 0) warnings.push({ type: 'noFaculty', label: t('warnNoFaculty') });
-                if (assignedSME && isOutOfHours(utcHour, getKnownUtcOffset(assignedSME.office_location), startHour, endHour)) {
+                if (assignedSME && isOutOfHours(utcHour, getKnownUtcOffset(assignedSME.office_location, session.date), startHour, endHour)) {
                     warnings.push({ type: 'smeOutOfHours', label: t('warnSMEOutOfHours') });
                 }
-                if (assignedFaculty && isOutOfHours(utcHour, getKnownUtcOffset(assignedFaculty.office), effectiveFacultyStartHour, endHour)) {
+                if (assignedFaculty && isOutOfHours(utcHour, getKnownUtcOffset(assignedFaculty.office, session.date), effectiveFacultyStartHour, endHour)) {
                     warnings.push({ type: 'facultyOutOfHours', label: t('warnFacultyOutOfHours') });
                 }
 

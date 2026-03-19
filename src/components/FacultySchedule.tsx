@@ -173,7 +173,7 @@ export function FacultySchedule({
                                 const utcHour = getEffectiveSessionUtcHour(selectedSA, schedule, session.id, sessionInstanceTimeOverrides, sessionTimeOverrides);
                                 
                                 if (assignedFaculty) {
-                                    const localHour = (utcHour + getKnownUtcOffset(assignedFaculty.office) + 24) % 24;
+                                    const localHour = (utcHour + getKnownUtcOffset(assignedFaculty.office, session.date) + 24) % 24;
                                     if (localHour < effectiveFacultyStartHour || localHour >= endHour) {
                                         isOutOfHours = true;
                                     }
@@ -219,7 +219,7 @@ export function FacultySchedule({
                                             {assignedFaculty && (
                                                 <div style={{ fontSize: '0.8rem', marginTop: '0.2rem', color: isOutOfHours ? 'var(--danger-color)' : '#ce9600', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                                     {isOutOfHours && <AlertCircle size={12} />}
-                                                    {getLocalTimeForUtcHour(utcHour, assignedFaculty.office)}
+                                                    {getLocalTimeForUtcHour(utcHour, assignedFaculty.office, session.date)}
                                                 </div>
                                             )}
                                         </td>

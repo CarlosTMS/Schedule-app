@@ -90,8 +90,8 @@ export const autoAssignSMEs = (
                 const utcHour = match ? parseInt(match[1], 10) : 0;
 
                 const sortedEligible = [...eligible].sort((a, b) => {
-                    const aLocal = (utcHour + getKnownUtcOffset(a.office_location) + 24) % 24;
-                    const bLocal = (utcHour + getKnownUtcOffset(b.office_location) + 24) % 24;
+                    const aLocal = (utcHour + getKnownUtcOffset(a.office_location, session.date) + 24) % 24;
+                    const bLocal = (utcHour + getKnownUtcOffset(b.office_location, session.date) + 24) % 24;
 
                     const penaltyA = getDistance(aLocal, startHour, endHour) + (assignedCounts[a.name] * 12);
                     const penaltyB = getDistance(bLocal, startHour, endHour) + (assignedCounts[b.name] * 12);

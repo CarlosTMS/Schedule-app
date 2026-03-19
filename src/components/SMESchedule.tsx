@@ -173,7 +173,7 @@ export function SMESchedule({
                                 let isOutOfHours = false;
                                 const utcHour = getEffectiveSessionUtcHour(selectedSA, schedule, session.id, sessionInstanceTimeOverrides, sessionTimeOverrides);
                                 if (assignedSME) {
-                                    const localHour = (utcHour + getKnownUtcOffset(assignedSME.office_location) + 24) % 24;
+                                    const localHour = (utcHour + getKnownUtcOffset(assignedSME.office_location, session.date) + 24) % 24;
                                     if (localHour < startHour || localHour >= endHour) {
                                         isOutOfHours = true;
                                     }
@@ -218,7 +218,7 @@ export function SMESchedule({
                                             {assignedSME && (
                                                 <div style={{ fontSize: '0.8rem', marginTop: '0.2rem', color: isOutOfHours ? 'var(--danger-color)' : 'var(--primary-color)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                                     {isOutOfHours && <AlertCircle size={12} />}
-                                                    {getLocalTimeForUtcHour(utcHour, assignedSME.office_location)}
+                                                    {getLocalTimeForUtcHour(utcHour, assignedSME.office_location, session.date)}
                                                 </div>
                                             )}
                                         </td>

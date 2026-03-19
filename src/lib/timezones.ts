@@ -1,135 +1,216 @@
 import type { StudentRecord } from './excelParser';
 import type { SessionId as SmeSessionId } from './smeMatcher';
 
-export const getUtcOffset = (country: string, office: string): number => {
-    const normalizedCountry = (country || '').toLowerCase().trim();
-    const normalizedOffice = (office || '').toLowerCase().trim();
+const PROGRAM_REFERENCE_DATE = new Date('2026-04-15T12:00:00Z');
 
-    // Americas
-    const isUSA = normalizedCountry === 'usa' || normalizedCountry === 'us' || normalizedCountry === 'united states' || normalizedCountry === 'united states of america';
-    if (isUSA) {
-        if (normalizedOffice.includes('new york') || normalizedOffice.includes('east') || normalizedOffice.includes('atlanta')) return -5;
-        if (normalizedOffice.includes('california') || normalizedOffice.includes('west') || normalizedOffice.includes('palo alto')) return -8;
-        if (normalizedOffice.includes('chicago') || normalizedOffice.includes('central')) return -6;
-        return -5; // Default EST
+const normalizeLocation = (value: string | undefined): string =>
+    (value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\u00a0/g, ' ')
+        .replace(/['’]/g, '')
+        .toLowerCase()
+        .trim();
+
+const OFFICE_TIME_ZONES: Array<[string, string]> = [
+    ['hong kong', 'Asia/Hong_Kong'],
+    ['singapore', 'Asia/Singapore'],
+    ['shanghai', 'Asia/Shanghai'],
+    ['shenzhen', 'Asia/Shanghai'],
+    ['beijing', 'Asia/Shanghai'],
+    ['manila', 'Asia/Manila'],
+    ['kuala lumpur', 'Asia/Kuala_Lumpur'],
+    ['jakarta', 'Asia/Jakarta'],
+    ['tokyo', 'Asia/Tokyo'],
+    ['seoul', 'Asia/Seoul'],
+    ['mumbai', 'Asia/Kolkata'],
+    ['gurgaon', 'Asia/Kolkata'],
+    ['delhi', 'Asia/Kolkata'],
+    ['doha', 'Asia/Qatar'],
+    ['riyadh', 'Asia/Riyadh'],
+    ['manama', 'Asia/Bahrain'],
+    ['dubai', 'Asia/Dubai'],
+    ['istanbul libadiye', 'Europe/Istanbul'],
+    ['istanbul', 'Europe/Istanbul'],
+    ['new cairo', 'Africa/Cairo'],
+    ['cairo', 'Africa/Cairo'],
+    ['johannesburg', 'Africa/Johannesburg'],
+    ['nairobi', 'Africa/Nairobi'],
+    ['espoo', 'Europe/Helsinki'],
+    ['athens', 'Europe/Athens'],
+    ['helsinki', 'Europe/Helsinki'],
+    ['amsterdam', 'Europe/Amsterdam'],
+    ['s-hertogenbosch', 'Europe/Amsterdam'],
+    ['frankfurt', 'Europe/Berlin'],
+    ['eschborn', 'Europe/Berlin'],
+    ['garching', 'Europe/Berlin'],
+    ['munchen', 'Europe/Berlin'],
+    ['munich', 'Europe/Berlin'],
+    ['hamburg', 'Europe/Berlin'],
+    ['ratingen', 'Europe/Berlin'],
+    ['walldorf', 'Europe/Berlin'],
+    ['berlin', 'Europe/Berlin'],
+    ['zurich-flughafen', 'Europe/Zurich'],
+    ['zurich', 'Europe/Zurich'],
+    ['barcelona', 'Europe/Madrid'],
+    ['madrid', 'Europe/Madrid'],
+    ['milan', 'Europe/Rome'],
+    ['milano', 'Europe/Rome'],
+    ['porto salvo', 'Europe/Lisbon'],
+    ['oslo', 'Europe/Oslo'],
+    ['stockholm', 'Europe/Stockholm'],
+    ['copenhagen', 'Europe/Copenhagen'],
+    ['brussels', 'Europe/Brussels'],
+    ['paris', 'Europe/Paris'],
+    ['vienna', 'Europe/Vienna'],
+    ['london', 'Europe/London'],
+    ['feltham', 'Europe/London'],
+    ['dublin', 'Europe/Dublin'],
+    ['mexico df', 'America/Mexico_City'],
+    ['bogota', 'America/Bogota'],
+    ['lima', 'America/Lima'],
+    ['sao paulo', 'America/Sao_Paulo'],
+    ['toronto', 'America/Toronto'],
+    ['montreal', 'America/Toronto'],
+    ['new york', 'America/New_York'],
+    ['boston', 'America/New_York'],
+    ['atlanta', 'America/New_York'],
+    ['dallas', 'America/Chicago'],
+    ['houston', 'America/Chicago'],
+    ['chicago', 'America/Chicago'],
+    ['tempe', 'America/Phoenix'],
+    ['palo alto', 'America/Los_Angeles'],
+    ['newport beach', 'America/Los_Angeles'],
+    ['san francisco', 'America/Los_Angeles'],
+    ['san ramon', 'America/Los_Angeles'],
+    ['nsq', 'Australia/Sydney'],
+    ['sydney', 'Australia/Sydney'],
+    ['melbourne', 'Australia/Melbourne'],
+    ['perth', 'Australia/Perth'],
+];
+
+const COUNTRY_DEFAULT_TIME_ZONES: Array<[string, string]> = [
+    ['germany', 'Europe/Berlin'],
+    ['france', 'Europe/Paris'],
+    ['spain', 'Europe/Madrid'],
+    ['italy', 'Europe/Rome'],
+    ['austria', 'Europe/Vienna'],
+    ['sweden', 'Europe/Stockholm'],
+    ['belgium', 'Europe/Brussels'],
+    ['netherlands', 'Europe/Amsterdam'],
+    ['denmark', 'Europe/Copenhagen'],
+    ['norway', 'Europe/Oslo'],
+    ['switzerland', 'Europe/Zurich'],
+    ['portugal', 'Europe/Lisbon'],
+    ['united kingdom', 'Europe/London'],
+    ['ireland', 'Europe/Dublin'],
+    ['greece', 'Europe/Athens'],
+    ['finland', 'Europe/Helsinki'],
+    ['turkey', 'Europe/Istanbul'],
+    ['turkiye', 'Europe/Istanbul'],
+    ['egypt', 'Africa/Cairo'],
+    ['south africa', 'Africa/Johannesburg'],
+    ['kenya', 'Africa/Nairobi'],
+    ['uae', 'Asia/Dubai'],
+    ['united arab emirates', 'Asia/Dubai'],
+    ['qatar', 'Asia/Qatar'],
+    ['bahrain', 'Asia/Bahrain'],
+    ['bahrein', 'Asia/Bahrain'],
+    ['kingdom of saudi arabia', 'Asia/Riyadh'],
+    ['saudi arabia', 'Asia/Riyadh'],
+    ['india', 'Asia/Kolkata'],
+    ['singapore', 'Asia/Singapore'],
+    ['china', 'Asia/Shanghai'],
+    ['malaysia', 'Asia/Kuala_Lumpur'],
+    ['philippines', 'Asia/Manila'],
+    ['indonesia', 'Asia/Jakarta'],
+    ['japan', 'Asia/Tokyo'],
+    ['south korea', 'Asia/Seoul'],
+    ['australia', 'Australia/Sydney'],
+    ['new zealand', 'Pacific/Auckland'],
+    ['mexico', 'America/Mexico_City'],
+    ['colombia', 'America/Bogota'],
+    ['peru', 'America/Lima'],
+    ['perú', 'America/Lima'],
+    ['brazil', 'America/Sao_Paulo'],
+    ['canada', 'America/Toronto'],
+    ['united states', 'America/New_York'],
+    ['usa', 'America/New_York'],
+];
+
+const resolveTimeZone = (office?: string, country?: string): string => {
+    const normalizedOffice = normalizeLocation(office);
+    const normalizedCountry = normalizeLocation(country);
+
+    for (const [needle, timeZone] of OFFICE_TIME_ZONES) {
+        if (normalizedOffice.includes(needle)) return timeZone;
     }
-    if (normalizedCountry.includes('canada')) {
-        if (normalizedOffice.includes('vancouver')) return -8;
-        return -5;
+
+    for (const [needle, timeZone] of COUNTRY_DEFAULT_TIME_ZONES) {
+        if (normalizedCountry.includes(needle)) return timeZone;
     }
 
-    if (normalizedCountry.includes('brazil')) return -3;
-    if (normalizedCountry.includes('mexico')) return -6;
-    if (normalizedCountry.includes('colombia') || normalizedCountry.includes('peru')) return -5;
-    if (normalizedCountry.includes('argentina')) return -3;
-    if (normalizedCountry.includes('chile')) return -4;
+    return 'UTC';
+};
 
-    // EMEA
-    if (
-        normalizedCountry === 'switzerland' || 
-        normalizedCountry === 'ch' || 
-        normalizedCountry === 'che' ||
-        normalizedCountry.includes('germany') || 
-        normalizedCountry.includes('france') || 
-        normalizedCountry.includes('spain') || 
-        normalizedCountry.includes('italy') ||
-        normalizedCountry.includes('austria') ||
-        normalizedCountry.includes('sweden') ||
-        normalizedCountry.includes('belgium') ||
-        normalizedCountry.includes('netherlands') ||
-        normalizedCountry.includes('nederland') ||
-        normalizedCountry.includes('denmark') ||
-        normalizedCountry.includes('norway') ||
-        normalizedCountry.includes('poland') ||
-        normalizedCountry.includes('cz') ||
-        normalizedCountry.includes('czech') ||
-        normalizedCountry.includes('hungary') ||
-        normalizedCountry.includes('slovakia')
-    ) return 1;
-    if (
-        normalizedCountry.includes('egypt') || 
-        normalizedCountry.includes('finland') ||
-        normalizedCountry.includes('greece') ||
-        normalizedCountry.includes('romania') ||
-        normalizedCountry.includes('bulgaria') ||
-        normalizedCountry.includes('israel') ||
-        normalizedCountry.includes('lebanon') ||
-        normalizedCountry.includes('estonia') ||
-        normalizedCountry.includes('latvia') ||
-        normalizedCountry.includes('lithuania')
-    ) return 2;
-    if (normalizedCountry.includes('turkey') || normalizedCountry.includes('turkiye')) return 3;
-    if (normalizedCountry.includes('indonesia')) return 7;
-    if (normalizedCountry.includes('uk') || normalizedCountry.includes('united kingdom') || normalizedCountry.includes('ireland')) return 0;
-    if (normalizedCountry.includes('south africa')) return 2;
-    if (normalizedCountry.includes('uae') || normalizedCountry.includes('united arab emirates')) return 4;
-    if (normalizedCountry.includes('saudi arabia') || normalizedCountry.includes('qatar') || normalizedCountry.includes('bahrain') || normalizedCountry.includes('bahrein')) return 3;
+const getReferenceDate = (referenceDate?: Date | string): Date => {
+    if (!referenceDate) return PROGRAM_REFERENCE_DATE;
+    if (referenceDate instanceof Date) return referenceDate;
+    return new Date(`${referenceDate} 12:00:00 UTC`);
+};
 
-    // APJ
-    if (normalizedCountry.includes('india')) return 5.5;
-    if (normalizedCountry.includes('singapore') || normalizedCountry.includes('china') || normalizedCountry.includes('malaysia') || normalizedCountry.includes('philippines')) return 8;
-    if (normalizedCountry.includes('japan') || normalizedCountry.includes('korea')) return 9;
-    if (normalizedCountry.includes('australia')) {
-        if (normalizedOffice.includes('perth')) return 8;
-        return 10; // Default AEST
-    }
-    if (normalizedCountry.includes('new zealand')) return 12;
+const parseOffsetFromParts = (timeZone: string, date: Date): number => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        timeZoneName: 'shortOffset',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+    }).formatToParts(date);
 
-    return 0; // Default UTC fallback
-}
+    const label = parts.find(part => part.type === 'timeZoneName')?.value || 'GMT';
+    if (label === 'GMT' || label === 'UTC') return 0;
+
+    const match = label.match(/GMT([+-]\d{1,2})(?::?(\d{2}))?/);
+    if (!match) return 0;
+
+    const hours = Number(match[1]);
+    const minutes = Number(match[2] || '0');
+    return hours >= 0 ? hours + (minutes / 60) : hours - (minutes / 60);
+};
+
+export const getTimeZoneForLocation = (office?: string, country?: string): string =>
+    resolveTimeZone(office, country);
+
+export const getUtcOffset = (country: string, office: string, referenceDate?: Date | string): number => {
+    const timeZone = resolveTimeZone(office, country);
+    return parseOffsetFromParts(timeZone, getReferenceDate(referenceDate));
+};
 
 export const getAvailableUtcHours = (student: StudentRecord, startHourLocal: number, endHourLocal: number): number[] => {
     const offset = student._utcOffset ?? 0;
     const availableHours: number[] = [];
 
     for (let localHour = startHourLocal; localHour < endHourLocal; localHour++) {
-        // UTC = Local - Offset
         let utcHour = localHour - offset;
 
         if (utcHour < 0) utcHour += 24;
         if (utcHour >= 24) utcHour -= 24;
 
-        // We store the hour as an integer 0-23
         availableHours.push(Math.floor(utcHour));
     }
     return availableHours;
-}
-
-export const getKnownUtcOffset = (office: string | undefined): number => {
-    if (!office) return 0;
-    const o = office.toLowerCase();
-
-    // Specific US Cities / States
-    if (o.includes('san francisco') || o.includes('palo alto') || o.includes('california') || o.includes('west')) return -8;
-    if (o.includes('denver') || o.includes('mountain')) return -7;
-    if (o.includes('chicago') || o.includes('central')) return -6;
-    if (o.includes('new york') || o.includes('atlanta') || o.includes('east') || o.includes('toronto') || o.includes('canada')) return -5;
-
-    // Broad Regions for Americas
-    if (o.includes('amer - us') || o.includes('us') || o.includes('usa')) return -5; // Default East
-    if (o.includes('mexico')) return -6;
-    if (o.includes('sao paulo') || o.includes('brazil') || o.includes('argentina')) return -3;
-    if (o.includes('colombia') || o.includes('peru') || o.includes('lima')) return -5;
-
-    // EMEA / MEE
-    if (o.includes('london') || o.includes('ireland') || o.includes('uk')) return 0;
-    if (o.includes('amsterdam') || o.includes('netherlands') || o.includes('nederland') || o.includes('barcelona') || o.includes('frankfurt') || o.includes('germany') || o.includes('france') || o.includes('spain') || o.includes('italy') || o.includes('switzerland') || o.includes('oslo') || o.includes('denmark') || o.includes('madrid') || o.includes('emea') || o.includes('mee') || o.includes('austria') || o.includes('vienna') || o.includes('sweden') || o.includes('stockholm') || o.includes('belgium') || o.includes('brussels') || o.includes('copenhagen') || o.includes('warsaw')) return 1;
-    if (o.includes('south africa') || o.includes('greece') || o.includes('finland') || o.includes('israel') || o.includes('egypt') || o.includes('cairo') || o.includes('helsinki') || o.includes('athens') || o.includes('bucharest') || o.includes('sofia')) return 2;
-    if (o.includes('turkey') || o.includes('turkiye') || o.includes('istanbul') || o.includes('ankara') || o.includes('qatar') || o.includes('doha') || o.includes('bahrain') || o.includes('bahrein') || o.includes('manama')) return 3;
-    if (o.includes('dubai') || o.includes('uae')) return 4;
-
-    // APJ
-    if (o.includes('india') || o.includes('mumbai') || o.includes('delhi')) return 5.5;
-    if (o.includes('singapore') || o.includes('manila') || o.includes('perth') || o.includes('china') || o.includes('philippines') || o.includes('malaysia')) return 8;
-    if (o.includes('indonesia') || o.includes('jakarta')) return 7;
-    if (o.includes('tokyo') || o.includes('seoul') || o.includes('korea') || o.includes('japan')) return 9;
-    if (o.includes('sydney') || o.includes('melbourne') || o.includes('australia')) return 10;
-    if (o.includes('nz') || o.includes('new zealand')) return 12;
-
-    return 0; // Default
 };
 
-/** Extract a stable key from a schedule string (strips the time part). */
+export const getKnownUtcOffset = (
+    office: string | undefined,
+    referenceDate?: Date | string,
+    country?: string
+): number => {
+    const timeZone = resolveTimeZone(office, country);
+    return parseOffsetFromParts(timeZone, getReferenceDate(referenceDate));
+};
+
 export const extractScheduleKey = (scheduleStr: string): string =>
     scheduleStr.replace(/ \(\d+:00 UTC\)/, '').trim();
 
@@ -141,11 +222,6 @@ export const makeSessionInstanceOverrideKey = (
 
 export const wrapUtcHour = (hour: number): number => ((hour % 24) + 24) % 24;
 
-/**
- * Resolve the effective UTC hour for a schedule string, applying an override if one exists.
- * @param scheduleStr  Full schedule string, e.g. "Cloud ERP Session 1 (14:00 UTC)"
- * @param overrides    Map of scheduleKey -> overridden UTC hour
- */
 export const getEffectiveScheduleUtcHour = (
     scheduleStr: string,
     overrides: Record<string, number> = {}
@@ -179,13 +255,9 @@ export const formatEffectiveSessionSchedule = (
     scheduleOverrides: Record<string, number> = {}
 ): string => {
     const effectiveHour = getEffectiveSessionUtcHour(solutionArea, scheduleStr, sessionId, sessionOverrides, scheduleOverrides);
-    return scheduleStr.replace(/\(\d+:00 UTC\)/, `(${formatUtcHourLabel(effectiveHour).replace(' UTC', ' UTC')})`);
+    return scheduleStr.replace(/\(\d+:00 UTC\)/, `(${formatUtcHourLabel(effectiveHour)})`);
 };
 
-/**
- * Update the schedule string with the effective overridden UTC hour if one exists.
- * e.g., "Cloud ERP Session 1 (08:00 UTC)" -> "Cloud ERP Session 1 (10:00 UTC)"
- */
 export const formatEffectiveSchedule = (
     scheduleStr: string,
     overrides: Record<string, number> = {}
@@ -197,21 +269,25 @@ export const formatEffectiveSchedule = (
 export const getLocalTimeStr = (
     scheduleStr: string,
     assignedPersonOffice: string | undefined,
-    overrides: Record<string, number> = {}
+    overrides: Record<string, number> = {},
+    referenceDate?: Date | string,
+    country?: string
 ): string => {
     if (!assignedPersonOffice) return '';
 
     const utcHour = getEffectiveScheduleUtcHour(scheduleStr, overrides);
-    return getLocalTimeForUtcHour(utcHour, assignedPersonOffice);
+    return getLocalTimeForUtcHour(utcHour, assignedPersonOffice, referenceDate, country);
 };
 
 export const getLocalTimeForUtcHour = (
     utcHour: number,
-    assignedPersonOffice: string | undefined
+    assignedPersonOffice: string | undefined,
+    referenceDate?: Date | string,
+    country?: string
 ): string => {
     if (!assignedPersonOffice) return '';
 
-    const offset = getKnownUtcOffset(assignedPersonOffice);
+    const offset = getKnownUtcOffset(assignedPersonOffice, referenceDate, country);
     let localHour = utcHour + offset;
 
     if (localHour < 0) localHour += 24;
