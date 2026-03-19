@@ -57,6 +57,52 @@ Served by `server/app.mjs`:
 - `DELETE /api/runtime/versions/:id`
 - `POST /api/runtime/sync/batch`
 
+## Public JSON Schemas
+
+### `POST` / `GET /api/public/summary`
+
+Publishes and returns the latest summary snapshot.
+
+Session-level fields include:
+
+- `solution_area`
+- `schedule`
+- `session_topic`
+- `utc_hour`
+- `attendees_count`
+- `attendees[]`
+- `sme`
+- `faculty`
+- `warnings`
+- `warning_codes`
+
+Notes:
+
+- `warnings` is the display-oriented array and now contains objects shaped like `{ code, label }`.
+- `warning_codes` is the stable machine-readable array for integrations.
+- The server still accepts legacy summary payloads that only include `warnings`.
+- SME payloads now include both `office_location` and legacy-compatible `office`.
+
+### `POST` / `GET /api/public/vats`
+
+Publishes and returns the latest VAT snapshot.
+
+Top-level fields include:
+
+- `generated_at`
+- `total_records`
+- `source_records_count`
+- `excluded_records_count`
+- `total_vats`
+- `vats[]`
+
+Notes:
+
+- `total_records` counts only the records actually exported inside `vats[]`.
+- `source_records_count` is the original input record count.
+- `excluded_records_count` captures rows excluded from the public VAT export, such as `Unassigned`, `Outlier-Size`, and `Outlier-Schedule`.
+- VAT member `email` is populated when the uploaded source file includes an email column such as `Email`, `E-mail`, `Email Address`, or `Mail`.
+
 ## Deploy to SAP BTP (Cloud Foundry)
 
 Requirements:

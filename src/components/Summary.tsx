@@ -8,7 +8,7 @@ import { sessions, getEligibleSMEs, autoAssignSMEs } from '../lib/smeMatcher';
 import type { SME, SessionId } from '../lib/smeMatcher';
 import { getEligibleFaculty, autoAssignFaculty } from '../lib/facultyMatcher';
 import type { Faculty } from '../lib/facultyMatcher';
-import { getEffectiveScheduleUtcHour, getKnownUtcOffset, formatEffectiveSchedule } from '../lib/timezones';
+import { extractScheduleKey, getEffectiveScheduleUtcHour, getKnownUtcOffset, formatEffectiveSchedule } from '../lib/timezones';
 import type { StudentRecord } from '../lib/excelParser';
 import { generateExcel } from '../lib/excelParser';
 import type { SMECacheStatus } from '../lib/smeDataLoader';
@@ -93,6 +93,42 @@ const isOutOfHours = (utcHour: number, offsetHours: number, startHour: number, e
     return localHour < startHour || localHour >= endHour;
 };
 
+const KP_SESSION_NAMES: Record<SessionId, string> = {
+    overview: 'Solution Weeks — Solution Overview',
+    process_mapping: 'Solution Weeks — Process to Solution mapping',
+    industry_relevance: 'Solution Weeks — Industry Relevance',
+    ai_strategy: 'Solution Weeks — AI Strategy',
+    competitive_defense: 'Solution Weeks — Competitive Defense',
+    adoption_risk: 'Solution Weeks — Adoption & Risk Prevention',
+};
+
+const toKpDateTime = (dateValue: Date): string => {
+    const month = dateValue.getUTCMonth() + 1;
+    const day = dateValue.getUTCDate();
+    const year = dateValue.getUTCFullYear();
+    const hours = dateValue.getUTCHours().toString().padStart(2, '0');
+    const minutes = dateValue.getUTCMinutes().toString().padStart(2, '0');
+    return `${month}/${day}/${year} ${hours}:${minutes}`;
+};
+
+const buildUtcDateForSession = (sessionDateLabel: string, utcHour: number): Date => {
+    const baseDate = new Date(`${sessionDateLabel} 00:00:00 UTC`);
+    return new Date(Date.UTC(
+        baseDate.getUTCFullYear(),
+        baseDate.getUTCMonth(),
+        baseDate.getUTCDate(),
+        utcHour,
+        0,
+        0,
+        0
+    ));
+};
+
+const buildKpSessionName = (sessionId: SessionId, schedule: string): string => {
+    const scheduleKey = extractScheduleKey(schedule);
+    return `${KP_SESSION_NAMES[sessionId]} (${scheduleKey})`;
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 /**
@@ -137,17 +173,6 @@ export function Summary({
     const [showOnlyWarnings, setShowOnlyWarnings] = useState(false);
     const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
     const [publishing, setPublishing] = useState(false);
-
-    const buildAssignmentSummary = (sa: string, schedule: string, kind: 'sme' | 'faculty'): string => {
-        return sessionRows
-            .filter(row => row.sa === sa && row.schedule === schedule)
-            .map(row => {
-                const assignee = kind === 'sme' ? row.assignedSME?.name : row.assignedFaculty?.name;
-                return assignee ? `${row.sessionDef.title}: ${assignee}` : null;
-            })
-            .filter((value): value is string => Boolean(value))
-            .join(' | ');
-    };
 
     // ── Build session rows ──────────────────────────────────────────────────
 
@@ -204,6 +229,17 @@ export function Summary({
 
     const warningsCount = sessionRows.filter(r => r.warnings.length > 0).length;
     const visibleRows = showOnlyWarnings ? sessionRows.filter(r => r.warnings.length > 0) : sessionRows;
+
+    const buildAssignmentSummary = (sa: string, schedule: string, kind: 'sme' | 'faculty'): string => {
+        return sessionRows
+            .filter(row => row.sa === sa && row.schedule === schedule)
+            .map(row => {
+                const assignee = kind === 'sme' ? row.assignedSME?.name : row.assignedFaculty?.name;
+                return assignee ? `${row.sessionDef.title}: ${assignee}` : null;
+            })
+            .filter((value): value is string => Boolean(value))
+            .join(' | ');
+    };
 
     // ── SME change handler ──────────────────────────────────────────────────
 
@@ -345,6 +381,49 @@ export function Summary({
         generateExcel(enrichedRecords, buildExportPayload().config);
     };
 
+    const handleExportKP = () => {
+        const header = [
+            'Session Name',
+            'Calendar Start',
+            'Calendar End',
+            'Facilitator',
+            'Producer',
+            'Num of Participants',
+            'Participants',
+        ];
+
+        const rows = sessionRows.map(row => {
+            const startUtc = buildUtcDateForSession(row.sessionDef.date, row.utcHour);
+            const endUtc = new Date(startUtc.getTime() + (120 * 60 * 1000));
+            const participants = row.attendees
+                .map(attendee => attendee['Full Name'] ?? '')
+                .filter(Boolean)
+                .join(',');
+
+            return [
+                buildKpSessionName(row.sessionDef.id, row.schedule),
+                toKpDateTime(startUtc),
+                toKpDateTime(endUtc),
+                row.assignedSME?.name ?? '',
+                row.assignedFaculty?.name ?? '',
+                row.attendees.length,
+                participants,
+            ];
+        });
+
+        const csvContent = [header, ...rows]
+            .map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+            .join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `summary_kp_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     // ── Publish to local API ────────────────────────────────────────────────
 
     const handlePublishAPI = async () => {
@@ -431,6 +510,13 @@ export function Summary({
                         style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}
                     >
                         <FileJson size={16} /> {t('exportJSON')}
+                    </button>
+                    <button
+                        onClick={handleExportKP}
+                        className="btn btn-secondary"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}
+                    >
+                        <FileText size={16} /> {t('exportKP')}
                     </button>
                     <button
                         onClick={handlePublishAPI}

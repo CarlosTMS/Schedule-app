@@ -65,7 +65,11 @@ const validateSummarySnapshot = (payload) => {
       return 'Each summary session must include solution_area, schedule, and session_topic';
     }
     if (!Array.isArray(session.attendees)) return 'Each summary session must include an attendees array';
-    if (!Array.isArray(session.warning_codes)) return 'Each summary session must include warning_codes';
+    const hasModernWarnings = Array.isArray(session.warning_codes);
+    const hasLegacyWarnings = Array.isArray(session.warnings);
+    if (!hasModernWarnings && !hasLegacyWarnings) {
+      return 'Each summary session must include warning_codes or legacy warnings';
+    }
   }
 
   return null;
