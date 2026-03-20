@@ -265,7 +265,9 @@ export function VATVisualizer({
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
                     {students.map((s, idx) => {
+                        const sa = s['Solution Weeks SA'] || '';
                         const role = s.Program || s.Role || s['(AA) Secondary Specialization'] || 'Unknown';
+                        const displayTitle = sa ? `${sa} - ${role}` : role;
                         const isDupe = roleCounts[role] > 1;
                         return (
                             <div key={idx} style={{
@@ -277,7 +279,7 @@ export function VATVisualizer({
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                         <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{s['Full Name']}</span>
-                                        <span style={{ fontSize: '0.75rem', color: isDupe ? '#c2410c' : 'var(--text-secondary)' }}>{role}</span>
+                                        <span style={{ fontSize: '0.75rem', color: isDupe ? '#c2410c' : 'var(--text-secondary)' }}>{displayTitle}</span>
                                     </div>
                                     <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'right' }}>
                                         <div>{s.Country}</div>
