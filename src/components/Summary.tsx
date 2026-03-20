@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { sessions, getEligibleSMEs, autoAssignSMEs } from '../lib/smeMatcher';
 import type { SME, SessionId } from '../lib/smeMatcher';
-import { getEligibleFaculty, autoAssignFaculty } from '../lib/facultyMatcher';
+import { getEligibleFaculty, autoAssignFaculty, enrichFaculty } from '../lib/facultyMatcher';
 import type { Faculty } from '../lib/facultyMatcher';
 import { extractScheduleKey, getEffectiveSessionUtcHour, getKnownUtcOffset, formatUtcHourLabel } from '../lib/timezones';
 import type { StudentRecord } from '../lib/excelParser';
@@ -203,7 +203,7 @@ export function Summary({
                 );
 
                 const assignedSME = smeAssignmentsForSA[schedule]?.[session.id] ?? null;
-                const assignedFaculty = facAssignmentsForSA[schedule]?.[session.id] ?? null;
+                const assignedFaculty = enrichFaculty(facAssignmentsForSA[schedule]?.[session.id] ?? null);
                 const eligibleSMEs = getEligibleSMEs(sa, session.id, smeList);
                 const eligibleFaculty = getEligibleFaculty(sa);
 

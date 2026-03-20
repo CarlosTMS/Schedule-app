@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Presentation, MapPin, UserCircle2, AlertCircle, Minus, Plus } from 'lucide-react';
-import { sessions, getEligibleFaculty, autoAssignFaculty } from '../lib/facultyMatcher';
+import { sessions, getEligibleFaculty, autoAssignFaculty, enrichFaculty } from '../lib/facultyMatcher';
 import type { Faculty, SessionId } from '../lib/facultyMatcher';
 import { useI18n } from '../i18n';
 import { getKnownUtcOffset, getEffectiveSessionUtcHour, getLocalTimeForUtcHour, extractScheduleKey, formatUtcHourLabel, makeSessionInstanceOverrideKey, wrapUtcHour } from '../lib/timezones';
@@ -164,7 +164,7 @@ export function FacultySchedule({
                             const topicIsLast = tIndex === sessions.length - 1;
 
                             return availableSchedules.map((schedule, sIndex) => {
-                                const assignedFaculty = currentAssignments[schedule]?.[session.id];
+                                const assignedFaculty = enrichFaculty(currentAssignments[schedule]?.[session.id]);
                                 const scheduleIsLast = sIndex === availableSchedules.length - 1;
                                 const showBorder = scheduleIsLast && !topicIsLast;
 

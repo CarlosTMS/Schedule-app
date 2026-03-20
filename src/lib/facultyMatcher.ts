@@ -70,6 +70,14 @@ const getFacultyEmail = (faculty: Pick<Faculty, 'name' | 'office'>): string | un
     return byOfficeAlias[fullKey] || FACULTY_EMAIL_BY_ALIAS[nameKey];
 };
 
+export const enrichFaculty = <T extends Faculty | null | undefined>(faculty: T): T => {
+    if (!faculty) return faculty;
+    return {
+        ...faculty,
+        email: faculty.email || getFacultyEmail(faculty),
+    } as T;
+};
+
 export const sessions = [
     { id: 'overview', title: 'Overview', onlineSessionDay: 'Week 1 - Day 3', date: 'Wednesday, April 15, 2026' },
     { id: 'process_mapping', title: 'Process Mapping', onlineSessionDay: 'Week 1 - Day 4', date: 'Thursday, April 16, 2026' },
@@ -86,10 +94,7 @@ export const getEligibleFaculty = (solutionArea: string): Faculty[] => {
         .filter((fac) => {
             return fac.sa.toLowerCase() === solutionArea.toLowerCase();
         })
-        .map((fac) => ({
-            ...fac,
-            email: fac.email || getFacultyEmail(fac),
-        }));
+        .map((fac) => enrichFaculty(fac) as Faculty);
 };
 
 const getDistance = (localHour: number, startHour: number, endHour: number) => {

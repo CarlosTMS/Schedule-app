@@ -2,7 +2,7 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import { CalendarPlus, Download, Copy, CheckCircle2, UserSquare2, Presentation, Users } from 'lucide-react';
 import { sessions, autoAssignSMEs } from '../lib/smeMatcher';
 import type { SME } from '../lib/smeMatcher';
-import { autoAssignFaculty } from '../lib/facultyMatcher';
+import { autoAssignFaculty, enrichFaculty } from '../lib/facultyMatcher';
 import type { Faculty } from '../lib/facultyMatcher';
 import { extractScheduleKey, getEffectiveSessionUtcHour, formatUtcHourLabel, getLocalTimeForUtcHour } from '../lib/timezones';
 import type { SmeAssignments } from './SMESchedule';
@@ -118,7 +118,7 @@ export function CalendarBlockers({
                 for (const session of sessions) {
                     const utcHour = getEffectiveSessionUtcHour(sa, schedule, session.id, sessionInstanceTimeOverrides, sessionTimeOverrides);
                     const assignedSME = smeAssignmentsForSA[schedule]?.[session.id] ?? null;
-                    const assignedFaculty = facAssignmentsForSA[schedule]?.[session.id] ?? null;
+                    const assignedFaculty = enrichFaculty(facAssignmentsForSA[schedule]?.[session.id] ?? null);
 
                     const recipientEmails = new Set<string>();
                     const recipientNames = new Set<string>();

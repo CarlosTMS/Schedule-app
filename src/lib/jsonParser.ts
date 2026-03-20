@@ -171,7 +171,8 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
     const normalizeFaculty = (value: Record<string, unknown>, sa: string): Faculty => ({
         name: String(value.name ?? ''),
         office: String(value.office ?? ''),
-        sa: typeof value.sa === 'string' ? value.sa : sa
+        sa: typeof value.sa === 'string' ? value.sa : sa,
+        email: value.email ? String(value.email) : undefined,
     });
 
     if (!data.sessions || !Array.isArray(data.sessions)) {
