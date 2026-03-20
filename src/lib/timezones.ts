@@ -136,7 +136,20 @@ const COUNTRY_DEFAULT_TIME_ZONES: Array<[string, string]> = [
     ['canada', 'America/Toronto'],
     ['united states', 'America/New_York'],
     ['usa', 'America/New_York'],
+    ['us', 'America/New_York'],
 ];
+
+const resolveCountryLikeTimeZone = (value: string): string | null => {
+    if (!value) return null;
+
+    for (const [needle, timeZone] of COUNTRY_DEFAULT_TIME_ZONES) {
+        if (value === needle || value.endsWith(` ${needle}`) || value.includes(`- ${needle}`) || value.includes(`/${needle}`)) {
+            return timeZone;
+        }
+    }
+
+    return null;
+};
 
 const resolveTimeZone = (office?: string, country?: string): string => {
     const normalizedOffice = normalizeLocation(office);
@@ -145,6 +158,9 @@ const resolveTimeZone = (office?: string, country?: string): string => {
     for (const [needle, timeZone] of OFFICE_TIME_ZONES) {
         if (normalizedOffice.includes(needle)) return timeZone;
     }
+
+    const officeCountryLike = resolveCountryLikeTimeZone(normalizedOffice);
+    if (officeCountryLike) return officeCountryLike;
 
     for (const [needle, timeZone] of COUNTRY_DEFAULT_TIME_ZONES) {
         if (normalizedCountry.includes(needle)) return timeZone;
