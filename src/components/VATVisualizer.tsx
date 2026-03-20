@@ -265,10 +265,8 @@ export function VATVisualizer({
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
                     {students.map((s, idx) => {
-                        const sa = s['Solution Weeks SA'] || '';
-                        const role = s.Program || s.Role || s['(AA) Secondary Specialization'] || 'Unknown';
-                        const displayTitle = sa ? `${sa} - ${role}` : role;
-                        const isDupe = roleCounts[role] > 1;
+                        const displayTitle = s.Program || s.Role || s['(AA) Secondary Specialization'] || 'Unknown';
+                        const isDupe = roleCounts[displayTitle] > 1;
                         return (
                             <div key={idx} style={{
                                 padding: '6px 8px',

@@ -308,6 +308,7 @@ export function Summary({
                 country: a.Country ?? '',
                 office: a.Office ?? '',
                 specialization: a['(AA) Secondary Specialization'] ?? '',
+                program: a.Program ?? '',
                 utc_offset: a._utcOffset,
                 vat: a.VAT,
             })),

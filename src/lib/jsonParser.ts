@@ -199,6 +199,7 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
                     Schedule: scheduleFull,
                     _utcOffset: typeof att.utc_offset === 'number' ? att.utc_offset : getUtcOffset(att.country as string, att.office as string),
                     _originalIndex: originalIndex++,
+                    Program: (att as any).program as string || (att as any).Program as string,
                     VAT: (att.vat as string) || 'Imported-JSON',
                     Role: att.specialization as string
                 };
