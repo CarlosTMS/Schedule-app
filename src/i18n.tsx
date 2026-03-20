@@ -172,7 +172,12 @@ const translations = {
         blockersNoRecipientEmails: 'No email available',
         blockersMissingEmails: 'Missing emails',
         blockersDownloadIcs: 'Download ICS',
-        blockersCopyRecipients: 'Copy Emails'
+        blockersCopyRecipients: 'Copy Emails',
+        blockersCometModeDraft: 'Comet: Draft',
+        blockersCometModeSend: 'Comet: Send',
+        blockersPromptForComet: 'Prompt for Comet',
+        blockersPromptSelected: 'Prompt Selected',
+        blockersPromptAll: 'Prompt All Visible'
     },
     es: {
         appTitle: 'Programador de Habilitación de SAP Associates',
@@ -342,7 +347,12 @@ const translations = {
         blockersNoRecipientEmails: 'Sin email disponible',
         blockersMissingEmails: 'Faltan emails',
         blockersDownloadIcs: 'Descargar ICS',
-        blockersCopyRecipients: 'Copiar emails'
+        blockersCopyRecipients: 'Copiar emails',
+        blockersCometModeDraft: 'Comet: Borrador',
+        blockersCometModeSend: 'Comet: Enviar',
+        blockersPromptForComet: 'Prompt para Comet',
+        blockersPromptSelected: 'Prompt seleccionados',
+        blockersPromptAll: 'Prompt todos visibles'
     }
 
 };

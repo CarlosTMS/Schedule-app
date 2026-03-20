@@ -24,6 +24,7 @@ interface CalendarBlockersProps {
 }
 
 type AudienceMode = 'both' | 'smes' | 'faculty';
+type CometMode = 'draft' | 'send';
 
 interface CalendarBlockerRow {
     key: string;
@@ -82,6 +83,27 @@ const downloadTextFile = (filename: string, content: string, mime = 'text/calend
     URL.revokeObjectURL(url);
 };
 
+const OUTLOOK_WEB_URL = 'https://outlook.office.com/mail/?realm=sap.com&login_hint=fernando.sanchez@sap.com';
+
+const formatUtcDate = (date: Date): string => date.toISOString().slice(0, 10);
+const formatUtcTime = (date: Date): string => date.toISOString().slice(11, 16);
+
+const buildEventTitle = (row: CalendarBlockerRow): string =>
+    `Solution Weeks | ${row.solutionArea} | ${row.sessionTopic} | ${extractScheduleKey(row.schedule).replace(`${row.solutionArea} `, '')}`;
+
+const buildEventBody = (row: CalendarBlockerRow, projectName?: string | null, versionLabel?: string | null): string =>
+    [
+        `Project: ${projectName || 'Current Project'}`,
+        versionLabel ? `Version: ${versionLabel}` : null,
+        `Solution Area: ${row.solutionArea}`,
+        `Session Topic: ${row.sessionTopic}`,
+        `Schedule: ${extractScheduleKey(row.schedule)}`,
+        `UTC: ${formatUtcHourLabel(row.utcHour)}`,
+        row.assignedSME ? `SME: ${row.assignedSME.name}${row.assignedSME.email ? ` <${row.assignedSME.email}>` : ''}` : null,
+        row.assignedFaculty ? `Faculty: ${row.assignedFaculty.name}${row.assignedFaculty.email ? ` <${row.assignedFaculty.email}>` : ''}` : null,
+        row.missingEmails.length > 0 ? `Missing emails (do not invent): ${row.missingEmails.join(', ')}` : null,
+    ].filter(Boolean).join('\n');
+
 export function CalendarBlockers({
     schedulesBySA,
     startHour,
@@ -97,6 +119,7 @@ export function CalendarBlockers({
 }: CalendarBlockersProps) {
     const { t } = useI18n();
     const [audienceMode, setAudienceMode] = useState<AudienceMode>('both');
+    const [cometMode, setCometMode] = useState<CometMode>('draft');
     const [selectedLob, setSelectedLob] = useState<string>('all');
     const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -193,18 +216,8 @@ export function CalendarBlockers({
         const events = targetRows.map(row => {
             const start = buildUtcDateForSession(row.sessionDate, row.utcHour);
             const end = new Date(start.getTime() + (row.durationMinutes * 60 * 1000));
-            const title = `Solution Weeks | ${row.solutionArea} | ${row.sessionTopic} | ${extractScheduleKey(row.schedule).replace(`${row.solutionArea} `, '')}`;
-            const description = [
-                `Project: ${projectName || 'Current Project'}`,
-                versionLabel ? `Version: ${versionLabel}` : null,
-                `Solution Area: ${row.solutionArea}`,
-                `Session Topic: ${row.sessionTopic}`,
-                `Schedule: ${extractScheduleKey(row.schedule)}`,
-                `UTC: ${formatUtcHourLabel(row.utcHour)}`,
-                row.assignedSME ? `SME: ${row.assignedSME.name}${row.assignedSME.email ? ` <${row.assignedSME.email}>` : ''}` : null,
-                row.assignedFaculty ? `Faculty: ${row.assignedFaculty.name}${row.assignedFaculty.email ? ` <${row.assignedFaculty.email}>` : ''}` : null,
-                row.missingEmails.length > 0 ? `Missing emails: ${row.missingEmails.join(', ')}` : null,
-            ].filter(Boolean).join('\n');
+            const title = buildEventTitle(row);
+            const description = buildEventBody(row, projectName, versionLabel);
 
             const attendees = row.recipientEmails.map(email =>
                 `ATTENDEE;CN=${escapeIcsText(email)};ROLE=REQ-PARTICIPANT:mailto:${email}`
@@ -254,6 +267,53 @@ export function CalendarBlockers({
         window.setTimeout(() => setCopiedKey(current => current === row.key ? null : current), 1800);
     };
 
+    const buildCometPrompt = (targetRows: CalendarBlockerRow[]) => {
+        const actionInstruction = cometMode === 'send'
+            ? 'When each event is fully populated and verified, send the invitation.'
+            : 'Save each event as a draft only. Do not send anything.';
+
+        const eventsSection = targetRows.map((row, index) => {
+            const start = buildUtcDateForSession(row.sessionDate, row.utcHour);
+            const end = new Date(start.getTime() + (row.durationMinutes * 60 * 1000));
+            return [
+                `Event ${index + 1}`,
+                `- Subject: ${buildEventTitle(row)}`,
+                `- Date (UTC): ${formatUtcDate(start)}`,
+                `- Start time (UTC): ${formatUtcTime(start)}`,
+                `- End time (UTC): ${formatUtcTime(end)}`,
+                `- Recipients: ${row.recipientEmails.length > 0 ? row.recipientEmails.join('; ') : 'none available'}`,
+                `- Missing emails (do not invent): ${row.missingEmails.length > 0 ? row.missingEmails.join(', ') : 'none'}`,
+                `- Body:\n${buildEventBody(row, projectName, versionLabel).split('\n').map(line => `  ${line}`).join('\n')}`,
+            ].join('\n');
+        }).join('\n\n');
+
+        return [
+            'Use the current logged-in Outlook Web session to create calendar meeting invites.',
+            `Open: ${OUTLOOK_WEB_URL}`,
+            'Navigate to Calendar.',
+            'For each event below, create a new calendar event/meeting.',
+            'Set the event timezone explicitly to UTC before entering the date and time.',
+            'Before creating each event, check the target date in the calendar for an existing event with the exact same subject and same UTC start time. If it already exists, skip that event and continue.',
+            'Only use the recipient emails listed below. Do not invent or guess missing email addresses.',
+            actionInstruction,
+            '',
+            'Important validation rules:',
+            '- Keep duration exactly 90 minutes unless the event block below says otherwise.',
+            '- Do not modify the subject text.',
+            '- Preserve line breaks in the body if possible.',
+            '- If Outlook asks whether to save changes or send updates, follow the selected mode strictly.',
+            '',
+            eventsSection,
+        ].join('\n');
+    };
+
+    const copyCometPrompt = async (targetRows: CalendarBlockerRow[], key: string) => {
+        if (targetRows.length === 0) return;
+        await navigator.clipboard.writeText(buildCometPrompt(targetRows));
+        setCopiedKey(key);
+        window.setTimeout(() => setCopiedKey(current => current === key ? null : current), 2200);
+    };
+
     return (
         <div className="animated-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div className="glass-panel" style={{ padding: '1.5rem' }}>
@@ -271,6 +331,12 @@ export function CalendarBlockers({
                         </button>
                         <button className="btn btn-secondary" onClick={() => setAudienceMode('faculty')} style={{ background: audienceMode === 'faculty' ? '#e2e8f0' : 'white' }}>
                             <Presentation size={14} /> {t('navFaculty')}
+                        </button>
+                        <button className="btn btn-secondary" onClick={() => setCometMode('draft')} style={{ background: cometMode === 'draft' ? '#e2e8f0' : 'white' }}>
+                            {t('blockersCometModeDraft')}
+                        </button>
+                        <button className="btn btn-secondary" onClick={() => setCometMode('send')} style={{ background: cometMode === 'send' ? '#e2e8f0' : 'white' }}>
+                            {t('blockersCometModeSend')}
                         </button>
                     </div>
                 </div>
@@ -315,6 +381,22 @@ export function CalendarBlockers({
                         onClick={() => handleDownloadMany(visibleRows, 'all_blockers.ics')}
                     >
                         <CalendarPlus size={15} /> {t('blockersDownloadAll')}
+                    </button>
+                    <button
+                        className="btn btn-secondary"
+                        disabled={selectedRows.length === 0}
+                        onClick={() => copyCometPrompt(selectedRows, '__comet_selected__')}
+                    >
+                        {copiedKey === '__comet_selected__' ? <CheckCircle2 size={15} /> : <Copy size={15} />}
+                        {t('blockersPromptSelected')}
+                    </button>
+                    <button
+                        className="btn btn-secondary"
+                        disabled={visibleRows.length === 0}
+                        onClick={() => copyCometPrompt(visibleRows, '__comet_all__')}
+                    >
+                        {copiedKey === '__comet_all__' ? <CheckCircle2 size={15} /> : <Copy size={15} />}
+                        {t('blockersPromptAll')}
                     </button>
                     <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
                         {t('blockersSessionsCount')}: <strong style={{ marginLeft: '0.35rem', color: 'var(--text-primary)' }}>{visibleRows.length}</strong>
@@ -391,6 +473,14 @@ export function CalendarBlockers({
                                         >
                                             {copiedKey === row.key ? <CheckCircle2 size={13} /> : <Copy size={13} />}
                                             {t('blockersCopyRecipients')}
+                                        </button>
+                                        <button
+                                            className="btn btn-secondary"
+                                            onClick={() => copyCometPrompt([row], `__comet_${row.key}__`)}
+                                            style={{ padding: '0.35rem 0.6rem', fontSize: '0.78rem' }}
+                                        >
+                                            {copiedKey === `__comet_${row.key}__` ? <CheckCircle2 size={13} /> : <Copy size={13} />}
+                                            {t('blockersPromptForComet')}
                                         </button>
                                     </div>
                                 </td>

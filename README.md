@@ -6,8 +6,14 @@ Scheduling and assignment web app for Solution Weeks, built with React + TypeScr
 
 - Allocation engine for sessions and schedules.
 - SME and Faculty assignment workflows.
+- Per-session UTC time overrides in SME and Faculty assignment tabs.
 - Summary tab with exports (Excel/CSV/JSON), warnings filter, and publish endpoint for summary snapshots.
 - VAT tab publish action for public VAT snapshot API (`/api/public/vats`).
+- Calendar Blockers tab for Outlook-friendly blocker generation:
+  - ICS download per session or in bulk.
+  - Recipient copy helpers.
+  - LoB filtering.
+  - Comet prompt generation for Outlook Web automation (`draft` or `send` mode).
 - Project version history with delete-version support.
 - Bilingual UI (English/Spanish).
 - Autosave for run edits and configuration.
@@ -67,6 +73,7 @@ Session-level fields include:
 
 - `solution_area`
 - `schedule`
+- `session_id`
 - `session_topic`
 - `utc_hour`
 - `attendees_count`
@@ -82,6 +89,7 @@ Notes:
 - `warning_codes` is the stable machine-readable array for integrations.
 - The server still accepts legacy summary payloads that only include `warnings`.
 - SME payloads now include both `office_location` and legacy-compatible `office`.
+- Faculty payloads may include `email` when a known faculty alias can be enriched from the local faculty email map.
 
 ### `POST` / `GET /api/public/vats`
 
@@ -102,6 +110,29 @@ Notes:
 - `source_records_count` is the original input record count.
 - `excluded_records_count` captures rows excluded from the public VAT export, such as `Unassigned`, `Outlier-Size`, and `Outlier-Schedule`.
 - VAT member `email` is populated when the uploaded source file includes an email column such as `Email`, `E-mail`, `Email Address`, or `Mail`.
+- VAT member exports also include `Program` when available, and the importer restores it when loading Summary JSON back into the app.
+
+## Calendar Blockers and Outlook Web Automation
+
+The `Calendar Blockers` tab is intended to help create calendar invites from the current assignments.
+
+Available actions:
+
+- Download single-session or bulk `.ics` files.
+- Copy recipient emails for manual use.
+- Copy `Prompt for Comet` instructions to automate Outlook Web with an external browser agent.
+
+Comet prompt modes:
+
+- `Comet: Draft` copies a prompt that tells Comet to create Outlook Web drafts only.
+- `Comet: Send` copies a prompt that tells Comet to create and send the invites after validation.
+
+Prompt safeguards:
+
+- Uses Outlook Web URL with the expected SAP login hint.
+- Instructs Comet to set timezone explicitly to `UTC`.
+- Tells Comet to avoid duplicates by checking for same subject + same UTC start.
+- Tells Comet not to invent missing recipient emails.
 
 ## Deploy to SAP BTP (Cloud Foundry)
 
@@ -160,3 +191,4 @@ The script:
 - Runtime history storage is in-memory by design and resets on process restart.
 - For consistent runtime state, use a single CF instance unless a shared external store is introduced.
 - Sidebar collapse state is stored in browser `localStorage` using key `scheduler_sidebar_collapsed_v1`.
+- Timezone resolution supports both city-style office labels (for example `Hong Kong`, `Barcelona`) and country-style regional office labels (for example `MEE - Germany`, `AMER - US`, `AMER - Canada`) with DST-aware resolution based on session date.
