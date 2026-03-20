@@ -99,12 +99,12 @@ const isOutOfHours = (utcHour: number, offsetHours: number, startHour: number, e
 };
 
 const KP_SESSION_NAMES: Record<SessionId, string> = {
-    overview: 'Solution Weeks — Solution Overview',
-    process_mapping: 'Solution Weeks — Process to Solution mapping',
-    industry_relevance: 'Solution Weeks — Industry Relevance',
-    ai_strategy: 'Solution Weeks — AI Strategy',
-    competitive_defense: 'Solution Weeks — Competitive Defense',
-    adoption_risk: 'Solution Weeks — Adoption & Risk Prevention',
+    overview: 'Solution Weeks - Solution Overview',
+    process_mapping: 'Solution Weeks - Process to Solution mapping',
+    industry_relevance: 'Solution Weeks - Industry Relevance',
+    ai_strategy: 'Solution Weeks - AI Strategy',
+    competitive_defense: 'Solution Weeks - Competitive Defense',
+    adoption_risk: 'Solution Weeks - Adoption & Risk Prevention',
 };
 
 const toKpDateTime = (dateValue: Date): string => {
@@ -369,7 +369,7 @@ export function Summary({
             .map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
             .join('\n');
         
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob(['\uFEFF', csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -426,7 +426,7 @@ export function Summary({
             .map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
             .join('\n');
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob(['\uFEFF', csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
