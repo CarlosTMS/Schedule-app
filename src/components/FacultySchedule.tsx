@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Presentation, MapPin, UserCircle2, AlertCircle, Minus, Plus } from 'lucide-react';
 import { sessions, getEligibleFaculty, autoAssignFaculty, enrichFaculty } from '../lib/facultyMatcher';
 import type { Faculty, SessionId } from '../lib/facultyMatcher';
+import { activePlanningSessions, isPlanningSessionActive } from '../lib/sessionCatalog';
 import { useI18n } from '../i18n';
 import { getKnownUtcOffset, getEffectiveSessionUtcHour, getLocalTimeForUtcHour, extractScheduleKey, formatUtcHourLabel, makeSessionInstanceOverrideKey, wrapUtcHour } from '../lib/timezones';
 
@@ -68,6 +69,7 @@ export function FacultySchedule({
             for (const schedule of Object.keys(saAssignments)) {
                 const sessionAssignments = saAssignments[schedule];
                 for (const sessionId of Object.keys(sessionAssignments)) {
+                    if (!isPlanningSessionActive(sessionId)) continue;
                     const utcHour = getEffectiveSessionUtcHour(sa, schedule, sessionId as SessionId, sessionInstanceTimeOverrides, sessionTimeOverrides);
                     if (utcHour !== targetUtcHour) continue;
                     // Only flag conflicts if they occur in a DIFFERENT Solution Area
@@ -159,9 +161,9 @@ export function FacultySchedule({
                         </tr>
                     </thead>
                     <tbody>
-                        {sessions.map((session, tIndex) => {
+                        {activePlanningSessions.map((session, tIndex) => {
                             const eligibleFaculty = getEligibleFaculty(selectedSA);
-                            const topicIsLast = tIndex === sessions.length - 1;
+                            const topicIsLast = tIndex === activePlanningSessions.length - 1;
 
                             return availableSchedules.map((schedule, sIndex) => {
                                 const assignedFaculty = enrichFaculty(currentAssignments[schedule]?.[session.id]);

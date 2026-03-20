@@ -4,6 +4,7 @@ import { sessions, autoAssignSMEs } from '../lib/smeMatcher';
 import type { SME } from '../lib/smeMatcher';
 import { autoAssignFaculty, enrichFaculty } from '../lib/facultyMatcher';
 import type { Faculty } from '../lib/facultyMatcher';
+import { activePlanningSessions } from '../lib/sessionCatalog';
 import { extractScheduleKey, getEffectiveSessionUtcHour, formatUtcHourLabel, getLocalTimeForUtcHour } from '../lib/timezones';
 import type { SmeAssignments } from './SMESchedule';
 import type { FacultyAssignments } from './FacultySchedule';
@@ -138,7 +139,7 @@ export function CalendarBlockers({
             const facAssignmentsForSA = manualFacultyAssignments[sa] || autoFac;
 
             for (const schedule of schedulesForSA) {
-                for (const session of sessions) {
+                for (const session of activePlanningSessions) {
                     const utcHour = getEffectiveSessionUtcHour(sa, schedule, session.id, sessionInstanceTimeOverrides, sessionTimeOverrides);
                     const assignedSME = smeAssignmentsForSA[schedule]?.[session.id] ?? null;
                     const assignedFaculty = enrichFaculty(facAssignmentsForSA[schedule]?.[session.id] ?? null);

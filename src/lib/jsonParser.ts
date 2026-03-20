@@ -6,6 +6,7 @@ import { calculateMetrics, recalculateVATs, type AllocationResult } from './allo
 import type { SME, SessionId as SmeSessionId } from './smeMatcher';
 import type { Faculty, SessionId as FacultySessionId } from './facultyMatcher';
 import { extractScheduleKey, getUtcOffset, makeSessionInstanceOverrideKey } from './timezones';
+import { FACULTY_LED_SME_LABEL, isFacultyOnlySession } from './sessionCatalog';
 
 export interface ParsedJsonSummary {
     records: StudentRecord[];
@@ -54,6 +55,8 @@ export const parseEnrichedExcel = (records: StudentRecord[]): ParsedJsonSummary 
         name,
         office_location: '',
         lob: '',
+        introduction_to_business_case: false,
+        role_and_account_dynamics: false,
         overview: false,
         process_mapping: false,
         industry_relevance: false,
@@ -83,7 +86,7 @@ export const parseEnrichedExcel = (records: StudentRecord[]): ParsedJsonSummary 
                 const smeName = smeAssignments.get(sessionDef.title) || smeAssignments.get('*');
                 const facultyName = facultyAssignments.get(sessionDef.title) || facultyAssignments.get('*');
 
-                if (smeName) {
+                if (smeName && !isFacultyOnlySession(topicId) && smeName !== FACULTY_LED_SME_LABEL) {
                     if (!manualSmeAssignments[sa]) manualSmeAssignments[sa] = {};
                     if (!manualSmeAssignments[sa][scheduleFull]) manualSmeAssignments[sa][scheduleFull] = {} as Record<SmeSessionId, SME | null>;
                     manualSmeAssignments[sa][scheduleFull][topicId as SmeSessionId] = buildImportedSME(smeName);
@@ -159,6 +162,8 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
         name: String(value.name ?? ''),
         lob: String(value.lob ?? ''),
         office_location: String(value.office_location ?? value.office ?? ''),
+        introduction_to_business_case: false,
+        role_and_account_dynamics: false,
         overview: false,
         process_mapping: false,
         industry_relevance: false,
@@ -215,10 +220,13 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
 
         if (topicId) {
             sessionInstanceTimeOverrides[makeSessionInstanceOverrideKey(sa, scheduleFull, topicId)] = utcHour;
-            if (session.sme) {
+            if (session.sme && !isFacultyOnlySession(topicId)) {
+                const rawSme = session.sme as Record<string, unknown>;
+                if (String(rawSme.name ?? '') !== FACULTY_LED_SME_LABEL) {
                 if (!manualSmeAssignments[sa]) manualSmeAssignments[sa] = {};
                 if (!manualSmeAssignments[sa][scheduleFull]) manualSmeAssignments[sa][scheduleFull] = {} as Record<SmeSessionId, SME | null>;
-                manualSmeAssignments[sa][scheduleFull][topicId as SmeSessionId] = normalizeSME(session.sme as Record<string, unknown>);
+                manualSmeAssignments[sa][scheduleFull][topicId as SmeSessionId] = normalizeSME(rawSme);
+                }
             }
 
             if (session.faculty) {

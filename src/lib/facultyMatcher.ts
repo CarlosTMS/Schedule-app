@@ -1,5 +1,9 @@
 import facultyData from '../solution-weeks-faculty-coverage.json';
 import { getKnownUtcOffset } from './timezones';
+import { activePlanningSessions } from './sessionCatalog';
+import type { SessionId } from './sessionCatalog';
+export { sessions } from './sessionCatalog';
+export type { SessionId } from './sessionCatalog';
 
 export interface Faculty {
     name: string;
@@ -78,17 +82,6 @@ export const enrichFaculty = <T extends Faculty | null | undefined>(faculty: T):
     } as T;
 };
 
-export const sessions = [
-    { id: 'overview', title: 'Overview', onlineSessionDay: 'Week 1 - Day 3', date: 'Wednesday, April 15, 2026' },
-    { id: 'process_mapping', title: 'Process Mapping', onlineSessionDay: 'Week 1 - Day 4', date: 'Thursday, April 16, 2026' },
-    { id: 'industry_relevance', title: 'Industry Relevance', onlineSessionDay: 'Week 2 - Day 1', date: 'Monday, April 20, 2026' },
-    { id: 'ai_strategy', title: 'AI Strategy', onlineSessionDay: 'Week 2 - Day 2', date: 'Tuesday, April 21, 2026' },
-    { id: 'competitive_defense', title: 'Competitive Defense', onlineSessionDay: 'Week 2 - Day 3', date: 'Wednesday, April 22, 2026' },
-    { id: 'adoption_risk', title: 'Adoption Risk', onlineSessionDay: 'Week 2 - Day 4', date: 'Thursday, April 23, 2026' },
-] as const;
-
-export type SessionId = typeof sessions[number]['id'];
-
 export const getEligibleFaculty = (solutionArea: string): Faculty[] => {
     return (facultyData.solution_weeks_faculty_coverage as Faculty[])
         .filter((fac) => {
@@ -115,7 +108,7 @@ export const autoAssignFaculty = (solutionArea: string, schedules: string[], sta
     eligibleFaculty.forEach(f => assignedCounts[f.name] = 0);
 
     sortedSchedules.forEach(schedule => {
-        assignments[schedule] = { ...sessions.reduce((acc, s) => ({ ...acc, [s.id]: null }), {} as Record<SessionId, Faculty | null>) };
+        assignments[schedule] = { ...activePlanningSessions.reduce((acc, s) => ({ ...acc, [s.id]: null }), {} as Record<SessionId, Faculty | null>) };
 
         if (eligibleFaculty.length > 0) {
             const match = schedule.match(/(\d+):00 UTC/);
@@ -134,7 +127,7 @@ export const autoAssignFaculty = (solutionArea: string, schedules: string[], sta
             const assignedFaculty = sortedEligible[0];
             assignedCounts[assignedFaculty.name]++;
 
-            sessions.forEach(session => {
+            activePlanningSessions.forEach(session => {
                 assignments[schedule][session.id] = assignedFaculty;
             });
         }

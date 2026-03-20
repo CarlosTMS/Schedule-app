@@ -9,6 +9,7 @@ import type { SME, SessionId } from '../lib/smeMatcher';
 import { getEligibleFaculty, autoAssignFaculty, enrichFaculty } from '../lib/facultyMatcher';
 import type { Faculty } from '../lib/facultyMatcher';
 import { extractScheduleKey, getEffectiveSessionUtcHour, getKnownUtcOffset, formatUtcHourLabel } from '../lib/timezones';
+import { FACULTY_LED_SME_LABEL, activePlanningSessions, isFacultyOnlySession } from '../lib/sessionCatalog';
 import type { StudentRecord } from '../lib/excelParser';
 import { generateExcel } from '../lib/excelParser';
 import type { SMECacheStatus } from '../lib/smeDataLoader';
@@ -58,6 +59,7 @@ interface SummaryExportSession {
     solution_area: string;
     schedule: string;
     session_id: SessionId;
+    facilitator_type: 'faculty_only' | 'sme_and_faculty';
     session_topic: string;
     utc_hour: number;
     attendees_count: number;
@@ -99,6 +101,8 @@ const isOutOfHours = (utcHour: number, offsetHours: number, startHour: number, e
 };
 
 const KP_SESSION_NAMES: Record<SessionId, string> = {
+    introduction_to_business_case: 'Solution Weeks - Introduction to Business Case',
+    role_and_account_dynamics: 'Solution Weeks - Role and Account Dynamics',
     overview: 'Solution Weeks - Solution Overview',
     process_mapping: 'Solution Weeks - Process to Solution mapping',
     industry_relevance: 'Solution Weeks - Industry Relevance',
@@ -179,6 +183,8 @@ export function Summary({
     const [showOnlyWarnings, setShowOnlyWarnings] = useState(false);
     const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
     const [publishing, setPublishing] = useState(false);
+    const getSmeDisplayName = (row: SessionRow): string =>
+        row.sessionDef.facilitatorType === 'faculty_only' ? FACULTY_LED_SME_LABEL : (row.assignedSME?.name ?? '');
 
     // ── Build session rows ──────────────────────────────────────────────────
 
@@ -196,7 +202,7 @@ export function Summary({
         const facAssignmentsForSA = manualFacultyAssignments[sa] || autoFac;
 
         for (const schedule of schedules) {
-            for (const session of sessions) {
+            for (const session of activePlanningSessions) {
                 const utcHour = getEffectiveSessionUtcHour(sa, schedule, session.id, sessionInstanceTimeOverrides, sessionTimeOverrides);
                 const attendees = records.filter(
                     r => getAssignedSA(r) === sa && r.Schedule === schedule && r.Schedule !== 'Outlier-Schedule'
@@ -206,9 +212,10 @@ export function Summary({
                 const assignedFaculty = enrichFaculty(facAssignmentsForSA[schedule]?.[session.id] ?? null);
                 const eligibleSMEs = getEligibleSMEs(sa, session.id, smeList);
                 const eligibleFaculty = getEligibleFaculty(sa);
+                const sessionNeedsSME = !isFacultyOnlySession(session.id);
 
                 const warnings: SessionWarning[] = [];
-                if (eligibleSMEs.length === 0) warnings.push({ type: 'noSME', label: t('warnNoSME') });
+                if (sessionNeedsSME && eligibleSMEs.length === 0) warnings.push({ type: 'noSME', label: t('warnNoSME') });
                 if (eligibleFaculty.length === 0) warnings.push({ type: 'noFaculty', label: t('warnNoFaculty') });
                 if (assignedSME && isOutOfHours(utcHour, getKnownUtcOffset(assignedSME.office_location, session.date), startHour, endHour)) {
                     warnings.push({ type: 'smeOutOfHours', label: t('warnSMEOutOfHours') });
@@ -240,7 +247,9 @@ export function Summary({
         return sessionRows
             .filter(row => row.sa === sa && row.schedule === schedule)
             .map(row => {
-                const assignee = kind === 'sme' ? row.assignedSME?.name : row.assignedFaculty?.name;
+                const assignee = kind === 'sme'
+                    ? (row.sessionDef.facilitatorType === 'faculty_only' ? FACULTY_LED_SME_LABEL : row.assignedSME?.name)
+                    : row.assignedFaculty?.name;
                 return assignee ? `${row.sessionDef.title}: ${assignee}` : null;
             })
             .filter((value): value is string => Boolean(value))
@@ -299,6 +308,7 @@ export function Summary({
             solution_area: row.sa,
             schedule: row.schedule,
             session_id: row.sessionDef.id,
+            facilitator_type: row.sessionDef.facilitatorType,
             session_topic: row.sessionDef.title,
             utc_hour: row.utcHour,
             attendees_count: row.attendees.length,
@@ -320,7 +330,15 @@ export function Summary({
                     office: row.assignedSME.office_location,
                     email: row.assignedSME.email ?? '',
                 }
-                : null,
+                : (row.sessionDef.facilitatorType === 'faculty_only'
+                    ? {
+                        name: FACULTY_LED_SME_LABEL,
+                        lob: '',
+                        office_location: '',
+                        office: '',
+                        email: '',
+                    }
+                    : null),
             faculty: row.assignedFaculty
                 ? { name: row.assignedFaculty.name, office: row.assignedFaculty.office, email: row.assignedFaculty.email }
                 : null,
@@ -356,7 +374,7 @@ export function Summary({
             row.sessionDef.title,
             row.utcHour,
             row.attendees.length,
-            row.assignedSME?.name ?? '',
+            getSmeDisplayName(row),
             row.assignedSME?.lob ?? '',
             row.assignedSME?.office_location ?? '',
             row.assignedSME?.email ?? '',
@@ -415,8 +433,10 @@ export function Summary({
                 buildKpSessionName(row.sessionDef.id, row.schedule),
                 toKpDateTime(startUtc),
                 toKpDateTime(endUtc),
-                row.assignedSME?.name ?? '',
-                row.assignedFaculty?.name ?? '',
+                row.sessionDef.facilitatorType === 'faculty_only'
+                    ? (row.assignedFaculty?.name ?? '')
+                    : (row.assignedSME?.name ?? FACULTY_LED_SME_LABEL),
+                row.sessionDef.facilitatorType === 'faculty_only' ? '' : (row.assignedFaculty?.name ?? ''),
                 row.attendees.length,
                 participants,
             ];
@@ -651,7 +671,11 @@ export function Summary({
 
                                             {/* SME dropdown */}
                                             <td style={{ ...tdStyle, minWidth: 200 }}>
-                                                {row.eligibleSMEs.length > 0 ? (
+                                                {row.sessionDef.facilitatorType === 'faculty_only' ? (
+                                                    <span style={{ fontSize: '0.8rem', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 600 }}>
+                                                        <CheckCircle size={13} /> {FACULTY_LED_SME_LABEL}
+                                                    </span>
+                                                ) : row.eligibleSMEs.length > 0 ? (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                                         <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                                                             <UserCircle2 size={14} style={{ position: 'absolute', left: '0.5rem', color: 'var(--text-secondary)', pointerEvents: 'none' }} />

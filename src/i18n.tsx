@@ -177,7 +177,16 @@ const translations = {
         blockersCometModeSend: 'Comet: Send',
         blockersPromptForComet: 'Prompt for Comet',
         blockersPromptSelected: 'Prompt Selected',
-        blockersPromptAll: 'Prompt All Visible'
+        blockersPromptAll: 'Prompt All Visible',
+        copySmeLobSummary: 'Copy current LoB summary',
+        copiedLabel: 'Copied',
+        smeSummaryUnassigned: 'Unassigned',
+        smeLeadsTitle: 'LoB Leads',
+        smeLeadSa: 'SA Lead',
+        smeLeadSales: 'Sales Lead',
+        smeLeadCsm: 'CSM Lead',
+        openTeamsChat: 'Open Teams Chat',
+        missingLeadEmails: 'Missing lead emails'
     },
     es: {
         appTitle: 'Programador de Habilitación de SAP Associates',
@@ -352,7 +361,16 @@ const translations = {
         blockersCometModeSend: 'Comet: Enviar',
         blockersPromptForComet: 'Prompt para Comet',
         blockersPromptSelected: 'Prompt seleccionados',
-        blockersPromptAll: 'Prompt todos visibles'
+        blockersPromptAll: 'Prompt todos visibles',
+        copySmeLobSummary: 'Copiar resumen de la LoB actual',
+        copiedLabel: 'Copiado',
+        smeSummaryUnassigned: 'Sin asignar',
+        smeLeadsTitle: 'Leads de la LoB',
+        smeLeadSa: 'SA Lead',
+        smeLeadSales: 'Sales Lead',
+        smeLeadCsm: 'CSM Lead',
+        openTeamsChat: 'Abrir chat de Teams',
+        missingLeadEmails: 'Faltan emails de leads'
     }
 
 };

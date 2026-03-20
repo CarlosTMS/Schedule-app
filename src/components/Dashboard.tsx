@@ -508,6 +508,7 @@ export function Dashboard({
                             schedulesBySA={schedulesBySA}
                             startHour={result.config.startHour}
                             endHour={result.config.endHour}
+                            facultyStartHour={facultyStartHour}
                             sessionTimeOverrides={sessionTimeOverrides}
                             sessionInstanceTimeOverrides={sessionInstanceTimeOverrides}
                             onSessionInstanceTimeOverridesChange={setSessionInstanceTimeOverrides}
@@ -516,6 +517,7 @@ export function Dashboard({
                             onRefreshSMEs={handleRefreshSMEs}
                             manualSmeAssignments={manualSmeAssignments}
                             onSmeAssignmentsChange={setManualSmeAssignments}
+                            manualFacultyAssignments={manualFacultyAssignments}
                         />
                     </div>
                 )}

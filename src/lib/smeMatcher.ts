@@ -1,9 +1,15 @@
 import { getKnownUtcOffset } from './timezones';
+import { activePlanningSessions, isFacultyOnlySession, isPlanningSessionActive } from './sessionCatalog';
+import type { SessionId } from './sessionCatalog';
+export { sessions } from './sessionCatalog';
+export type { SessionId } from './sessionCatalog';
 
 export interface SME {
     name: string;
     lob: string;
     office_location: string;
+    introduction_to_business_case: boolean;
+    role_and_account_dynamics: boolean;
     overview: boolean;
     process_mapping: boolean;
     industry_relevance: boolean;
@@ -15,17 +21,6 @@ export interface SME {
     notes?: string[];
     last_edited_at?: string;
 }
-
-export const sessions = [
-    { id: 'overview', title: 'Overview', onlineSessionDay: 'Week 1 - Day 3', date: 'Wednesday, April 15, 2026' },
-    { id: 'process_mapping', title: 'Process Mapping', onlineSessionDay: 'Week 1 - Day 4', date: 'Thursday, April 16, 2026' },
-    { id: 'industry_relevance', title: 'Industry Relevance', onlineSessionDay: 'Week 2 - Day 1', date: 'Monday, April 20, 2026' },
-    { id: 'ai_strategy', title: 'AI Strategy', onlineSessionDay: 'Week 2 - Day 2', date: 'Tuesday, April 21, 2026' },
-    { id: 'competitive_defense', title: 'Competitive Defense', onlineSessionDay: 'Week 2 - Day 3', date: 'Wednesday, April 22, 2026' },
-    { id: 'adoption_risk', title: 'Adoption Risk', onlineSessionDay: 'Week 2 - Day 4', date: 'Thursday, April 23, 2026' },
-] as const;
-
-export type SessionId = typeof sessions[number]['id'];
 
 const SA_MAPPING: Record<string, string[]> = {
     'btm': ['business transformation management', 'btm'],
@@ -40,6 +35,8 @@ const SA_MAPPING: Record<string, string[]> = {
 };
 
 export const getEligibleSMEs = (solutionArea: string, sessionId: SessionId, smeList: SME[]): SME[] => {
+    if (isFacultyOnlySession(sessionId) || !isPlanningSessionActive(sessionId)) return [];
+
     const saLower = solutionArea.toLowerCase().trim();
     const allowedLobs = SA_MAPPING[saLower] || [saLower];
 
@@ -76,12 +73,12 @@ export const autoAssignSMEs = (
     const assignedCounts: Record<string, number> = {};
 
     schedules.forEach(schedule => {
-        assignments[schedule] = sessions.reduce(
+        assignments[schedule] = activePlanningSessions.reduce(
             (acc, s) => ({ ...acc, [s.id]: null }),
             {} as Record<SessionId, SME | null>
         );
 
-        sessions.forEach(session => {
+        activePlanningSessions.forEach(session => {
             const eligible = getEligibleSMEs(solutionArea, session.id, smeList);
             if (eligible.length > 0) {
                 eligible.forEach(s => { if (assignedCounts[s.name] === undefined) assignedCounts[s.name] = 0; });
