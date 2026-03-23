@@ -9,7 +9,7 @@ import { VATVisualizer } from './VATVisualizer';
 import { ScheduleOutlierBreakdown } from './ScheduleOutlierBreakdown';
 import { CalendarExporter } from './CalendarExporter';
 import { SMESchedule } from './SMESchedule';
-import type { SmeAssignments } from './SMESchedule';
+import type { SmeAssignments, SmeConfirmationState } from './SMESchedule';
 import { FacultySchedule } from './FacultySchedule';
 import type { FacultyAssignments } from './FacultySchedule';
 import { FacultyDebriefSchedule } from './FacultyDebriefSchedule';
@@ -35,6 +35,8 @@ interface DashboardProps {
     onSessionInstanceTimeOverridesChange?: (v: Record<string, number>) => void;
     manualSmeAssignments?: SmeAssignments;
     onManualSmeAssignmentsChange?: (v: SmeAssignments) => void;
+    smeConfirmationState?: SmeConfirmationState;
+    onSmeConfirmationStateChange?: (v: SmeConfirmationState) => void;
     manualFacultyAssignments?: FacultyAssignments;
     onManualFacultyAssignmentsChange?: (v: FacultyAssignments) => void;
     versionInfo?: ReactNode;
@@ -59,6 +61,8 @@ export function Dashboard({
     onSessionInstanceTimeOverridesChange,
     manualSmeAssignments: controlledSme,
     onManualSmeAssignmentsChange,
+    smeConfirmationState: controlledSmeConfirmationState,
+    onSmeConfirmationStateChange,
     manualFacultyAssignments: controlledFaculty,
     onManualFacultyAssignmentsChange,
     versionInfo,
@@ -95,12 +99,14 @@ export function Dashboard({
     const [internalOverrides, setInternalOverrides] = useState<Record<string, number>>({});
     const [internalSessionInstanceOverrides, setInternalSessionInstanceOverrides] = useState<Record<string, number>>({});
     const [internalSme, setInternalSme] = useState<SmeAssignments>({});
+    const [internalSmeConfirmationState, setInternalSmeConfirmationState] = useState<SmeConfirmationState>({});
     const [internalFaculty, setInternalFaculty] = useState<FacultyAssignments>({});
 
     // Resolve: prefer controlled props, fall back to internal
     const sessionTimeOverrides = controlledOverrides ?? internalOverrides;
     const sessionInstanceTimeOverrides = controlledSessionInstanceOverrides ?? internalSessionInstanceOverrides;
     const manualSmeAssignments = controlledSme ?? internalSme;
+    const smeConfirmationState = controlledSmeConfirmationState ?? internalSmeConfirmationState;
     const manualFacultyAssignments = controlledFaculty ?? internalFaculty;
 
     const setSessionTimeOverrides = (v: Record<string, number> | ((p: Record<string, number>) => Record<string, number>)) => {
@@ -117,6 +123,11 @@ export function Dashboard({
         const next = typeof v === 'function' ? v(manualSmeAssignments) : v;
         if (onManualSmeAssignmentsChange) onManualSmeAssignmentsChange(next);
         else setInternalSme(next);
+    };
+    const setSmeConfirmationState = (v: SmeConfirmationState | ((p: SmeConfirmationState) => SmeConfirmationState)) => {
+        const next = typeof v === 'function' ? v(smeConfirmationState) : v;
+        if (onSmeConfirmationStateChange) onSmeConfirmationStateChange(next);
+        else setInternalSmeConfirmationState(next);
     };
     const setManualFacultyAssignments = (v: FacultyAssignments | ((p: FacultyAssignments) => FacultyAssignments)) => {
         const next = typeof v === 'function' ? v(manualFacultyAssignments) : v;
@@ -517,6 +528,8 @@ export function Dashboard({
                             onRefreshSMEs={handleRefreshSMEs}
                             manualSmeAssignments={manualSmeAssignments}
                             onSmeAssignmentsChange={setManualSmeAssignments}
+                            smeConfirmationState={smeConfirmationState}
+                            onSmeConfirmationStateChange={setSmeConfirmationState}
                             manualFacultyAssignments={manualFacultyAssignments}
                         />
                     </div>

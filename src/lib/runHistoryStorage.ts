@@ -10,7 +10,7 @@ import type { AllocationResult } from './allocationEngine';
 import type { Assumptions } from '../components/Configurator';
 import type { AllocationRule } from '../components/RuleBuilder';
 import type { DistributionTarget } from '../components/Randomizer';
-import type { SmeAssignments } from '../components/SMESchedule';
+import type { SmeAssignments, SmeConfirmationState } from '../components/SMESchedule';
 import type { FacultyAssignments } from '../components/FacultySchedule';
 
 // ─── Schema version ───────────────────────────────────────────────────────────
@@ -37,6 +37,7 @@ export interface RunSnapshot {
     sessionTimeOverrides: Record<string, number>;
     sessionInstanceTimeOverrides: Record<string, number>;
     manualSmeAssignments: SmeAssignments;
+    smeConfirmationState: SmeConfirmationState;
     manualFacultyAssignments: FacultyAssignments;
 }
 
@@ -134,6 +135,7 @@ interface StoredRunV2 {
     sessionTimeOverrides?: Record<string, number>;
     sessionInstanceTimeOverrides?: Record<string, number>;
     manualSmeAssignments?: SmeAssignments;
+    smeConfirmationState?: SmeConfirmationState;
     manualFacultyAssignments?: FacultyAssignments;
 }
 
@@ -176,6 +178,7 @@ export const migrateToV3 = (): void => {
                     sessionTimeOverrides: r.sessionTimeOverrides || {},
                     sessionInstanceTimeOverrides: r.sessionInstanceTimeOverrides || {},
                     manualSmeAssignments: r.manualSmeAssignments || {},
+                    smeConfirmationState: r.smeConfirmationState || {},
                     manualFacultyAssignments: r.manualFacultyAssignments || {}
                 }
             };

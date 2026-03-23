@@ -11,6 +11,7 @@ import { useI18n } from '../i18n';
 
 // Shared assignment shape used by Dashboard, SMESchedule, FacultySchedule, and Summary
 export type SmeAssignments = Record<string, Record<string, Record<SessionId, SME | null>>>;
+export type SmeConfirmationState = Record<string, Record<string, Record<SessionId, boolean>>>;
 
 interface SMEScheduleProps {
     schedulesBySA: Record<string, Set<string>>;
@@ -26,6 +27,8 @@ interface SMEScheduleProps {
     /** Lifted-state assignments — from Dashboard */
     manualSmeAssignments: SmeAssignments;
     onSmeAssignmentsChange: (next: SmeAssignments) => void;
+    smeConfirmationState: SmeConfirmationState;
+    onSmeConfirmationStateChange: (next: SmeConfirmationState) => void;
     manualFacultyAssignments: FacultyAssignments;
 }
 
@@ -141,6 +144,8 @@ export function SMESchedule({
     onRefreshSMEs,
     manualSmeAssignments,
     onSmeAssignmentsChange,
+    smeConfirmationState,
+    onSmeConfirmationStateChange,
     manualFacultyAssignments,
 }: SMEScheduleProps) {
     const { t } = useI18n();
@@ -181,6 +186,7 @@ export function SMESchedule({
     const currentAssignments = manualSmeAssignments[selectedSA] || autoAssignSMEs(selectedSA, availableSchedules, startHour, endHour, smeList);
     const currentFacultyAssignments =
         manualFacultyAssignments[selectedSA] || autoAssignFaculty(selectedSA, availableSchedules, effectiveFacultyStartHour, endHour);
+    const currentConfirmations = smeConfirmationState[selectedSA] || {};
 
     const handleSMEChange = (schedule: string, sessionId: SessionId, smeName: string) => {
         const eligible = getEligibleSMEs(selectedSA, sessionId, smeList);
@@ -208,6 +214,23 @@ export function SMESchedule({
         onSessionInstanceTimeOverridesChange({
             ...sessionInstanceTimeOverrides,
             [key]: wrapUtcHour(currentHour + delta),
+        });
+    };
+
+    const handleConfirmationToggle = (schedule: string, sessionId: SessionId) => {
+        const saData = smeConfirmationState[selectedSA] || {};
+        const scheduleData = saData[schedule] || {} as Record<SessionId, boolean>;
+        const currentValue = scheduleData[sessionId] ?? false;
+
+        onSmeConfirmationStateChange({
+            ...smeConfirmationState,
+            [selectedSA]: {
+                ...saData,
+                [schedule]: {
+                    ...scheduleData,
+                    [sessionId]: !currentValue,
+                },
+            },
         });
     };
 
@@ -482,6 +505,7 @@ export function SMESchedule({
                         <tr style={{ background: 'rgba(248, 250, 252, 0.8)', borderBottom: '1px solid #e2e8f0' }}>
                             <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', width: '20%' }}>Session Topic</th>
                             <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', width: '25%' }}>Schedule</th>
+                            <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', width: '12%' }}>{t('confirmCol')}</th>
                             <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', width: '30%' }}>Assigned SME</th>
                             <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', width: '15%' }}>LoB</th>
                             <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', width: '10%' }}>Location</th>
@@ -494,6 +518,7 @@ export function SMESchedule({
 
                             return availableSchedules.map((schedule, sIndex) => {
                                 const assignedSME = currentAssignments[schedule]?.[session.id];
+                                const isConfirmed = currentConfirmations[schedule]?.[session.id] ?? false;
                                 const scheduleIsLast = sIndex === availableSchedules.length - 1;
                                 const showBorder = scheduleIsLast && !topicIsLast;
 
@@ -507,7 +532,16 @@ export function SMESchedule({
                                 }
 
                                 return (
-                                    <tr key={`${session.id}-${schedule}`} style={{ borderBottom: showBorder ? '1px solid #cbd5e1' : (topicIsLast && scheduleIsLast ? 'none' : '1px solid #e2e8f0'), background: isOutOfHours ? 'rgba(239, 68, 68, 0.05)' : 'transparent' }}>
+                                    <tr
+                                        key={`${session.id}-${schedule}`}
+                                        style={{
+                                            borderBottom: showBorder ? '1px solid #cbd5e1' : (topicIsLast && scheduleIsLast ? 'none' : '1px solid #e2e8f0'),
+                                            background: isOutOfHours
+                                                ? 'rgba(239, 68, 68, 0.05)'
+                                                : (isConfirmed ? 'rgba(16, 185, 129, 0.08)' : 'transparent'),
+                                            boxShadow: isConfirmed ? 'inset 4px 0 0 #10b981' : 'none',
+                                        }}
+                                    >
                                         {sIndex === 0 && (
                                             <td rowSpan={availableSchedules.length} style={{ padding: '1rem', fontWeight: 500, verticalAlign: 'top', borderRight: '1px solid #e2e8f0' }}>
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
@@ -521,6 +555,25 @@ export function SMESchedule({
                                             <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                                                 {extractScheduleKey(schedule).replace(`${selectedSA} `, '')}
                                             </div>
+                                            {isConfirmed && (
+                                                <div
+                                                    style={{
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: '0.3rem',
+                                                        marginTop: '0.45rem',
+                                                        padding: '0.18rem 0.45rem',
+                                                        borderRadius: '9999px',
+                                                        background: 'rgba(16, 185, 129, 0.14)',
+                                                        color: '#047857',
+                                                        fontSize: '0.72rem',
+                                                        fontWeight: 700,
+                                                    }}
+                                                >
+                                                    <CheckCircle2 size={12} />
+                                                    {t('confirmedBadge')}
+                                                </div>
+                                            )}
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
                                                 <button
                                                     type="button"
@@ -549,6 +602,28 @@ export function SMESchedule({
                                                 </div>
                                             )}
                                         </td>
+                                        <td style={{ padding: '0.75rem 1rem' }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleConfirmationToggle(schedule, session.id)}
+                                                disabled={!assignedSME}
+                                                className="btn btn-secondary"
+                                                style={{
+                                                    minWidth: '102px',
+                                                    padding: '0.45rem 0.7rem',
+                                                    fontSize: '0.82rem',
+                                                    fontWeight: 600,
+                                                    borderColor: isConfirmed ? 'rgba(5, 150, 105, 0.35)' : '#cbd5e1',
+                                                    background: isConfirmed ? 'rgba(16, 185, 129, 0.12)' : '#fff',
+                                                    color: isConfirmed ? '#047857' : 'var(--text-primary)',
+                                                    opacity: assignedSME ? 1 : 0.55,
+                                                    cursor: assignedSME ? 'pointer' : 'not-allowed',
+                                                }}
+                                                title={!assignedSME ? t('confirmRequiresSme') : (isConfirmed ? t('unconfirm') : t('confirm'))}
+                                            >
+                                                {isConfirmed ? t('unconfirm') : t('confirm')}
+                                            </button>
+                                        </td>
                                         <td style={{ padding: '0.75rem' }}>
                                             {eligibleSMEs.length > 0 ? (
                                                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -556,16 +631,19 @@ export function SMESchedule({
                                                     <select
                                                         value={assignedSME?.name || ''}
                                                         onChange={(e) => handleSMEChange(schedule, session.id, e.target.value)}
+                                                        disabled={isConfirmed}
                                                         style={{
                                                             width: '100%',
                                                             padding: '0.5rem 0.5rem 0.5rem 2.5rem',
                                                             borderRadius: '6px',
-                                                            border: assignedSME ? '1px solid #cbd5e1' : '1px solid #fecaca',
-                                                            background: assignedSME ? '#fff' : '#fef2f2',
+                                                            border: isConfirmed ? '1px solid #bbf7d0' : (assignedSME ? '1px solid #cbd5e1' : '1px solid #fecaca'),
+                                                            background: isConfirmed ? '#f1f5f9' : (assignedSME ? '#fff' : '#fef2f2'),
                                                             fontSize: '0.9rem',
-                                                            cursor: 'pointer',
+                                                            color: isConfirmed ? '#64748b' : 'var(--text-primary)',
+                                                            cursor: isConfirmed ? 'not-allowed' : 'pointer',
                                                             appearance: 'none',
-                                                            boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                                                            boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                                                            opacity: isConfirmed ? 0.9 : 1,
                                                         }}
                                                     >
                                                         <option value="" disabled>Select SME...</option>

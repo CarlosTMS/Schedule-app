@@ -1,5 +1,5 @@
 import type { StudentRecord } from './excelParser';
-import type { SmeAssignments } from '../components/SMESchedule';
+import type { SmeAssignments, SmeConfirmationState } from '../components/SMESchedule';
 import type { FacultyAssignments } from '../components/FacultySchedule';
 import { sessions as sessionDefs } from './smeMatcher';
 import { calculateMetrics, recalculateVATs, type AllocationResult } from './allocationEngine';
@@ -11,6 +11,7 @@ import { FACULTY_LED_SME_LABEL, isFacultyOnlySession } from './sessionCatalog';
 export interface ParsedJsonSummary {
     records: StudentRecord[];
     manualSmeAssignments: SmeAssignments;
+    smeConfirmationState: SmeConfirmationState;
     manualFacultyAssignments: FacultyAssignments;
     sessionTimeOverrides: Record<string, number>;
     sessionInstanceTimeOverrides: Record<string, number>;
@@ -20,6 +21,7 @@ export interface ParsedJsonSummary {
 
 export const parseEnrichedExcel = (records: StudentRecord[]): ParsedJsonSummary => {
     const manualSmeAssignments: SmeAssignments = {};
+    const smeConfirmationState: SmeConfirmationState = {};
     const manualFacultyAssignments: FacultyAssignments = {};
     const sessionTimeOverrides: Record<string, number> = {};
     const sessionInstanceTimeOverrides: Record<string, number> = {};
@@ -137,6 +139,7 @@ export const parseEnrichedExcel = (records: StudentRecord[]): ParsedJsonSummary 
     return {
         records,
         manualSmeAssignments,
+        smeConfirmationState,
         manualFacultyAssignments,
         sessionTimeOverrides,
         sessionInstanceTimeOverrides,
@@ -151,6 +154,7 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
 
     const records: StudentRecord[] = [];
     const manualSmeAssignments: SmeAssignments = {};
+    const smeConfirmationState: SmeConfirmationState = {};
     const manualFacultyAssignments: FacultyAssignments = {};
     const sessionTimeOverrides: Record<string, number> = isRecordNumberMap(data.config?.sessionTimeOverrides) ? data.config.sessionTimeOverrides : {};
     const sessionInstanceTimeOverrides: Record<string, number> = isRecordNumberMap(data.config?.sessionInstanceTimeOverrides) ? data.config.sessionInstanceTimeOverrides : {};
@@ -275,6 +279,7 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
     return {
         records,
         manualSmeAssignments,
+        smeConfirmationState,
         manualFacultyAssignments,
         sessionTimeOverrides,
         sessionInstanceTimeOverrides,

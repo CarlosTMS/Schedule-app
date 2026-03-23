@@ -7,13 +7,15 @@ Scheduling and assignment web app for Solution Weeks, built with React + TypeScr
 - Allocation engine for sessions and schedules.
 - SME and Faculty assignment workflows.
 - Per-session UTC time overrides in SME and Faculty assignment tabs.
-- Summary tab with exports (Excel/CSV/JSON), warnings filter, and publish endpoint for summary snapshots.
+- SME assignment confirmation workflow with row-level `Confirm` / `Unconfirm` locking and persisted state across autosave/version restore.
+- Summary tab with exports (Excel/CSV/JSON/KP), warnings filter, and publish endpoint for summary snapshots.
 - VAT tab publish action for public VAT snapshot API (`/api/public/vats`).
 - Calendar Blockers tab for Outlook-friendly blocker generation:
   - ICS download per session or in bulk.
   - Recipient copy helpers.
   - LoB filtering.
   - Comet prompt generation for Outlook Web automation (`draft` or `send` mode).
+  - Current-LoB Comet prompt shortcut for targeted outreach.
 - Project version history with delete-version support.
 - Bilingual UI (English/Spanish).
 - Autosave for run edits and configuration.
@@ -121,6 +123,15 @@ Available actions:
 - Download single-session or bulk `.ics` files.
 - Copy recipient emails for manual use.
 - Copy `Prompt for Comet` instructions to automate Outlook Web with an external browser agent.
+- Copy a LoB-scoped Comet prompt for only the currently filtered sessions.
+
+## SME Confirmation Locking
+
+The `SME Assignment` tab includes a row-level confirmation control between `Schedule` and `Assigned SME`.
+
+- `Confirm` locks the currently selected SME for that session row.
+- Locked rows disable the SME dropdown until `Unconfirm` is clicked.
+- Confirmed rows are highlighted visually and the confirmation state is included in autosave/version snapshots.
 
 Comet prompt modes:
 

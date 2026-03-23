@@ -268,8 +268,9 @@ export function CalendarBlockers({
         window.setTimeout(() => setCopiedKey(current => current === row.key ? null : current), 1800);
     };
 
-    const buildCometPrompt = (targetRows: CalendarBlockerRow[]) => {
-        const actionInstruction = cometMode === 'send'
+    const buildCometPrompt = (targetRows: CalendarBlockerRow[], modeOverride?: CometMode) => {
+        const effectiveMode = modeOverride ?? cometMode;
+        const actionInstruction = effectiveMode === 'send'
             ? 'When each event is fully populated and verified, send the invitation.'
             : 'Save each event as a draft only. Do not send anything.';
 
@@ -308,9 +309,9 @@ export function CalendarBlockers({
         ].join('\n');
     };
 
-    const copyCometPrompt = async (targetRows: CalendarBlockerRow[], key: string) => {
+    const copyCometPrompt = async (targetRows: CalendarBlockerRow[], key: string, modeOverride?: CometMode) => {
         if (targetRows.length === 0) return;
-        await navigator.clipboard.writeText(buildCometPrompt(targetRows));
+        await navigator.clipboard.writeText(buildCometPrompt(targetRows, modeOverride));
         setCopiedKey(key);
         window.setTimeout(() => setCopiedKey(current => current === key ? null : current), 2200);
     };
@@ -398,6 +399,14 @@ export function CalendarBlockers({
                     >
                         {copiedKey === '__comet_all__' ? <CheckCircle2 size={15} /> : <Copy size={15} />}
                         {t('blockersPromptAll')}
+                    </button>
+                    <button
+                        className="btn btn-secondary"
+                        disabled={selectedLob === 'all' || visibleRows.length === 0}
+                        onClick={() => copyCometPrompt(visibleRows, '__comet_lob__', 'draft')}
+                    >
+                        {copiedKey === '__comet_lob__' ? <CheckCircle2 size={15} /> : <Copy size={15} />}
+                        {t('blockersPromptLob')}
                     </button>
                     <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
                         {t('blockersSessionsCount')}: <strong style={{ marginLeft: '0.35rem', color: 'var(--text-primary)' }}>{visibleRows.length}</strong>
