@@ -1,5 +1,4 @@
 import type { StudentRecord, EvaluatorRecord } from './excelParser';
-import type { FacultyAssignments } from '../components/FacultySchedule';
 import { getUtcOffset } from './timezones';
 
 export interface EnrichedEvaluator extends EvaluatorRecord {
@@ -29,11 +28,11 @@ export interface EvaluationEngineOutput {
 export const assignEvaluators = (
     records: StudentRecord[],
     evaluators: EvaluatorRecord[],
-    facultyAssignments: FacultyAssignments,
+    _facultyAssignments: any, // Unused as SA criteria is removed
     evaluationDate: Date,
     includeRAD: boolean
 ): EvaluationEngineOutput => {
-    // 1. Reconstruct existing VATs
+    // 1. Reconstruct current VATs from student records
     const vatMap = new Map<string, StudentRecord[]>();
     records.forEach(r => {
         if (!r.VAT || r.VAT === 'Unassigned' || r.VAT === 'Outlier-Size') return;
@@ -50,87 +49,59 @@ export const assignEvaluators = (
         vats.push({ name, sa, members, utcOffset: avgOffset });
     });
 
-    // 2. Filter Evaluators & Map to SAs
+    // 2. Prepare Evaluators
     const eligibleEvaluators = evaluators.filter(e => {
         if (!includeRAD && e.Role === 'RAD') return false;
         return true;
     });
 
-    // Evaluator Name -> Set of SAs they are assigned to in Faculty Assignments
-    const evaluatorSAMap = new Map<string, Set<string>>();
-    Object.entries(facultyAssignments).forEach(([sa, schedules]) => {
-        Object.values(schedules).forEach(topics => {
-            Object.values(topics).forEach(faculty => {
-                if (faculty && faculty.name) {
-                    const name = faculty.name.trim();
-                    if (!evaluatorSAMap.has(name)) evaluatorSAMap.set(name, new Set());
-                    evaluatorSAMap.get(name)!.add(sa);
-                }
-            });
-        });
-    });
-
     const enrichedEvaluators = eligibleEvaluators.map(e => ({
         ...e,
-        sas: Array.from(evaluatorSAMap.get(e['Faculty Name'].trim()) || []),
+        sas: [], // No SA restrictions
         utcOffset: getUtcOffset(e['Country Location'], e['City Location'], evaluationDate)
     }));
 
     const assignments: EvaluatorAssignmentResult[] = enrichedEvaluators.map(e => ({
         evaluator: e,
         assignedVats: [],
-        sa: e.sas.join(', '), 
+        sa: 'Generalist', // Simplified label as SA is no longer relevant
         utcOffset: e.utcOffset
     }));
 
     const unassignedVats: VatGroup[] = [];
 
-    // 3. Assign VATs per SA
-    // To ensure even distribution across SAs, we group VATs by SA first
-    const vatsBySA = new Map<string, VatGroup[]>();
-    vats.forEach(v => {
-        const list = vatsBySA.get(v.sa) || [];
-        list.push(v);
-        vatsBySA.set(v.sa, list);
-    });
+    // 3. Global Round-Robin / Load Weighted Distribution
+    // To ensure perfect "even distribution", we process in a round-robin way
+    // or by always picking the currently least-busy valid evaluator.
+    
+    // Process VATs in a consistent alphabetical order
+    const sortedVats = [...vats].sort((a,b) => a.name.localeCompare(b.name));
 
-    vatsBySA.forEach((saVats, sa) => {
-        // Find evaluators that CAN evaluate this SA
-        const saEvaluators = assignments.filter(a => a.evaluator.sas.includes(sa));
-        
-        saVats.forEach(vat => {
-            if (saEvaluators.length === 0) {
-                unassignedVats.push(vat);
-                return;
-            }
+    sortedVats.forEach(vat => {
+        // Find ALL evaluators within the 4-hour window (Criteria 1)
+        const candidates = assignments.map(a => ({
+            assignment: a,
+            tzDiff: Math.abs(a.utcOffset - vat.utcOffset)
+        })).filter(c => c.tzDiff <= 4);
 
-            // Find eligible evaluators within +/- 4 hrs tz diff
-            const eligibleForVat = saEvaluators.map(e => ({
-                e,
-                diff: Math.abs(e.utcOffset - vat.utcOffset)
-            })).filter(item => item.diff <= 4);
-
-            if (eligibleForVat.length === 0) {
-                unassignedVats.push(vat);
-                return;
-            }
-
-            // Even distribution constraint: Pick the evaluator with the least VATs assigned across all SAs so far.
-            // If there's a tie, pick the one with the smallest timezone diff.
-            eligibleForVat.sort((a, b) => {
-                const countDiff = a.e.assignedVats.length - b.e.assignedVats.length;
+        if (candidates.length === 0) {
+            // Still unassigned if no one is in that 4 hour window
+            unassignedVats.push(vat);
+        } else {
+            // Pick based on Criteria 2: Even distribution (Primary)
+            // Tie-break with Timezone proximity (Secondary)
+            candidates.sort((a, b) => {
+                const countDiff = a.assignment.assignedVats.length - b.assignment.assignedVats.length;
                 if (countDiff !== 0) return countDiff;
-                return a.diff - b.diff;
+                return a.tzDiff - b.tzDiff;
             });
 
-            const chosen = eligibleForVat[0].e;
-            chosen.assignedVats.push(vat);
-        });
+            candidates[0].assignment.assignedVats.push(vat);
+        }
     });
 
-    // Clean out evaluators who got 0 assignments and filter to valid
     return {
-        assignments: assignments.filter(a => a.assignedVats.length > 0 || a.evaluator.sas.length > 0), // keep them if they have SAs but no assignments to show distribution? The prompt says "show how many VATs were non assigned", doesn't explicitly restrict empty evaluators. Let's keep them if they have an active SA.
+        assignments: assignments.filter(a => a.assignedVats.length > 0),
         unassignedVats
     };
 };

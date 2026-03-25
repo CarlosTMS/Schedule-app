@@ -18,10 +18,16 @@
     "Role": "Faculty"
   },
   {
-    "Faculty Name": "Amy Hawkins",
-    "City Location": "Perth",
-    "Country Location": "Australia",
-    "Role": "Faculty"
+    "Faculty Name": "Hedda Samia",
+    "City Location": "Manila",
+    "Country Location": "Philipines",
+    "Role": "RAD"
+  },
+  {
+    "Faculty Name": "Aarohi Tamhane",
+    "City Location": "Mumbai",
+    "Country Location": "India",
+    "Role": "RAD"
   },
   {
     "Faculty Name": "Nelly Rebollo",
