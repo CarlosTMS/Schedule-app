@@ -104,12 +104,11 @@ export interface EvaluatorRecord {
     'Role': string;
 }
 
-export const parseEvaluatorsExcel = async (file: File): Promise<EvaluatorRecord[]> => {
+export const parseEvaluatorsExcel = async (fileOrBuffer: File | ArrayBuffer): Promise<EvaluatorRecord[]> => {
     return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
+        const processData = (arrayBuffer: ArrayBuffer) => {
             try {
-                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const data = new Uint8Array(arrayBuffer);
                 const workbook = xlsx.read(data, { type: 'array' });
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
@@ -127,9 +126,23 @@ export const parseEvaluatorsExcel = async (file: File): Promise<EvaluatorRecord[
                 reject(err);
             }
         };
-        reader.onerror = (err) => reject(err);
-        reader.readAsArrayBuffer(file);
+
+        if (fileOrBuffer instanceof File) {
+            const reader = new FileReader();
+            reader.onload = (e) => processData(e.target?.result as ArrayBuffer);
+            reader.onerror = (err) => reject(err);
+            reader.readAsArrayBuffer(fileOrBuffer);
+        } else {
+            processData(fileOrBuffer);
+        }
     });
+};
+
+export const loadEvaluatorsFromPublic = async (): Promise<EvaluatorRecord[]> => {
+    const response = await fetch('/Evaluators.xlsx');
+    if (!response.ok) throw new Error('Failed to load Evaluators.xlsx from public folder');
+    const buffer = await response.arrayBuffer();
+    return parseEvaluatorsExcel(buffer);
 };
 
 export const generateExcel = (data: StudentRecord[], config?: Partial<RunSnapshot>, filename: string = 'Scheduler_Results.xlsx') => {

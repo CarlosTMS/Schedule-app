@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Download, UploadCloud, Users, AlertTriangle, Calendar as CalendarIcon } from 'lucide-react';
-import { parseEvaluatorsExcel, type EvaluatorRecord, type StudentRecord } from '../lib/excelParser';
+import { useState, useEffect } from 'react';
+import { Download, Users, AlertTriangle, Calendar as CalendarIcon } from 'lucide-react';
+import { loadEvaluatorsFromPublic, type EvaluatorRecord, type StudentRecord } from '../lib/excelParser';
 import { assignEvaluators, type EvaluationEngineOutput } from '../lib/evaluationEngine';
 import type { FacultyAssignments } from './FacultySchedule';
 
@@ -17,27 +17,23 @@ export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
+    useEffect(() => {
         setLoading(true);
         setError(null);
-        try {
-            const parsed = await parseEvaluatorsExcel(file);
-            if (parsed.length === 0) {
-                setError("No valid evaluators found in the uploaded file.");
-            } else {
-                setEvaluators(parsed);
-                setOutput(null); // Reset output when new file is uploaded
-            }
-        } catch {
-            setError("Error parsing the excel file. Please ensure it follows the format with 'Faculty Name', 'City Location', 'Country Location', and 'Role' columns.");
-        } finally {
-            setLoading(false);
-            e.target.value = ''; // clear input
-        }
-    };
+        loadEvaluatorsFromPublic()
+            .then(parsed => {
+                if (parsed.length === 0) {
+                    setError("No valid evaluators found in 'Evaluators.xlsx'.");
+                } else {
+                    setEvaluators(parsed);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                setError("Could not automatically load 'Evaluators.xlsx' from the local project folder. Please ensure the file exists in the public directory.");
+            })
+            .finally(() => setLoading(false));
+    }, []);
 
     const handleRunAssignment = () => {
         if (evaluators.length === 0) return;
@@ -95,12 +91,12 @@ export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
                     <Users className="text-primary" /> Evaluation Assignments
                 </h2>
                 <p style={{ color: 'var(--text-secondary)' }}>
-                    Upload your Evaluators Excel file, configure the parameters, and automatically assign VATs to the appropriate evaluators based on timezone proximity and Solution Area matching.
+                    VATs are automatically assigned to the evaluators listed in the local <strong>Evaluators.xlsx</strong> file based on timezone proximity and Solution Area matching.
                 </p>
             </div>
 
             {error && (
-                <div className="error-banner" style={{ marginBottom: '1.5rem' }}>
+                <div className="error-banner" style={{ marginBottom: '1.5rem', padding: '1rem', background: '#fee2e2', border: '1px solid #ef4444', color: '#991b1b', borderRadius: '0.5rem' }}>
                     {error}
                 </div>
             )}
@@ -108,19 +104,10 @@ export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
             <div className="controls glass-panel" style={{ padding: '1.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', alignItems: 'flex-end', marginBottom: '2rem' }}>
                 <div className="form-group">
                     <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <UploadCloud size={16} /> Upload Evaluators Excel
+                        <Users size={16} /> Evaluators Source
                     </label>
-                    <div style={{ position: 'relative' }}>
-                        <input
-                            type="file"
-                            accept=".xlsx, .xls"
-                            onChange={handleFileUpload}
-                            style={{ display: 'none' }}
-                            id="evaluators-upload"
-                        />
-                        <label htmlFor="evaluators-upload" className="btn btn-secondary w-full" style={{ justifyContent: 'center', cursor: 'pointer' }}>
-                            {loading ? 'Uploading...' : (evaluators.length > 0 ? `${evaluators.length} Evaluators Loaded` : 'Choose File')}
-                        </label>
+                    <div style={{ padding: '0.75rem', background: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 500 }}>
+                        {loading ? 'Loading evaluators...' : `${evaluators.length} Evaluators Loaded (Auto)`}
                     </div>
                 </div>
 
