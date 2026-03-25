@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react';
-import { Download, Users, AlertTriangle, CheckCircle, Clock, ShieldAlert, LayoutDashboard, Calendar, Presentation, UserSquare2, Database, BarChart3, CalendarPlus } from 'lucide-react';
+import { Download, Users, AlertTriangle, CheckCircle, CheckCircle2, Clock, ShieldAlert, LayoutDashboard, Calendar, Presentation, UserSquare2, Database, BarChart3, CalendarPlus } from 'lucide-react';
 import { calculateMetrics } from '../lib/allocationEngine';
 import type { AllocationResult } from '../lib/allocationEngine';
 import { generateExcel } from '../lib/excelParser';
@@ -19,7 +19,6 @@ import { useI18n } from '../i18n';
 import { loadSMEData, forceFetchSMEData } from '../lib/smeDataLoader';
 import type { SMECacheStatus } from '../lib/smeDataLoader';
 import type { SME } from '../lib/smeMatcher';
-import { extractScheduleKey } from '../lib/timezones';
 
 interface DashboardProps {
     result: AllocationResult;
@@ -182,46 +181,11 @@ export function Dashboard({
         liftRecords(newRecords);
     };
     
-    /**
-     * Propagates a specific session time from one schedule to all similar schedules (e.g. Session 1)
-     * across all Solution Areas, and clears all granular instance-level overrides.
-     */
-    const handleApplyAllSessions = (sourceKey: string, newUtcHour: number) => {
-        // 1. Identify all schedules appearing in the dataset
-        const allScheduleKeys = Array.from(new Set(localRecords.map(r => r.Schedule && extractScheduleKey(r.Schedule)).filter(Boolean))) as string[];
-        
-        // 2. Determine the common suffix (e.g. "Session 1")
-        const match = sourceKey.match(/Session \d+$/);
-        if (!match) return;
-        const suffix = match[0];
-
-        const targetKeys = allScheduleKeys.filter(k => k.endsWith(suffix));
-
-        // 3. Update broad overrides
-        const nextOverrides = { ...sessionTimeOverrides };
-        targetKeys.forEach(k => {
-            nextOverrides[k] = newUtcHour;
-        });
-        setSessionTimeOverrides(nextOverrides);
-
-        // 4. Clear granular overrides that "belong" to these schedules
-        const nextInstanceOverrides = { ...sessionInstanceTimeOverrides };
-        let removedCount = 0;
-        Object.keys(nextInstanceOverrides).forEach(key => {
-            // key format: "SA__Schedule__SessionId" (from lib/timezones.ts)
-            const parts = key.split('__');
-            if (parts.length >= 2) {
-                const schedule = parts[1];
-                if (schedule.endsWith(suffix)) {
-                    delete nextInstanceOverrides[key];
-                    removedCount++;
-                }
-            }
-        });
-        setSessionInstanceTimeOverrides(nextInstanceOverrides);
-        
-        // Optionally provide some feedback or log (or it's just reactive)
-        console.log(`Applied time ${newUtcHour} to ${targetKeys.length} schedules and cleared ${removedCount} instance overrides.`);
+    const handleGlobalApplyAll = () => {
+        // The user wants a button that ensures the "SME Assignment" and "Faculty Assignment" 
+        // tabs follow exactly what is shown in the "Session Breakdown" (global schedule). 
+        // To do this, we simply clear all granular instance-level overrides.
+        setSessionInstanceTimeOverrides({});
     };
 
     const handleSyncVatsToSessions = () => {
@@ -434,10 +398,25 @@ export function Dashboard({
                         <h2 style={{ margin: 0 }}>
                             {navItems.find(n => n.id === activeTab)?.label ?? t('facultyDebrief')}
                         </h2>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             <button className="btn btn-secondary" onClick={onReset}>
                                 {t('changeParameters')}
                             </button>
+                            {activeTab === 'sessions' && (
+                                <button 
+                                    className="btn btn-primary" 
+                                    onClick={handleGlobalApplyAll} 
+                                    style={{ 
+                                        backgroundColor: 'var(--primary-color)', 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: '0.4rem',
+                                        boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)' 
+                                    }}
+                                >
+                                    <CheckCircle2 size={16} /> Apply to all
+                                </button>
+                            )}
                             <button className="btn btn-primary" onClick={handleDownload} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 <Download size={18} /> {t('downloadResults')}
                             </button>
@@ -550,7 +529,6 @@ export function Dashboard({
                             records={localRecords}
                             sessionTimeOverrides={sessionTimeOverrides}
                             onSessionTimeChange={handleSessionTimeChange}
-                            onApplyAll={handleApplyAllSessions}
                             onMoveToSession={handleMoveToSession}
                             maxSessionSize={result.config.assumptions.maxSessionSize}
                         />

@@ -1,13 +1,13 @@
 import { useMemo } from 'react';
 import type { StudentRecord } from '../lib/excelParser';
 import { useI18n } from '../i18n';
+import { getKnownUtcOffset } from '../lib/timezones';
 
 
 interface SessionBreakdownProps {
     records: StudentRecord[];
     sessionTimeOverrides?: Record<string, number>; // scheduleKey (e.g. "Cloud ERP Session 1") -> UTC hour
     onSessionTimeChange?: (scheduleKey: string, newUtcHour: number) => void;
-    onApplyAll?: (scheduleKey: string, newUtcHour: number) => void;
     onMoveToSession?: (recordIndices: number[], targetSchedule: string) => void;
     maxSessionSize?: number;
 }
@@ -28,7 +28,7 @@ const extractUtcHour = (scheduleName: string): number => {
     return 0;
 };
 
-export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSessionTimeChange, onApplyAll, onMoveToSession, maxSessionSize = 40 }: SessionBreakdownProps) {
+export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSessionTimeChange, onMoveToSession, maxSessionSize = 40 }: SessionBreakdownProps) {
     const { t } = useI18n();
     const getAssignedSA = (r: StudentRecord): string => {
         const legacy = (r as StudentRecord & { 'Solution Week SA'?: string })['Solution Week SA'];
@@ -100,9 +100,13 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
                             return `${hh}:${mm} ${label}`;
                         };
 
-                        const singaporeTime = formatCityTime(utcHour, 8, 'SG');
-                        const berlinTime = formatCityTime(utcHour, 1, 'BER');
-                        const nyTime = formatCityTime(utcHour, -5, 'NY');
+                        const sgOffset = getKnownUtcOffset(undefined, undefined, 'Singapore');
+                        const berOffset = getKnownUtcOffset(undefined, undefined, 'Germany');
+                        const nyOffset = getKnownUtcOffset(undefined, undefined, 'United States');
+
+                        const singaporeTime = formatCityTime(utcHour, sgOffset, 'SG');
+                        const berlinTime = formatCityTime(utcHour, berOffset, 'BER');
+                        const nyTime = formatCityTime(utcHour, nyOffset, 'NY');
 
                         return {
                             name,
@@ -135,9 +139,13 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
             const mm = (totalMin % 60).toString().padStart(2, '0');
             return `${hh}:${mm} ${label}`;
         };
-        const sgTime = formatCityTime(utcHour, 8, 'SG');
-        const berTime = formatCityTime(utcHour, 1, 'BER');
-        const nyTime = formatCityTime(utcHour, -5, 'NY');
+        const sgOffset = getKnownUtcOffset(undefined, undefined, 'Singapore');
+        const berOffset = getKnownUtcOffset(undefined, undefined, 'Germany');
+        const nyOffset = getKnownUtcOffset(undefined, undefined, 'United States');
+
+        const sgTime = formatCityTime(utcHour, sgOffset, 'SG');
+        const berTime = formatCityTime(utcHour, berOffset, 'BER');
+        const nyTime = formatCityTime(utcHour, nyOffset, 'NY');
         return `${sgTime} | ${berTime} | ${nyTime}`;
     };
 
@@ -235,28 +243,6 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
                                                         lineHeight: 1
                                                     }}
                                                 >↺</button>
-                                            )}
-                                            {onApplyAll && (
-                                                <button
-                                                    onClick={() => onApplyAll(scheduleKey, effectiveUtcHour)}
-                                                    title="Apply this time to all SAs and clear overrides"
-                                                    style={{
-                                                        background: 'var(--primary-color)',
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        borderRadius: '4px',
-                                                        padding: '2px 6px',
-                                                        fontSize: '0.65rem',
-                                                        fontWeight: 700,
-                                                        cursor: 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '2px',
-                                                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                                                    }}
-                                                >
-                                                    Apply to all
-                                                </button>
                                             )}
                                         </div>
                                     </div>

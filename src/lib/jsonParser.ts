@@ -209,7 +209,7 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
                     '(AA) Secondary Specialization': att.specialization as string,
                     'Solution Weeks SA': sa,
                     Schedule: scheduleFull,
-                    _utcOffset: typeof att.utc_offset === 'number' ? att.utc_offset : getUtcOffset(att.country as string, att.office as string),
+                    _utcOffset: getUtcOffset(att.country as string, att.office as string),
                     _originalIndex: originalIndex++,
                     Program: program,
                     VAT: (att.vat as string) || 'Imported-JSON',
