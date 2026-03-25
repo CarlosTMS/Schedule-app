@@ -169,10 +169,29 @@ const resolveTimeZone = (office?: string, country?: string): string => {
     return 'UTC';
 };
 
+const MONTH_MAP: Record<string, string> = { 'January': '01', 'February': '02', 'March': '03', 'April': '04', 'May': '05', 'June': '06', 'July': '07', 'August': '08', 'September': '09', 'October': '10', 'November': '11', 'December': '12' };
+
+export const parseSessionDate = (dateStr: string): Date => {
+    // Safely parse "Tuesday, April 14, 2026" formats to standard ISO string to ensure correct cross-browser parsing
+    const match = dateStr.match(/,\s*([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})/);
+    if (match) {
+        const month = MONTH_MAP[match[1]];
+        const day = match[2].padStart(2, '0');
+        const year = match[3];
+        if (month) {
+            return new Date(`${year}-${month}-${day}T12:00:00Z`);
+        }
+    }
+    
+    return new Date(`${dateStr} 12:00:00 UTC`);
+};
+
 const getReferenceDate = (referenceDate?: Date | string): Date => {
     if (!referenceDate) return PROGRAM_REFERENCE_DATE;
     if (referenceDate instanceof Date) return referenceDate;
-    return new Date(`${referenceDate} 12:00:00 UTC`);
+    
+    const parsed = parseSessionDate(referenceDate);
+    return isNaN(parsed.getTime()) ? PROGRAM_REFERENCE_DATE : parsed;
 };
 
 const parseOffsetFromParts = (timeZone: string, date: Date): number => {
@@ -213,7 +232,7 @@ export const getAvailableUtcHours = (student: StudentRecord, startHourLocal: num
         if (utcHour < 0) utcHour += 24;
         if (utcHour >= 24) utcHour -= 24;
 
-        availableHours.push(Math.floor(utcHour));
+        availableHours.push(utcHour);
     }
     return availableHours;
 };
@@ -228,7 +247,7 @@ export const getKnownUtcOffset = (
 };
 
 export const extractScheduleKey = (scheduleStr: string): string =>
-    scheduleStr.replace(/ \(\d+:00 UTC\)/, '').trim();
+    scheduleStr.replace(/ \(\d{1,2}:\d{2} UTC\)/, '').trim();
 
 export const makeSessionInstanceOverrideKey = (
     solutionArea: string,
@@ -244,8 +263,13 @@ export const getEffectiveScheduleUtcHour = (
 ): number => {
     const key = extractScheduleKey(scheduleStr);
     if (key in overrides) return overrides[key];
-    const match = scheduleStr.match(/(\d+):00 UTC/);
-    return match ? parseInt(match[1], 10) : 0;
+    const match = scheduleStr.match(/(\d{1,2}):(\d{2}) UTC/);
+    if (match) {
+        const h = parseInt(match[1], 10);
+        const m = parseInt(match[2], 10);
+        return h + (m / 60);
+    }
+    return 0;
 };
 
 export const getEffectiveSessionUtcHour = (
@@ -260,8 +284,12 @@ export const getEffectiveSessionUtcHour = (
     return getEffectiveScheduleUtcHour(scheduleStr, scheduleOverrides);
 };
 
-export const formatUtcHourLabel = (utcHour: number): string =>
-    `${wrapUtcHour(utcHour).toString().padStart(2, '0')}:00 UTC`;
+export const formatUtcHourLabel = (utcHour: number): string => {
+    const totalMinutes = Math.round(wrapUtcHour(utcHour) * 60);
+    const h = Math.floor(totalMinutes / 60).toString().padStart(2, '0');
+    const m = (totalMinutes % 60).toString().padStart(2, '0');
+    return `${h}:${m} UTC`;
+};
 
 export const formatEffectiveSessionSchedule = (
     solutionArea: string,
@@ -271,7 +299,7 @@ export const formatEffectiveSessionSchedule = (
     scheduleOverrides: Record<string, number> = {}
 ): string => {
     const effectiveHour = getEffectiveSessionUtcHour(solutionArea, scheduleStr, sessionId, sessionOverrides, scheduleOverrides);
-    return scheduleStr.replace(/\(\d+:00 UTC\)/, `(${formatUtcHourLabel(effectiveHour)})`);
+    return scheduleStr.replace(/\(\d{1,2}:\d{2} UTC\)/, `(${formatUtcHourLabel(effectiveHour)})`);
 };
 
 export const formatEffectiveSchedule = (
@@ -279,7 +307,7 @@ export const formatEffectiveSchedule = (
     overrides: Record<string, number> = {}
 ): string => {
     const effectiveHour = getEffectiveScheduleUtcHour(scheduleStr, overrides);
-    return scheduleStr.replace(/\(\d+:00 UTC\)/, `(${effectiveHour.toString().padStart(2, '0')}:00 UTC)`);
+    return scheduleStr.replace(/\(\d{1,2}:\d{2} UTC\)/, `(${formatUtcHourLabel(effectiveHour)})`);
 };
 
 export const getLocalTimeStr = (
@@ -306,11 +334,11 @@ export const getLocalTimeForUtcHour = (
     const offset = getKnownUtcOffset(assignedPersonOffice, referenceDate, country);
     let localHour = utcHour + offset;
 
-    if (localHour < 0) localHour += 24;
-    if (localHour >= 24) localHour -= 24;
+    while (localHour < 0) localHour += 24;
+    while (localHour >= 24) localHour -= 24;
 
-    const isHalf = localHour % 1 > 0;
-    const h = Math.floor(localHour).toString().padStart(2, '0');
-    const m = isHalf ? '30' : '00';
+    const totalMinutes = Math.round(localHour * 60);
+    const h = Math.floor(totalMinutes / 60).toString().padStart(2, '0');
+    const m = (totalMinutes % 60).toString().padStart(2, '0');
     return `${h}:${m} Local`;
 };

@@ -1,5 +1,5 @@
 import type { StudentRecord } from './excelParser';
-import { getUtcOffset, getAvailableUtcHours } from './timezones';
+import { getUtcOffset, getAvailableUtcHours, formatUtcHourLabel } from './timezones';
 import type { AllocationRule } from '../components/RuleBuilder';
 import type { DistributionTarget } from '../components/Randomizer';
 import type { Assumptions } from '../components/Configurator';
@@ -271,7 +271,7 @@ export const runAllocation = (
             for (const h of sortedBestHours) {
                 const assigned = bestAssignment.get(h)!;
                 assigned.forEach(s => {
-                    s.Schedule = `${sa} Session ${sessionIndex} (${h}:00 UTC)`;
+                    s.Schedule = `${sa} Session ${sessionIndex} (${formatUtcHourLabel(h)})`;
                     coveredIds.add(s._originalIndex ?? -1);
                 });
                 sessionIndex++;

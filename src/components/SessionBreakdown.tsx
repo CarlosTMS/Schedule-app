@@ -7,22 +7,28 @@ interface SessionBreakdownProps {
     records: StudentRecord[];
     sessionTimeOverrides?: Record<string, number>; // scheduleKey (e.g. "Cloud ERP Session 1") -> UTC hour
     onSessionTimeChange?: (scheduleKey: string, newUtcHour: number) => void;
+    onApplyAll?: (scheduleKey: string, newUtcHour: number) => void;
     onMoveToSession?: (recordIndices: number[], targetSchedule: string) => void;
     maxSessionSize?: number;
 }
 
 // Extract the session key (without time part) from a full schedule string
 const extractScheduleKey = (scheduleName: string): string => {
-    return scheduleName.replace(/ \(\d+:00 UTC\)/, '').trim();
+    return scheduleName.replace(/ \(\d{1,2}:\d{2} UTC\)/, '').trim();
 };
 
 // Extract UTC hour from a schedule string
 const extractUtcHour = (scheduleName: string): number => {
-    const match = scheduleName.match(/(\d+):00 UTC/);
-    return match ? parseInt(match[1]) : 0;
+    const match = scheduleName.match(/(\d{1,2}):(\d{2}) UTC/);
+    if (match) {
+        const h = parseInt(match[1], 10);
+        const m = parseInt(match[2], 10);
+        return h + (m / 60);
+    }
+    return 0;
 };
 
-export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSessionTimeChange, onMoveToSession, maxSessionSize = 40 }: SessionBreakdownProps) {
+export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSessionTimeChange, onApplyAll, onMoveToSession, maxSessionSize = 40 }: SessionBreakdownProps) {
     const { t } = useI18n();
     const getAssignedSA = (r: StudentRecord): string => {
         const legacy = (r as StudentRecord & { 'Solution Week SA'?: string })['Solution Week SA'];
@@ -61,26 +67,42 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
                 allocated: info.allocated,
                 sessions: Object.entries(info.sessions)
                     .map(([name, students]) => {
-                        const match = name.match(/(\d+):00 UTC/);
-                        const originalUtcHour = match ? parseInt(match[1]) : 0;
                         const scheduleKey = extractScheduleKey(name);
+                        const originalUtcHour = extractUtcHour(name);
                         const utcHour = scheduleKey in sessionTimeOverrides ? sessionTimeOverrides[scheduleKey] : originalUtcHour;
 
                         // Per-localTime buckets: both a count map and full record arrays
                         const localTimeBuckets: Record<string, StudentRecord[]> = {};
                         students.forEach((s: StudentRecord) => {
-                            const localStart = utcHour + (s._utcOffset ?? 0);
-                            const displayStart = localStart < 0 ? localStart + 24 : (localStart >= 24 ? localStart - 24 : localStart);
-                            const displayStartStr = `${Math.floor(displayStart).toString().padStart(2, '0')}:00 Local`;
+                            const offset = s._utcOffset ?? 0;
+                            let localStart = utcHour + offset;
+                            while (localStart < 0) localStart += 24;
+                            while (localStart >= 24) localStart -= 24;
+                            
+                            const totalMin = Math.round(localStart * 60);
+                            const h = Math.floor(totalMin / 60).toString().padStart(2, '0');
+                            const m = (totalMin % 60).toString().padStart(2, '0');
+                            const displayStartStr = `${h}:${m} Local`;
+                            
                             if (!localTimeBuckets[displayStartStr]) localTimeBuckets[displayStartStr] = [];
                             localTimeBuckets[displayStartStr].push(s);
                         });
                         const localTimes: Record<string, number> = {};
                         Object.entries(localTimeBuckets).forEach(([lt, recs]) => { localTimes[lt] = recs.length; });
 
-                        const singaporeTime = `${Math.floor((utcHour + 8) % 24).toString().padStart(2, '0')}:00 SG`;
-                        const berlinTime = `${Math.floor((utcHour + 1) % 24).toString().padStart(2, '0')}:00 BER`;
-                        const nyTime = `${Math.floor((utcHour - 5 + 24) % 24).toString().padStart(2, '0')}:00 NY`;
+                        const formatCityTime = (h: number, offset: number, label: string) => {
+                            let curr = h + offset;
+                            while (curr < 0) curr += 24;
+                            while (curr >= 24) curr -= 24;
+                            const totalMin = Math.round(curr * 60);
+                            const hh = Math.floor(totalMin / 60).toString().padStart(2, '0');
+                            const mm = (totalMin % 60).toString().padStart(2, '0');
+                            return `${hh}:${mm} ${label}`;
+                        };
+
+                        const singaporeTime = formatCityTime(utcHour, 8, 'SG');
+                        const berlinTime = formatCityTime(utcHour, 1, 'BER');
+                        const nyTime = formatCityTime(utcHour, -5, 'NY');
 
                         return {
                             name,
@@ -104,9 +126,18 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
     };
 
     const getGlobalTimes = (utcHour: number): string => {
-        const sgTime = `${Math.floor((utcHour + 8) % 24).toString().padStart(2, '0')}:00 SG`;
-        const berTime = `${Math.floor((utcHour + 1) % 24).toString().padStart(2, '0')}:00 BER`;
-        const nyTime = `${Math.floor((utcHour - 5 + 24) % 24).toString().padStart(2, '0')}:00 NY`;
+        const formatCityTime = (h: number, offset: number, label: string) => {
+            let curr = h + offset;
+            while (curr < 0) curr += 24;
+            while (curr >= 24) curr -= 24;
+            const totalMin = Math.round(curr * 60);
+            const hh = Math.floor(totalMin / 60).toString().padStart(2, '0');
+            const mm = (totalMin % 60).toString().padStart(2, '0');
+            return `${hh}:${mm} ${label}`;
+        };
+        const sgTime = formatCityTime(utcHour, 8, 'SG');
+        const berTime = formatCityTime(utcHour, 1, 'BER');
+        const nyTime = formatCityTime(utcHour, -5, 'NY');
         return `${sgTime} | ${berTime} | ${nyTime}`;
     };
 
@@ -163,15 +194,15 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
                                         <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
-                                            {sessionLabel.replace(/ \(\d+:00 UTC\)/, '')}
+                                            {sessionLabel.replace(/ \(\d{1,2}:\d{2} UTC\)/, '')}
                                         </span>
                                         <input
                                             type="time"
-                                            value={`${effectiveUtcHour.toString().padStart(2, '0')}:00`}
+                                            value={`${Math.floor(effectiveUtcHour).toString().padStart(2, '0')}:${Math.round((effectiveUtcHour % 1) * 60).toString().padStart(2, '0')}`}
                                             onChange={(e) => {
                                                 if (!onSessionTimeChange) return;
-                                                const [h] = e.target.value.split(':').map(Number);
-                                                if (!isNaN(h)) onSessionTimeChange(scheduleKey, h);
+                                                const [h, m] = e.target.value.split(':').map(Number);
+                                                if (!isNaN(h) && !isNaN(m)) onSessionTimeChange(scheduleKey, h + (m / 60));
                                             }}
                                             title="Adjust UTC start time"
                                             style={{
@@ -189,21 +220,45 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
                                             readOnly={!onSessionTimeChange}
                                         />
                                         <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>UTC</span>
-                                        {isModified && onSessionTimeChange && (
-                                            <button
-                                                onClick={() => onSessionTimeChange(scheduleKey, originalHour)}
-                                                title="Reset to original"
-                                                style={{
-                                                    background: 'none',
-                                                    border: 'none',
-                                                    cursor: 'pointer',
-                                                    color: '#94a3b8',
-                                                    padding: '0',
-                                                    fontSize: '0.9rem',
-                                                    lineHeight: 1
-                                                }}
-                                            >↺</button>
-                                        )}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                            {isModified && onSessionTimeChange && (
+                                                <button
+                                                    onClick={() => onSessionTimeChange(scheduleKey, originalHour)}
+                                                    title="Reset to original"
+                                                    style={{
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        cursor: 'pointer',
+                                                        color: '#94a3b8',
+                                                        padding: '0',
+                                                        fontSize: '0.9rem',
+                                                        lineHeight: 1
+                                                    }}
+                                                >↺</button>
+                                            )}
+                                            {onApplyAll && (
+                                                <button
+                                                    onClick={() => onApplyAll(scheduleKey, effectiveUtcHour)}
+                                                    title="Apply this time to all SAs and clear overrides"
+                                                    style={{
+                                                        background: 'var(--primary-color)',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        borderRadius: '4px',
+                                                        padding: '2px 6px',
+                                                        fontSize: '0.65rem',
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '2px',
+                                                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                                                    }}
+                                                >
+                                                    Apply to all
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                     <div style={{ color: '#0ea5e9', fontSize: '0.8rem', marginBottom: '0.4rem', fontWeight: 500 }}>
                                         🌎 {effectiveGlobalTimes}

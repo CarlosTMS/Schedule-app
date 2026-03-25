@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Users, MapPin, Building2, UserCircle2, AlertCircle, RefreshCw, Minus, Plus, Copy, CheckCircle2, MessageSquareShare } from 'lucide-react';
-import { getEligibleSMEs, autoAssignSMEs } from '../lib/smeMatcher';
+import { sessions, getEligibleSMEs, autoAssignSMEs } from '../lib/smeMatcher';
 import type { SME, SessionId } from '../lib/smeMatcher';
 import type { SMECacheStatus } from '../lib/smeDataLoader';
 import { autoAssignFaculty, enrichFaculty } from '../lib/facultyMatcher';
 import type { FacultyAssignments } from './FacultySchedule';
-import { getKnownUtcOffset, getEffectiveSessionUtcHour, getLocalTimeForUtcHour, extractScheduleKey, formatUtcHourLabel, makeSessionInstanceOverrideKey, wrapUtcHour } from '../lib/timezones';
+import { getKnownUtcOffset, getEffectiveSessionUtcHour, getLocalTimeForUtcHour, extractScheduleKey, formatUtcHourLabel, makeSessionInstanceOverrideKey, wrapUtcHour, parseSessionDate } from '../lib/timezones';
 import { FACULTY_LED_SME_LABEL, activePlanningSessions } from '../lib/sessionCatalog';
 import { useI18n } from '../i18n';
 
@@ -155,6 +155,17 @@ export function SMESchedule({
     const [copiedSummary, setCopiedSummary] = useState(false);
     const selectedSA = uniqueSAs.includes(selectedSAState) ? selectedSAState : (uniqueSAs.length > 0 ? uniqueSAs[0] : '');
 
+    // Helper to get all assignments (manual + auto fallback) across all SAs for conflict detection
+    const allAssignments = useMemo(() => {
+        const all: SmeAssignments = {};
+        const sAs = Object.keys(schedulesBySA).sort();
+        for (const sa of sAs) {
+            const avail = Array.from(schedulesBySA[sa] || []).sort((a, b) => a.localeCompare(b));
+            all[sa] = manualSmeAssignments[sa] || autoAssignSMEs(sa, avail, startHour, endHour, smeList);
+        }
+        return all;
+    }, [schedulesBySA, manualSmeAssignments, startHour, endHour, smeList]);
+
     if (!selectedSA) {
         return null;
     }
@@ -188,6 +199,45 @@ export function SMESchedule({
         manualFacultyAssignments[selectedSA] || autoAssignFaculty(selectedSA, availableSchedules, effectiveFacultyStartHour, endHour);
     const currentConfirmations = smeConfirmationState[selectedSA] || {};
 
+    const getConflict = (smeName: string, targetSchedule: string, targetSessionId: SessionId, targetSA: string): string | null => {
+        const targetSession = sessions.find(s => s.id === targetSessionId);
+        if (!targetSession) return null;
+        
+        const targetUtcHour = getEffectiveSessionUtcHour(targetSA, targetSchedule, targetSessionId, sessionInstanceTimeOverrides, sessionTimeOverrides);
+        const targetStartTime = parseSessionDate(targetSession.date).getTime() + targetUtcHour * 60 * 60 * 1000;
+        
+        for (const sa of Object.keys(allAssignments)) {
+            const saAssignments = allAssignments[sa];
+            for (const schedule of Object.keys(saAssignments)) {
+                const sessionAssignments = saAssignments[schedule];
+                for (const sessionId of Object.keys(sessionAssignments)) {
+                    // Skip if it's the exact same session instance
+                    if (sa === targetSA && schedule === targetSchedule && sessionId === targetSessionId) continue;
+                    
+                    const assigned = sessionAssignments[sessionId as SessionId];
+                    if (assigned && assigned.name === smeName) {
+                        const session = sessions.find(s => s.id === sessionId);
+                        if (!session) continue;
+                        
+                        const utcHour = getEffectiveSessionUtcHour(sa, schedule, sessionId as SessionId, sessionInstanceTimeOverrides, sessionTimeOverrides);
+                        const startTime = parseSessionDate(session.date).getTime() + utcHour * 60 * 60 * 1000;
+                        
+                        const diffMinutes = Math.abs(targetStartTime - startTime) / (1000 * 60);
+                        
+                        if (diffMinutes < 150) {
+                            const topicObj = sessions.find(s => s.id === sessionId);
+                            const topicName = topicObj ? topicObj.title : sessionId;
+                            const scheduleLabel = extractScheduleKey(schedule).replace(`${sa} `, '');
+                            const locationInfo = sa === targetSA ? `${scheduleLabel} - ${topicName}` : `${sa} - ${topicName}`;
+                            return locationInfo; 
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    };
+
     const handleSMEChange = (schedule: string, sessionId: SessionId, smeName: string) => {
         const eligible = getEligibleSMEs(selectedSA, sessionId, smeList);
         const newSME = eligible.find(s => s.name === smeName) || null;
@@ -207,7 +257,9 @@ export function SMESchedule({
         });
     };
 
-    const handleSessionHourChange = (schedule: string, sessionId: SessionId, delta: number) => {
+    // Need to import useMemo from react if not already
+
+    const handleSessionTimeAdjustment = (schedule: string, sessionId: SessionId, delta: number) => {
         if (!onSessionInstanceTimeOverridesChange) return;
         const key = makeSessionInstanceOverrideKey(selectedSA, schedule, sessionId);
         const currentHour = getEffectiveSessionUtcHour(selectedSA, schedule, sessionId, sessionInstanceTimeOverrides, sessionTimeOverrides);
@@ -577,9 +629,9 @@ export function SMESchedule({
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleSessionHourChange(schedule, session.id, -1)}
+                                                    onClick={() => handleSessionTimeAdjustment(schedule, session.id, -0.25)}
                                                     style={{ border: '1px solid #cbd5e1', background: '#fff', borderRadius: '6px', padding: '0.2rem', display: 'flex', cursor: 'pointer' }}
-                                                    title="Move session 1 hour earlier"
+                                                    title="Move session 15 mins earlier"
                                                 >
                                                     <Minus size={12} />
                                                 </button>
@@ -588,9 +640,9 @@ export function SMESchedule({
                                                 </span>
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleSessionHourChange(schedule, session.id, 1)}
+                                                    onClick={() => handleSessionTimeAdjustment(schedule, session.id, 0.25)}
                                                     style={{ border: '1px solid #cbd5e1', background: '#fff', borderRadius: '6px', padding: '0.2rem', display: 'flex', cursor: 'pointer' }}
-                                                    title="Move session 1 hour later"
+                                                    title="Move session 15 mins later"
                                                 >
                                                     <Plus size={12} />
                                                 </button>
@@ -626,33 +678,41 @@ export function SMESchedule({
                                         </td>
                                         <td style={{ padding: '0.75rem' }}>
                                             {eligibleSMEs.length > 0 ? (
-                                                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                                    <UserCircle2 size={16} style={{ position: 'absolute', left: '0.75rem', color: 'var(--text-secondary)', pointerEvents: 'none' }} />
-                                                    <select
-                                                        value={assignedSME?.name || ''}
-                                                        onChange={(e) => handleSMEChange(schedule, session.id, e.target.value)}
-                                                        disabled={isConfirmed}
-                                                        style={{
-                                                            width: '100%',
-                                                            padding: '0.5rem 0.5rem 0.5rem 2.5rem',
-                                                            borderRadius: '6px',
-                                                            border: isConfirmed ? '1px solid #bbf7d0' : (assignedSME ? '1px solid #cbd5e1' : '1px solid #fecaca'),
-                                                            background: isConfirmed ? '#f1f5f9' : (assignedSME ? '#fff' : '#fef2f2'),
-                                                            fontSize: '0.9rem',
-                                                            color: isConfirmed ? '#64748b' : 'var(--text-primary)',
-                                                            cursor: isConfirmed ? 'not-allowed' : 'pointer',
-                                                            appearance: 'none',
-                                                            boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-                                                            opacity: isConfirmed ? 0.9 : 1,
-                                                        }}
-                                                    >
-                                                        <option value="" disabled>Select SME...</option>
-                                                        {eligibleSMEs.map(sme => (
-                                                            <option key={sme.name} value={sme.name}>{sme.name}</option>
-                                                        ))}
-                                                    </select>
-                                                    {/* Custom dropdown arrow */}
-                                                    <div style={{ position: 'absolute', right: '0.75rem', pointerEvents: 'none', color: 'var(--text-secondary)' }}>▼</div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                                        <UserCircle2 size={16} style={{ position: 'absolute', left: '0.75rem', color: 'var(--text-secondary)', pointerEvents: 'none' }} />
+                                                        <select
+                                                            value={assignedSME?.name || ''}
+                                                            onChange={(e) => handleSMEChange(schedule, session.id, e.target.value)}
+                                                            disabled={isConfirmed}
+                                                            style={{
+                                                                width: '100%',
+                                                                padding: '0.5rem 0.5rem 0.5rem 2.5rem',
+                                                                borderRadius: '6px',
+                                                                border: (assignedSME && getConflict(assignedSME.name, schedule, session.id, selectedSA)) ? '1px solid var(--danger-color)' : (isConfirmed ? '1px solid #bbf7d0' : (assignedSME ? '1px solid #cbd5e1' : '1px solid #fecaca')),
+                                                                background: (assignedSME && getConflict(assignedSME.name, schedule, session.id, selectedSA)) ? 'rgba(239, 68, 68, 0.02)' : (isConfirmed ? '#f1f5f9' : (assignedSME ? '#fff' : '#fef2f2')),
+                                                                fontSize: '0.9rem',
+                                                                color: isConfirmed ? '#64748b' : 'var(--text-primary)',
+                                                                cursor: isConfirmed ? 'not-allowed' : 'pointer',
+                                                                appearance: 'none',
+                                                                boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                                                                opacity: isConfirmed ? 0.9 : 1,
+                                                            }}
+                                                        >
+                                                            <option value="" disabled>Select SME...</option>
+                                                            {eligibleSMEs.map(sme => (
+                                                                <option key={sme.name} value={sme.name}>{sme.name}</option>
+                                                            ))}
+                                                        </select>
+                                                        {/* Custom dropdown arrow */}
+                                                        <div style={{ position: 'absolute', right: '0.75rem', pointerEvents: 'none', color: 'var(--text-secondary)' }}>▼</div>
+                                                    </div>
+                                                    {assignedSME && getConflict(assignedSME.name, schedule, session.id, selectedSA) && (
+                                                        <div style={{ fontSize: '0.8rem', color: 'var(--danger-color)', display: 'flex', alignItems: 'flex-start', gap: '0.25rem', marginTop: '0.25rem', lineHeight: '1.2' }}>
+                                                            <AlertCircle size={12} style={{ flexShrink: 0, marginTop: '2px' }} />
+                                                            <span>Time conflict - SME already assigned to "{getConflict(assignedSME.name, schedule, session.id, selectedSA)}"</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ) : (
                                                 <span style={{ fontSize: '0.85rem', color: 'var(--danger-color)', display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.5rem' }}>

@@ -8,7 +8,7 @@ import { sessions, getEligibleSMEs, autoAssignSMEs } from '../lib/smeMatcher';
 import type { SME, SessionId } from '../lib/smeMatcher';
 import { getEligibleFaculty, autoAssignFaculty, enrichFaculty } from '../lib/facultyMatcher';
 import type { Faculty } from '../lib/facultyMatcher';
-import { extractScheduleKey, getEffectiveSessionUtcHour, getKnownUtcOffset, formatUtcHourLabel } from '../lib/timezones';
+import { getKnownUtcOffset, getEffectiveSessionUtcHour, extractScheduleKey, formatUtcHourLabel, parseSessionDate } from '../lib/timezones';
 import { FACULTY_LED_SME_LABEL, activePlanningSessions, isFacultyOnlySession } from '../lib/sessionCatalog';
 import type { StudentRecord } from '../lib/excelParser';
 import { generateExcel } from '../lib/excelParser';
@@ -36,7 +36,7 @@ interface SummaryProps {
 }
 
 interface SessionWarning {
-    type: 'noSME' | 'noFaculty' | 'smeOutOfHours' | 'facultyOutOfHours';
+    type: 'noSME' | 'noFaculty' | 'smeOutOfHours' | 'facultyOutOfHours' | 'facultyConflict' | 'smeConflict';
     label: string;
 }
 
@@ -121,13 +121,15 @@ const toKpDateTime = (dateValue: Date): string => {
 };
 
 const buildUtcDateForSession = (sessionDateLabel: string, utcHour: number): Date => {
-    const baseDate = new Date(`${sessionDateLabel} 00:00:00 UTC`);
+    const baseDate = parseSessionDate(sessionDateLabel);
+    const hours = Math.floor(utcHour);
+    const minutes = Math.round((utcHour % 1) * 60);
     return new Date(Date.UTC(
         baseDate.getUTCFullYear(),
         baseDate.getUTCMonth(),
         baseDate.getUTCDate(),
-        utcHour,
-        0,
+        hours,
+        minutes,
         0,
         0
     ));
@@ -220,8 +222,90 @@ export function Summary({
                 if (assignedSME && isOutOfHours(utcHour, getKnownUtcOffset(assignedSME.office_location, session.date), startHour, endHour)) {
                     warnings.push({ type: 'smeOutOfHours', label: t('warnSMEOutOfHours') });
                 }
+
+                // SME Conflict Check (150-minute window)
+                if (assignedSME) {
+                    const targetStartTime = parseSessionDate(session.date).getTime() + utcHour * 60 * 60 * 1000;
+                    let hasSmeConflict = false;
+                    let smeConflictName = '';
+
+                    for (const otherSA of allSAs) {
+                        const otherSchedules = Array.from(schedulesBySA[otherSA] || []).sort();
+                        const otherAutoSme = autoAssignSMEs(otherSA, otherSchedules, startHour, endHour, smeList);
+                        const otherSmeAssignments = manualSmeAssignments[otherSA] || otherAutoSme;
+
+                        for (const otherSchedule of otherSchedules) {
+                            for (const otherSession of sessions) {
+                                if (otherSA === sa && otherSchedule === schedule && otherSession.id === session.id) continue;
+
+                                const otherAssigned = otherSmeAssignments[otherSchedule]?.[otherSession.id];
+                                if (otherAssigned && otherAssigned.name === assignedSME.name) {
+                                    const otherUtcHour = getEffectiveSessionUtcHour(otherSA, otherSchedule, otherSession.id, sessionInstanceTimeOverrides, sessionTimeOverrides);
+                                    const otherStartTime = parseSessionDate(otherSession.date).getTime() + otherUtcHour * 60 * 60 * 1000;
+                                    const diffMinutes = Math.abs(targetStartTime - otherStartTime) / (1000 * 60);
+
+                                    if (diffMinutes < 150) {
+                                        hasSmeConflict = true;
+                                        smeConflictName = otherSA === sa 
+                                            ? `${extractScheduleKey(otherSchedule).replace(`${otherSA} `, '')} - ${otherSession.title}`
+                                            : `${otherSA} - ${otherSession.title}`;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (hasSmeConflict) break;
+                        }
+                        if (hasSmeConflict) break;
+                    }
+
+                    if (hasSmeConflict) {
+                        warnings.push({ type: 'smeConflict', label: `SME Conflict: ${smeConflictName}` });
+                    }
+                }
                 if (assignedFaculty && isOutOfHours(utcHour, getKnownUtcOffset(assignedFaculty.office, session.date), effectiveFacultyStartHour, endHour)) {
                     warnings.push({ type: 'facultyOutOfHours', label: t('warnFacultyOutOfHours') });
+                }
+
+                // Faculty Conflict Check (150-minute window)
+                if (assignedFaculty) {
+                    const targetStartTime = parseSessionDate(session.date).getTime() + utcHour * 60 * 60 * 1000;
+                    let hasConflict = false;
+                    let conflictName = '';
+
+                    // Check against other SAs and schedules
+                    for (const otherSA of allSAs) {
+                        const otherSchedules = Array.from(schedulesBySA[otherSA] || []).sort();
+                        const otherAutoFac = autoAssignFaculty(otherSA, otherSchedules, effectiveFacultyStartHour, endHour);
+                        const otherFacAssignments = manualFacultyAssignments[otherSA] || otherAutoFac;
+
+                        for (const otherSchedule of otherSchedules) {
+                            for (const otherSession of sessions) {
+                                // Skip same instance
+                                if (otherSA === sa && otherSchedule === schedule && otherSession.id === session.id) continue;
+
+                                const otherAssigned = otherFacAssignments[otherSchedule]?.[otherSession.id];
+                                if (otherAssigned && otherAssigned.name === assignedFaculty.name) {
+                                    const otherUtcHour = getEffectiveSessionUtcHour(otherSA, otherSchedule, otherSession.id, sessionInstanceTimeOverrides, sessionTimeOverrides);
+                                    const otherStartTime = parseSessionDate(otherSession.date).getTime() + otherUtcHour * 60 * 60 * 1000;
+                                    const diffMinutes = Math.abs(targetStartTime - otherStartTime) / (1000 * 60);
+
+                                    if (diffMinutes < 150) {
+                                        hasConflict = true;
+                                        conflictName = otherSA === sa 
+                                            ? `${extractScheduleKey(otherSchedule).replace(`${otherSA} `, '')} - ${otherSession.title}`
+                                            : `${otherSA} - ${otherSession.title}`;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (hasConflict) break;
+                        }
+                        if (hasConflict) break;
+                    }
+
+                    if (hasConflict) {
+                        warnings.push({ type: 'facultyConflict', label: `Conflict: ${conflictName}` });
+                    }
                 }
 
                 sessionRows.push({
@@ -481,6 +565,7 @@ export function Summary({
 
     const warningColor = (type: SessionWarning['type']) => {
         if (type === 'noSME' || type === 'noFaculty') return '#dc2626';
+        if (type === 'facultyConflict' || type === 'smeConflict') return '#dc2626';
         return '#f59e0b';
     };
 

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { StudentRecord } from '../lib/excelParser';
 import { AlertTriangle, Users, AlertCircle, Plus, CheckSquare, Square, Zap, Info, ArrowRight, Send, CheckCircle, CalendarDays, Calendar, RotateCcw } from 'lucide-react';
 import { useI18n } from '../i18n';
+import { extractScheduleKey as tzExtractKey, formatUtcHourLabel } from '../lib/timezones';
 
 interface VATVisualizerProps {
     records: StudentRecord[];
@@ -69,10 +70,14 @@ const resolveApiBase = (): string => {
 const API_BASE = resolveApiBase();
 
 // Helper to extract session name without time
-const extractScheduleKey = (name: string) => name.replace(/ \(\d+:00 UTC\)/, '').trim();
-const extractUtcHour = (name: string) => {
-    const m = name.match(/(\d+):00 UTC/);
-    return m ? parseInt(m[1]) : 0;
+const localExtractUtcHour = (name: string) => {
+    const m = name.match(/(\d{1,2}):(\d{2}) UTC/);
+    if (m) {
+        const h = parseInt(m[1], 10);
+        const mPart = parseInt(m[2], 10);
+        return h + (mPart / 60);
+    }
+    return 0;
 };
 
 export function VATVisualizer({ 
@@ -250,9 +255,9 @@ export function VATVisualizer({
                             {(() => {
                                 const schedule = students[0].Schedule;
                                 if (!schedule) return '';
-                                const key = extractScheduleKey(schedule);
-                                const utcHour = key in sessionTimeOverrides ? sessionTimeOverrides[key] : extractUtcHour(schedule);
-                                return `${utcHour}:00 UTC`;
+                                const key = tzExtractKey(schedule);
+                                const utcHour = key in sessionTimeOverrides ? sessionTimeOverrides[key] : localExtractUtcHour(schedule);
+                                return formatUtcHourLabel(utcHour);
                             })()}
                         </span>
                     </div>

@@ -48,11 +48,13 @@ export function CalendarExporter({ uniqueSchedules, sessionLength }: CalendarExp
     let allEvents: { id: string, title: string, startMins: number, duration: number, type: string, group: string, col?: number, totalCols?: number }[] = [];
     if (showVisual) {
         const baseEvents = uniqueSchedules.map(scheduleStr => {
-            const match = scheduleStr.match(/(.+) Session (\d+) \((\d+):00 UTC\)/);
+            const match = scheduleStr.match(/(.+) Session (\d+) \((\d{1,2}):(\d{2}) UTC\)/);
             if (!match) return null;
             const sa = match[1];
             const num = match[2];
-            const startMins = parseInt(match[3], 10) * 60;
+            const startH = parseInt(match[3], 10);
+            const startM = parseInt(match[4], 10);
+            const startMins = (startH * 60) + startM;
             return { id: scheduleStr, title: `${sa} S${num}`, startMins, duration: sessionLength, type: 'session', group: sa };
         }).filter((ev): ev is NonNullable<typeof ev> => Boolean(ev));
 

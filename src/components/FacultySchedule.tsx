@@ -4,7 +4,7 @@ import { sessions, getEligibleFaculty, autoAssignFaculty, enrichFaculty } from '
 import type { Faculty, SessionId } from '../lib/facultyMatcher';
 import { activePlanningSessions, isPlanningSessionActive } from '../lib/sessionCatalog';
 import { useI18n } from '../i18n';
-import { getKnownUtcOffset, getEffectiveSessionUtcHour, getLocalTimeForUtcHour, extractScheduleKey, formatUtcHourLabel, makeSessionInstanceOverrideKey, wrapUtcHour } from '../lib/timezones';
+import { getKnownUtcOffset, getEffectiveSessionUtcHour, getLocalTimeForUtcHour, extractScheduleKey, formatUtcHourLabel, makeSessionInstanceOverrideKey, wrapUtcHour, parseSessionDate } from '../lib/timezones';
 
 // Shared assignment shape used by Dashboard, FacultySchedule, and Summary
 export type FacultyAssignments = Record<string, Record<string, Record<SessionId, Faculty | null>>>;
@@ -62,7 +62,11 @@ export function FacultySchedule({
     const currentAssignments = allAssignments[selectedSA] || {};
 
     const getConflict = (facultyName: string, targetSchedule: string, targetSessionId: SessionId, targetSA: string): string | null => {
+        const targetSession = sessions.find(s => s.id === targetSessionId);
+        if (!targetSession) return null;
+        
         const targetUtcHour = getEffectiveSessionUtcHour(targetSA, targetSchedule, targetSessionId, sessionInstanceTimeOverrides, sessionTimeOverrides);
+        const targetStartTime = parseSessionDate(targetSession.date).getTime() + targetUtcHour * 60 * 60 * 1000;
         
         for (const sa of Object.keys(allAssignments)) {
             const saAssignments = allAssignments[sa];
@@ -70,6 +74,9 @@ export function FacultySchedule({
                 const sessionAssignments = saAssignments[schedule];
                 for (const sessionId of Object.keys(sessionAssignments)) {
                     if (!isPlanningSessionActive(sessionId)) continue;
+                    // Skip if it's the exact same session instance
+                    if (sa === targetSA && schedule === targetSchedule && sessionId === targetSessionId) continue;
+                    
                     const utcHour = getEffectiveSessionUtcHour(sa, schedule, sessionId as SessionId, sessionInstanceTimeOverrides, sessionTimeOverrides);
                     if (utcHour !== targetUtcHour) continue;
                     // Only flag conflicts if they occur in a DIFFERENT Solution Area
@@ -77,9 +84,23 @@ export function FacultySchedule({
                     
                     const assigned = sessionAssignments[sessionId as SessionId];
                     if (assigned && assigned.name === facultyName) {
-                        const topicObj = sessions.find(s => s.id === sessionId);
-                        const topicName = topicObj ? topicObj.title : sessionId;
-                        return `${sa} - ${topicName}`; 
+                        const session = sessions.find(s => s.id === sessionId);
+                        if (!session) continue;
+                        
+                        const utcHour = getEffectiveSessionUtcHour(sa, schedule, sessionId as SessionId, sessionInstanceTimeOverrides, sessionTimeOverrides);
+                        const startTime = parseSessionDate(session.date).getTime() + utcHour * 60 * 60 * 1000;
+                        
+                        const diffMinutes = Math.abs(targetStartTime - startTime) / (1000 * 60);
+                        
+                        if (diffMinutes < 150) {
+                            const topicObj = sessions.find(s => s.id === sessionId);
+                            const topicName = topicObj ? topicObj.title : sessionId;
+                            const scheduleLabel = extractScheduleKey(schedule).replace(`${sa} `, '');
+                            // If it's on a different day, it won't be caught by the < 150 check anyway.
+                            // If same day but different schedule, mention the schedule label.
+                            const locationInfo = sa === targetSA ? `${scheduleLabel} - ${topicName}` : `${sa} - ${topicName}`;
+                            return locationInfo; 
+                        }
                     }
                 }
             }
@@ -106,7 +127,7 @@ export function FacultySchedule({
         });
     };
 
-    const handleSessionHourChange = (schedule: string, sessionId: SessionId, delta: number) => {
+    const handleSessionTimeAdjustment = (schedule: string, sessionId: SessionId, delta: number) => {
         if (!onSessionInstanceTimeOverridesChange) return;
         const key = makeSessionInstanceOverrideKey(selectedSA, schedule, sessionId);
         const currentHour = getEffectiveSessionUtcHour(selectedSA, schedule, sessionId, sessionInstanceTimeOverrides, sessionTimeOverrides);
@@ -200,9 +221,9 @@ export function FacultySchedule({
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleSessionHourChange(schedule, session.id, -1)}
+                                                    onClick={() => handleSessionTimeAdjustment(schedule, session.id, -0.25)}
                                                     style={{ border: '1px solid #cbd5e1', background: '#fff', borderRadius: '6px', padding: '0.2rem', display: 'flex', cursor: 'pointer' }}
-                                                    title="Move session 1 hour earlier"
+                                                    title="Move session 15 mins earlier"
                                                 >
                                                     <Minus size={12} />
                                                 </button>
@@ -211,9 +232,9 @@ export function FacultySchedule({
                                                 </span>
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleSessionHourChange(schedule, session.id, 1)}
+                                                    onClick={() => handleSessionTimeAdjustment(schedule, session.id, 0.25)}
                                                     style={{ border: '1px solid #cbd5e1', background: '#fff', borderRadius: '6px', padding: '0.2rem', display: 'flex', cursor: 'pointer' }}
-                                                    title="Move session 1 hour later"
+                                                    title="Move session 15 mins later"
                                                 >
                                                     <Plus size={12} />
                                                 </button>

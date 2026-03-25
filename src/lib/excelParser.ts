@@ -1,4 +1,5 @@
 import * as xlsx from 'xlsx';
+import { formatUtcHourLabel } from './timezones';
 import type { AllocationRule } from '../components/RuleBuilder';
 import type { RunSnapshot } from './runHistoryStorage';
 
@@ -159,7 +160,7 @@ export const generateExcel = (data: StudentRecord[], config?: Partial<RunSnapsho
             Object.entries(config.sessionInstanceTimeOverrides)
                 .sort(([a], [b]) => a.localeCompare(b))
                 .forEach(([key, hour]) => {
-                    configData.push({ Parameter: key, Value: `${hour}:00 UTC` });
+                    configData.push({ Parameter: key, Value: formatUtcHourLabel(hour) });
                 });
         }
 

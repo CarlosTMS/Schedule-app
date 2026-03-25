@@ -5,7 +5,7 @@ import type { SME } from '../lib/smeMatcher';
 import { autoAssignFaculty, enrichFaculty } from '../lib/facultyMatcher';
 import type { Faculty } from '../lib/facultyMatcher';
 import { activePlanningSessions } from '../lib/sessionCatalog';
-import { extractScheduleKey, getEffectiveSessionUtcHour, formatUtcHourLabel, getLocalTimeForUtcHour } from '../lib/timezones';
+import { extractScheduleKey, getEffectiveSessionUtcHour, formatUtcHourLabel, getLocalTimeForUtcHour, parseSessionDate } from '../lib/timezones';
 import type { SmeAssignments } from './SMESchedule';
 import type { FacultyAssignments } from './FacultySchedule';
 import { useI18n } from '../i18n';
@@ -62,13 +62,15 @@ const toUtcIcsDate = (date: Date): string => {
 };
 
 const buildUtcDateForSession = (sessionDateLabel: string, utcHour: number): Date => {
-    const baseDate = new Date(`${sessionDateLabel} 00:00:00 UTC`);
+    const baseDate = parseSessionDate(sessionDateLabel);
+    const hours = Math.floor(utcHour);
+    const minutes = Math.round((utcHour % 1) * 60);
     return new Date(Date.UTC(
         baseDate.getUTCFullYear(),
         baseDate.getUTCMonth(),
         baseDate.getUTCDate(),
-        utcHour,
-        0,
+        hours,
+        minutes,
         0,
         0
     ));
