@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Download, Users, AlertTriangle, Calendar as CalendarIcon } from 'lucide-react';
-import { loadEvaluatorsFromPublic, type EvaluatorRecord, type StudentRecord } from '../lib/excelParser';
+import type { StudentRecord } from '../lib/excelParser';
 import { assignEvaluators, type EvaluationEngineOutput } from '../lib/evaluationEngine';
 import type { FacultyAssignments } from './FacultySchedule';
+import evaluatorsData from '../evaluators-data.json';
 
 interface EvaluationsProps {
     records: StudentRecord[];
@@ -10,33 +11,13 @@ interface EvaluationsProps {
 }
 
 export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
-    const [evaluators, setEvaluators] = useState<EvaluatorRecord[]>([]);
+    const evaluators = evaluatorsData as any[];
     const [evalDate, setEvalDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [includeRAD, setIncludeRAD] = useState<boolean>(true);
     const [output, setOutput] = useState<EvaluationEngineOutput | null>(null);
-    const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        setLoading(true);
-        setError(null);
-        loadEvaluatorsFromPublic()
-            .then(parsed => {
-                if (parsed.length === 0) {
-                    setError("No valid evaluators found in 'Evaluators.xlsx'.");
-                } else {
-                    setEvaluators(parsed);
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                setError("Could not automatically load 'Evaluators.xlsx' from the local project folder. Please ensure the file exists in the public directory.");
-            })
-            .finally(() => setLoading(false));
-    }, []);
-
     const handleRunAssignment = () => {
-        if (evaluators.length === 0) return;
         const dateObj = new Date(evalDate);
         if (isNaN(dateObj.getTime())) {
             setError("Invalid date selected.");
@@ -91,7 +72,7 @@ export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
                     <Users className="text-primary" /> Evaluation Assignments
                 </h2>
                 <p style={{ color: 'var(--text-secondary)' }}>
-                    VATs are automatically assigned to the evaluators listed in the local <strong>Evaluators.xlsx</strong> file based on timezone proximity and Solution Area matching.
+                    VATs are automatically assigned to the evaluators embedded in the application based on timezone proximity and Solution Area matching.
                 </p>
             </div>
 
@@ -104,10 +85,10 @@ export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
             <div className="controls glass-panel" style={{ padding: '1.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', alignItems: 'flex-end', marginBottom: '2rem' }}>
                 <div className="form-group">
                     <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <Users size={16} /> Evaluators Source
+                        <Users size={16} /> Evaluators Pool
                     </label>
                     <div style={{ padding: '0.75rem', background: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 500 }}>
-                        {loading ? 'Loading evaluators...' : `${evaluators.length} Evaluators Loaded (Auto)`}
+                        {evaluators.length} Evaluators Registered
                     </div>
                 </div>
 
@@ -140,7 +121,6 @@ export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
                     <button 
                         onClick={handleRunAssignment} 
                         className="btn btn-primary w-full" 
-                        disabled={evaluators.length === 0}
                         style={{ justifyContent: 'center' }}
                     >
                         Run Assignment

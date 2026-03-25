@@ -1,0 +1,158 @@
+[
+  {
+    "Faculty Name": "David Uichanco",
+    "City Location": "San Francisco",
+    "Country Location": "USA",
+    "Role": "Faculty"
+  },
+  {
+    "Faculty Name": "Sandra Bissels",
+    "City Location": "Amsterdam",
+    "Country Location": "Nederlands",
+    "Role": "Faculty"
+  },
+  {
+    "Faculty Name": "Carlos Moreno",
+    "City Location": "Frankfurt",
+    "Country Location": "Germany",
+    "Role": "Faculty"
+  },
+  {
+    "Faculty Name": "Amy Hawkins",
+    "City Location": "Perth",
+    "Country Location": "Australia",
+    "Role": "Faculty"
+  },
+  {
+    "Faculty Name": "Nelly Rebollo",
+    "City Location": "Mexico DF",
+    "Country Location": "Mexico",
+    "Role": "Faculty"
+  },
+  {
+    "Faculty Name": "Jessica Zhang",
+    "City Location": "San Francisco",
+    "Country Location": "USA",
+    "Role": "Faculty"
+  },
+  {
+    "Faculty Name": "Godfrey Leung",
+    "City Location": "San Francisco",
+    "Country Location": "USA",
+    "Role": "Faculty"
+  },
+  {
+    "Faculty Name": "Daron Smith",
+    "City Location": "San Francisco",
+    "Country Location": "USA",
+    "Role": "Faculty"
+  },
+  {
+    "Faculty Name": "Rissa Colayco",
+    "City Location": "Manila",
+    "Country Location": "Philipines",
+    "Role": "Faculty"
+  },
+  {
+    "Faculty Name": "Maggie Ramaiah",
+    "City Location": "San Francisco",
+    "Country Location": "USA",
+    "Role": "Faculty"
+  },
+  {
+    "Faculty Name": "Ivan Aguilar",
+    "City Location": "Chicago",
+    "Country Location": "USA",
+    "Role": "Faculty"
+  },
+  {
+    "Faculty Name": "Fernando Sanchez",
+    "City Location": "San Francisco",
+    "Country Location": "USA",
+    "Role": "Faculty"
+  },
+  {
+    "Faculty Name": "Hanna Aalen",
+    "City Location": "Oslo",
+    "Country Location": "Noruega",
+    "Role": "Faculty"
+  },
+  {
+    "Faculty Name": "Juan Gonzalez",
+    "City Location": "Madrid",
+    "Country Location": "Spain",
+    "Role": "Faculty"
+  },
+  {
+    "Faculty Name": "Nick Goffi",
+    "City Location": "Atlanta",
+    "Country Location": "USA",
+    "Role": "Faculty"
+  },
+  {
+    "Faculty Name": "Pau Pujol",
+    "City Location": "Barcelona",
+    "Country Location": "Spain",
+    "Role": "Faculty"
+  },
+  {
+    "Faculty Name": "Bradley Cox",
+    "City Location": "London",
+    "Country Location": "England",
+    "Role": "RAD"
+  },
+  {
+    "Faculty Name": "Betriz Garrido",
+    "City Location": "Madrid",
+    "Country Location": "Spain",
+    "Role": "RAD"
+  },
+  {
+    "Faculty Name": "Tina Grejsen",
+    "City Location": "Barcelona",
+    "Country Location": "Spain",
+    "Role": "RAD"
+  },
+  {
+    "Faculty Name": "Ed Kipley",
+    "City Location": "Atlanta",
+    "Country Location": "USA",
+    "Role": "RAD"
+  },
+  {
+    "Faculty Name": "Hans Loekkegard",
+    "City Location": "London",
+    "Country Location": "England",
+    "Role": "RAD"
+  },
+  {
+    "Faculty Name": "Katie McKenna",
+    "City Location": "Boston",
+    "Country Location": "USA",
+    "Role": "RAD"
+  },
+  {
+    "Faculty Name": "Hellen Milan",
+    "City Location": "Sao Paolo",
+    "Country Location": "Brazil",
+    "Role": "RAD"
+  },
+  {
+    "Faculty Name": "Verena Mühlbauer",
+    "City Location": "Frankfurt",
+    "Country Location": "Germany",
+    "Role": "RAD"
+  },
+  {
+    "Faculty Name": "Caro Schoder",
+    "City Location": "Frankfurt",
+    "Country Location": "Germany",
+    "Role": "RAD"
+  },
+  {
+    "Faculty Name": "Marcel Storost",
+    "City Location": "Berlin",
+    "Country Location": "Germany",
+    "Role": "RAD"
+  }
+]
