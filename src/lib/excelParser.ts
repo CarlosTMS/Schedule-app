@@ -97,6 +97,41 @@ export const parseExcel = async (file: File): Promise<StudentRecord[]> => {
     });
 };
 
+export interface EvaluatorRecord {
+    'Faculty Name': string;
+    'City Location': string;
+    'Country Location': string;
+    'Role': string;
+}
+
+export const parseEvaluatorsExcel = async (file: File): Promise<EvaluatorRecord[]> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = xlsx.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const rawData = xlsx.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: "" });
+
+                const records: EvaluatorRecord[] = rawData.map(row => ({
+                    'Faculty Name': String(row['Faculty Name'] || ''),
+                    'City Location': String(row['City Location'] || ''),
+                    'Country Location': String(row['Country Location'] || ''),
+                    'Role': String(row['Role'] || ''),
+                })).filter(r => r['Faculty Name'].trim() !== '');
+
+                resolve(records);
+            } catch (err) {
+                reject(err);
+            }
+        };
+        reader.onerror = (err) => reject(err);
+        reader.readAsArrayBuffer(file);
+    });
+};
+
 export const generateExcel = (data: StudentRecord[], config?: Partial<RunSnapshot>, filename: string = 'Scheduler_Results.xlsx') => {
     // Strip internal fields starting with '_'
     const exportData = data.map(record => {

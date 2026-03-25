@@ -15,6 +15,7 @@ import type { FacultyAssignments } from './FacultySchedule';
 import { FacultyDebriefSchedule } from './FacultyDebriefSchedule';
 import { Summary } from './Summary';
 import { CalendarBlockers } from './CalendarBlockers';
+import { Evaluations } from './Evaluations';
 import { useI18n } from '../i18n';
 import { loadSMEData, forceFetchSMEData } from '../lib/smeDataLoader';
 import type { SMECacheStatus } from '../lib/smeDataLoader';
@@ -50,7 +51,7 @@ interface DashboardProps {
     versionLabel?: string | null;
 }
 
-type TabType = 'overview' | 'sessions' | 'smes' | 'faculty' | 'summary' | 'blockers' | 'debrief' | 'vats' | 'data';
+type TabType = 'overview' | 'sessions' | 'smes' | 'faculty' | 'summary' | 'blockers' | 'debrief' | 'vats' | 'data' | 'evaluations';
 
 export function Dashboard({
     result, onReset, previousMetrics, sessionLength = 90,
@@ -329,6 +330,7 @@ export function Dashboard({
         { id: 'blockers', icon: CalendarPlus, label: t('navBlockers') },
         { id: 'vats', icon: Users, label: t('navVATs') },
         { id: 'data', icon: Database, label: t('navData') },
+        { id: 'evaluations', icon: Users, label: 'Evaluations' },
     ] as const;
 
     return (
@@ -744,6 +746,15 @@ export function Dashboard({
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'evaluations' && (
+                    <div className="animated-fade-in">
+                        <Evaluations
+                            records={localRecords}
+                            facultyAssignments={manualFacultyAssignments}
+                        />
                     </div>
                 )}
             </div>
