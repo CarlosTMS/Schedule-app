@@ -140,6 +140,9 @@ const buildKpSessionName = (sessionId: SessionId, schedule: string): string => {
     return `${KP_SESSION_NAMES[sessionId]} (${scheduleKey})`;
 };
 
+const buildPreWorkSessionName = (sessionId: SessionId, schedule: string): string =>
+    `Finalize pre-work for ${buildKpSessionName(sessionId, schedule)}`;
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 /**
@@ -539,6 +542,50 @@ export function Summary({
         URL.revokeObjectURL(url);
     };
 
+    const handleExportPreWork = () => {
+        const header = [
+            'Session Name',
+            'Calendar Start',
+            'Calendar End',
+            'Facilitator',
+            'Producer',
+            'Num of Participants',
+            'Participants',
+        ];
+
+        const rows = sessionRows.map(row => {
+            const liveSessionStartUtc = buildUtcDateForSession(row.sessionDef.date, row.utcHour);
+            const preWorkStartUtc = new Date(liveSessionStartUtc.getTime() - (60 * 60 * 1000));
+            const preWorkEndUtc = new Date(preWorkStartUtc.getTime() + (60 * 60 * 1000));
+            const participants = row.attendees
+                .map(attendee => attendee['Full Name'] ?? '')
+                .filter(Boolean)
+                .join(',');
+
+            return [
+                buildPreWorkSessionName(row.sessionDef.id, row.schedule),
+                toKpDateTime(preWorkStartUtc),
+                toKpDateTime(preWorkEndUtc),
+                '',
+                '',
+                row.attendees.length,
+                participants,
+            ];
+        });
+
+        const csvContent = [header, ...rows]
+            .map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+            .join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `summary_prework_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     // ── Publish to local API ────────────────────────────────────────────────
 
     const handlePublishAPI = async () => {
@@ -633,6 +680,13 @@ export function Summary({
                         style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}
                     >
                         <FileText size={16} /> {t('exportKP')}
+                    </button>
+                    <button
+                        onClick={handleExportPreWork}
+                        className="btn btn-secondary"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}
+                    >
+                        <FileText size={16} /> {t('exportPreWork')}
                     </button>
                     <button
                         onClick={handlePublishAPI}

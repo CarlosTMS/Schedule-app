@@ -1,0 +1,978 @@
+[
+  {
+    "name": "Aarohi Tamhane",
+    "email": "aarohi.tamhane@sap.com"
+  },
+  {
+    "name": "Abdallah ElZamli",
+    "email": "abdallah.elzamli@sap.com"
+  },
+  {
+    "name": "Abdullah Aldughaimi",
+    "email": "abdullah.aldughaimi@sap.com"
+  },
+  {
+    "name": "Adrian Ceci Berglund",
+    "email": "adrian.berglund.ceci@sap.com"
+  },
+  {
+    "name": "Adzra (Ara) Alifia\u00a0Isma ",
+    "email": "adzra.isma@sap.com"
+  },
+  {
+    "name": "Albin Juhlin",
+    "email": "albin.juhlin@sap.com"
+  },
+  {
+    "name": "Alessandro Bonadeo",
+    "email": "alessandro.bonadeo@sap.com"
+  },
+  {
+    "name": "Alessandro Elio Corso",
+    "email": "alessandro.corso@sap.com"
+  },
+  {
+    "name": "Alexander Emhart",
+    "email": "alex.emhart@sap.com"
+  },
+  {
+    "name": "Alexander Ruf",
+    "email": "alexander.ruf@sap.com"
+  },
+  {
+    "name": "Alexander Seper",
+    "email": "alexander.seper@sap.com"
+  },
+  {
+    "name": "Alexandra Rennie",
+    "email": "alex.rennie@sap.com"
+  },
+  {
+    "name": "Alexandra Sophia Craig",
+    "email": "alexandra.craig@sap.com"
+  },
+  {
+    "name": "Alexis Phoebe Ngitngit",
+    "email": "alexis.phoebe.ngitngit@sap.com"
+  },
+  {
+    "name": "Ali Alshaikh",
+    "email": "ali.alshaikh@sap.com"
+  },
+  {
+    "name": "Alice Chen",
+    "email": "alice.chen02@sap.com"
+  },
+  {
+    "name": "Alice Valenzano",
+    "email": "alice.valenzano@sap.com"
+  },
+  {
+    "name": "Alicia Wittmer",
+    "email": "alicia.wittmer@sap.com"
+  },
+  {
+    "name": "Allen Cloyd Malayo",
+    "email": "allen.malayo@sap.com"
+  },
+  {
+    "name": "Allina von Pflug",
+    "email": "allina.von.pflug@sap.com"
+  },
+  {
+    "name": "Amanda Reed",
+    "email": "amanda.reed@sap.com"
+  },
+  {
+    "name": "Ana Chatrina von Albertini",
+    "email": "tina.von.albertini@sap.com"
+  },
+  {
+    "name": "Andrew Huang",
+    "email": "andrew.huang06@sap.com"
+  },
+  {
+    "name": "Andrew Kheir",
+    "email": "andrew.kheir@sap.com"
+  },
+  {
+    "name": "Andrew Knoebel",
+    "email": "andrew.knoebel@sap.com"
+  },
+  {
+    "name": "Andries D'hondt",
+    "email": "andries.d-hondt@sap.com"
+  },
+  {
+    "name": "Angela Michaelis",
+    "email": "angela.michaelis@sap.com"
+  },
+  {
+    "name": "Ankit Joshi",
+    "email": "ankit.joshi@sap.com"
+  },
+  {
+    "name": "Anna Hayden",
+    "email": "anna.hayden@sap.com"
+  },
+  {
+    "name": "Anne Tran",
+    "email": "anne.tran@sap.com"
+  },
+  {
+    "name": "Annika Schwede",
+    "email": "annika.schwede@sap.com"
+  },
+  {
+    "name": "Anouk Le Frapper",
+    "email": "anouk.le.frapper@sap.com"
+  },
+  {
+    "name": "Antonino Di Prima",
+    "email": "toni.di.prima@sap.com"
+  },
+  {
+    "name": "Arjan Aliji",
+    "email": "arjan.aliji@sap.com"
+  },
+  {
+    "name": "Asmaa Modak",
+    "email": "asmaa.modak@sap.com"
+  },
+  {
+    "name": "Atsushi Iwamoto",
+    "email": "atsushi.iwamoto@sap.com"
+  },
+  {
+    "name": "Bailey Chow",
+    "email": "pui.lam.chow@sap.com"
+  },
+  {
+    "name": "Benjamin Barnett",
+    "email": "ben.barnett@sap.com"
+  },
+  {
+    "name": "Berat Miftari",
+    "email": "berat.miftari@sap.com"
+  },
+  {
+    "name": "Berfin Turan",
+    "email": "berfin.turan@sap.com"
+  },
+  {
+    "name": "Berkan Canli",
+    "email": "berkan.canli@sap.com"
+  },
+  {
+    "name": "Bertina Omondi",
+    "email": "bertina.omondi@sap.com"
+  },
+  {
+    "name": "Brandon Rivas",
+    "email": "brandon.rivas@sap.com"
+  },
+  {
+    "name": "Brendan Monaghan",
+    "email": "brendan.monaghan@sap.com"
+  },
+  {
+    "name": "Brennan Young",
+    "email": "brennan.young@sap.com"
+  },
+  {
+    "name": "Brian Wetzler-Villanti",
+    "email": "brian.wezler-villanti@sap.com"
+  },
+  {
+    "name": "Bugse Tunc",
+    "email": "bugse.tunc@sap.com"
+  },
+  {
+    "name": "Cara Baumgartner",
+    "email": "cara.baumgartner@sap.com"
+  },
+  {
+    "name": "Carl Olsson",
+    "email": "alexander.olsson@sap.com"
+  },
+  {
+    "name": "Carlota Inarra Badiola",
+    "email": "carlota.inarra.badiola@sap.com"
+  },
+  {
+    "name": "Carly Dunn",
+    "email": "carly.dunn@sap.com"
+  },
+  {
+    "name": "Caroline Kjeldsen",
+    "email": "caroline.kjeldsen@sap.com"
+  },
+  {
+    "name": "Catherine Pe Benito",
+    "email": "catherine.pe.benito@sap.com"
+  },
+  {
+    "name": "Charles Goldspink",
+    "email": "charles.goldspink@sap.com"
+  },
+  {
+    "name": "Chie Yuu",
+    "email": "chie.yuu@sap.com"
+  },
+  {
+    "name": "Cici Su",
+    "email": "yuqian.su@sap.com"
+  },
+  {
+    "name": "Clarissa Trott",
+    "email": "clarissa.trott@sap.com"
+  },
+  {
+    "name": "Claudia Stradiotti",
+    "email": "claudia.stradiotti@sap.com"
+  },
+  {
+    "name": "Collin Weaver",
+    "email": "collin.weaver@sap.com"
+  },
+  {
+    "name": "Damian Camilo Matiz Bilbao",
+    "email": "damian.camilo.matiz.bilbao@sap.com"
+  },
+  {
+    "name": "Danah Almajnooni",
+    "email": "danah.almajnooni@sap.com"
+  },
+  {
+    "name": "David Iraoya",
+    "email": "david.iraoya@sap.com"
+  },
+  {
+    "name": "Davide Giaimo",
+    "email": "davide.giaimo@sap.com"
+  },
+  {
+    "name": "Denisse Alvarado",
+    "email": "denisse.alvarado@sap.com"
+  },
+  {
+    "name": "Dennis Horich",
+    "email": "dennis.horich@sap.com"
+  },
+  {
+    "name": "Devon Panes",
+    "email": "devon.panes@sap.com"
+  },
+  {
+    "name": "Dias Daffa Wiwaha",
+    "email": "dias.wiwaha@sap.com"
+  },
+  {
+    "name": "Dji Neubert",
+    "email": "dji.neubert@sap.com"
+  },
+  {
+    "name": "Elliot Bakker",
+    "email": "elliot.bakker@sap.com"
+  },
+  {
+    "name": "Emma Korhonen",
+    "email": "emma.korhonen@sap.com"
+  },
+  {
+    "name": "Emma Thompson",
+    "email": "emma.thompson@sap.com"
+  },
+  {
+    "name": "Eric Elgaard",
+    "email": "eric.elgaard@sap.com"
+  },
+  {
+    "name": "Eric Taiki Murakami",
+    "email": "eric.murakami@sap.com"
+  },
+  {
+    "name": "Ethan Bendahan",
+    "email": "ethan.bendahan@sap.com"
+  },
+  {
+    "name": "Ethan Guy",
+    "email": "ethan.guy@sap.com"
+  },
+  {
+    "name": "Ethan Lord",
+    "email": "ethan.lord@sap.com"
+  },
+  {
+    "name": "Evrard Becheau La Fonta",
+    "email": "evrard.becheau.la.fonta@sap.com"
+  },
+  {
+    "name": "Fawad Abbaszadah",
+    "email": "fawad.abbaszadah@sap.com"
+  },
+  {
+    "name": "Filippo Cervetto",
+    "email": "filippo.cervetto@sap.com"
+  },
+  {
+    "name": "Fiorella Nina",
+    "email": "fiorella.nina@sap.com"
+  },
+  {
+    "name": "Francisco Santiago",
+    "email": "francisco.santiago.hurtado.de.mendoza@sap.com"
+  },
+  {
+    "name": "Frederick K\u00fcnstler",
+    "email": "frederick.kuenstler@sap.com"
+  },
+  {
+    "name": "Frederik Storm",
+    "email": "frederik.storm@sap.com"
+  },
+  {
+    "name": "Gabriele Ferrari",
+    "email": "gabriele.ferrari@sap.com"
+  },
+  {
+    "name": "Giang Nguyen",
+    "email": "giang.nguyen01@sap.com"
+  },
+  {
+    "name": "Giulia Louren\u00e7\u00e3o",
+    "email": "giulia.lourencao@sap.com"
+  },
+  {
+    "name": "Giulia Mulazzi",
+    "email": "giulia.mulazzi@sap.com"
+  },
+  {
+    "name": "Glenn Colbers",
+    "email": "glenn.colbers@sap.com"
+  },
+  {
+    "name": "Gonzalo Alvarez",
+    "email": "gonzalo.alvarez@sap.com"
+  },
+  {
+    "name": "Haley Burchett",
+    "email": "haley.burchett@sap.com"
+  },
+  {
+    "name": "Hana Medhat Abdelkader",
+    "email": "hana.abdelkader@sap.com"
+  },
+  {
+    "name": "Hanna Feuerstein",
+    "email": "hanna.feuerstein@sap.com"
+  },
+  {
+    "name": "Hannah Shimoga",
+    "email": "hannah.shimoga@sap.com"
+  },
+  {
+    "name": "Harry Tse",
+    "email": "harry.tse@sap.com"
+  },
+  {
+    "name": "Heather Geisler",
+    "email": "heather.geisler@sap.com"
+  },
+  {
+    "name": "H\u00fcseyin Kaplan",
+    "email": "hueseyin.kaplan@sap.com"
+  },
+  {
+    "name": "Hyun Seok Jung",
+    "email": "hyun.seok.jung@sap.com"
+  },
+  {
+    "name": "Ishika Dhall",
+    "email": "ishika.dhall@sap.com"
+  },
+  {
+    "name": "Jack Puccio",
+    "email": "jack.puccio@sap.com"
+  },
+  {
+    "name": "Jacqueline Webb",
+    "email": "jacqueline.webb@sap.com"
+  },
+  {
+    "name": "Jade Folly",
+    "email": "jade.folly@sap.com"
+  },
+  {
+    "name": "Jaikiran Chahal",
+    "email": "jai.chahal@sap.com"
+  },
+  {
+    "name": "Jake Miller",
+    "email": "jake.miller@sap.com"
+  },
+  {
+    "name": "Janina H\u00f6rdt",
+    "email": "janina.hoerdt@sap.com"
+  },
+  {
+    "name": "Janne de Jong",
+    "email": "janne.de.jong@sap.com"
+  },
+  {
+    "name": "Jardin Atici",
+    "email": "jardin.atici@sap.com"
+  },
+  {
+    "name": "Jasper Pfannenstiel",
+    "email": "jasper.pfannenstiel@sap.com"
+  },
+  {
+    "name": "Jaycee Webster",
+    "email": "jaycee.webster@sap.com"
+  },
+  {
+    "name": "Jayde Xu",
+    "email": "bowen.xu@sap.com"
+  },
+  {
+    "name": "Jeevan Joseph",
+    "email": "jeevan.joseph.mattapparampil@sap.com"
+  },
+  {
+    "name": "Jinwei Chen\u00a0",
+    "email": "joey.chen01@sap.com"
+  },
+  {
+    "name": "Joan Coello",
+    "email": "joan.coello@sap.com"
+  },
+  {
+    "name": "Joana Bettencourt",
+    "email": "joana.bettencourt@sap.com"
+  },
+  {
+    "name": "Joao Pinheiro",
+    "email": "joao.pinheiro@sap.com"
+  },
+  {
+    "name": "Johanna Lauer",
+    "email": "johanna.lauer@sap.com"
+  },
+  {
+    "name": "Johanna Schreiter",
+    "email": "johanna.schreiter@sap.com"
+  },
+  {
+    "name": "Johnson Xiu Yang Wong",
+    "email": "johnson.wong01@sap.com"
+  },
+  {
+    "name": "Jonathan Specking",
+    "email": "jonathan.specking@sap.com"
+  },
+  {
+    "name": "Jongseok Yu",
+    "email": "jongseok.yu@sap.com"
+  },
+  {
+    "name": "Jordan Kuhn",
+    "email": "jordan.kuhn@sap.com"
+  },
+  {
+    "name": "Julia Bondezan",
+    "email": "julia.bondezan@sap.com"
+  },
+  {
+    "name": "Kaan Aydin",
+    "email": "k.aydin@sap.com"
+  },
+  {
+    "name": "Kamila Amara-Madi",
+    "email": "kamila.amara-madi@sap.com"
+  },
+  {
+    "name": "Kate Rooney",
+    "email": "kate.rooney@sap.com"
+  },
+  {
+    "name": "Ke (Fred) Li",
+    "email": "ke.li04@sap.com"
+  },
+  {
+    "name": "Kelley Nowlan",
+    "email": "kelley.nowlan@sap.com"
+  },
+  {
+    "name": "Kenza Izem",
+    "email": "kenza.izem@sap.com"
+  },
+  {
+    "name": "Kerim Sivaslioglu",
+    "email": "kerim.sivaslioglu@sap.com"
+  },
+  {
+    "name": "Krystal Chiang",
+    "email": "krystal.chiang@sap.com"
+  },
+  {
+    "name": "Kyle Scott",
+    "email": "kyle.scott@sap.com"
+  },
+  {
+    "name": "Labiba Khawaja",
+    "email": "labiba.khawaja@sap.com"
+  },
+  {
+    "name": "Lakshmi Nair",
+    "email": "lakshmi.nair02@sap.com"
+  },
+  {
+    "name": "Lana Wagner",
+    "email": "lana.wagner@sap.com"
+  },
+  {
+    "name": "Lea Pedroni",
+    "email": "lea.pedroni@sap.com"
+  },
+  {
+    "name": "Lea Zirkelbach",
+    "email": "lea.zirkelbach@sap.com"
+  },
+  {
+    "name": "Leen Alghunaim",
+    "email": "leen.alghunaim@sap.com"
+  },
+  {
+    "name": "Leila Bakhtous",
+    "email": "lenla.bakhtous@sap.com"
+  },
+  {
+    "name": "Lena Hopf",
+    "email": "lena.hopf@sap.com"
+  },
+  {
+    "name": "Leo Jidah",
+    "email": "leo.jidah@sap.com"
+  },
+  {
+    "name": "Letitia Toh",
+    "email": "letitia.toh@sap.com"
+  },
+  {
+    "name": "Letlotlo Baloyi",
+    "email": "letlotlo.baloyi@sap.com"
+  },
+  {
+    "name": "Lexi Wagstaff",
+    "email": "lexi.wagstaff@sap.com"
+  },
+  {
+    "name": "Lilian Adongo",
+    "email": "lilian.adongo@sap.com"
+  },
+  {
+    "name": "Linda Kirthova",
+    "email": "linda.kirthova@sap.com"
+  },
+  {
+    "name": "Lorenz Kalt",
+    "email": "lorenz.kalt@sap.com"
+  },
+  {
+    "name": "Luca Kainhofer",
+    "email": "luca.kainhofer@sap.com"
+  },
+  {
+    "name": "Lucian Lang",
+    "email": "lucian.lang@sap.com"
+  },
+  {
+    "name": "Lucie Petit",
+    "email": "lucie.petit@sap.com"
+  },
+  {
+    "name": "Ma (Beli) Ysabel Aurora Poe",
+    "email": "beli.poe@sap.com"
+  },
+  {
+    "name": "Madison Pinnel",
+    "email": "madison.pinnel@sap.com"
+  },
+  {
+    "name": "Marcel Lindner",
+    "email": "marcel.lindner@sap.com"
+  },
+  {
+    "name": "Maria Maras",
+    "email": "maria.maras@sap.com"
+  },
+  {
+    "name": "Maria Pessanha",
+    "email": "maria.eduarda.pessanha@sap.com"
+  },
+  {
+    "name": "Marwan Abdallah",
+    "email": "marwan.abdallah@sap.com"
+  },
+  {
+    "name": "Mary Anne Shaughnessy Cleary",
+    "email": "mary.anne.shaughnessy.cleary@sap.com"
+  },
+  {
+    "name": "Matheus Carlos Cirqueira",
+    "email": "matheus.cirqueira@sap.com"
+  },
+  {
+    "name": "Matt Steiert",
+    "email": "matt.steiert@sap.com"
+  },
+  {
+    "name": "Matthew Martinez",
+    "email": "matthew.martinez01@sap.com"
+  },
+  {
+    "name": "Matthew Pennycott",
+    "email": "matthew.pennycott@sap.com"
+  },
+  {
+    "name": "Matthieu Denis",
+    "email": "matthieu.denis@sap.com"
+  },
+  {
+    "name": "Mattias\u00a0 Fyhn",
+    "email": "mattias.fyhn@sap.com"
+  },
+  {
+    "name": "McAlister Bullard",
+    "email": "mcalister.bullard@sap.com"
+  },
+  {
+    "name": "McKenzie Carroll",
+    "email": "mackenzie.carroll@sap.com"
+  },
+  {
+    "name": "Melin Dogru",
+    "email": "melin.dogru@sap.com"
+  },
+  {
+    "name": "Micaela Harmon",
+    "email": "micaela.harmon@sap.com"
+  },
+  {
+    "name": "Michael Pesht",
+    "email": "michael.pesht@sap.com"
+  },
+  {
+    "name": "Miriam Vicente",
+    "email": "miriam.vicente@sap.com"
+  },
+  {
+    "name": "Mohamed Almansoori",
+    "email": "mohamed.almansoori@sap.com"
+  },
+  {
+    "name": "Mohamed Elsheshtawy",
+    "email": "mohamed.elsheshtawy@sap.com"
+  },
+  {
+    "name": "Mohammed Almustafa",
+    "email": "mohammed.almustafa@sap.com"
+  },
+  {
+    "name": "Molly Dankowski",
+    "email": "molly.dankowski@sap.com"
+  },
+  {
+    "name": "Morse Chen",
+    "email": "morse.chen@sap.com"
+  },
+  {
+    "name": "Moses Ma",
+    "email": "moses.ma@sap.com"
+  },
+  {
+    "name": "Muhammad Faris Hakimi Bin Mohd Najib",
+    "email": "muhammad.faris.hakimi.bin.mohd.najib@sap.com"
+  },
+  {
+    "name": "Nasir Abdelmutaal",
+    "email": "nasir.abdelmutaal@sap.com"
+  },
+  {
+    "name": "Nathan Pedersen",
+    "email": "nathan.pedersen@sap.com"
+  },
+  {
+    "name": "Natsumi Karakida",
+    "email": "natsumi.karakida@sap.com"
+  },
+  {
+    "name": "Nicholas Maciejewski",
+    "email": "nicholas.maciejewski@sap.com"
+  },
+  {
+    "name": "Nidhia Kalaparambath",
+    "email": "nidhia.kalaparambath@sap.com"
+  },
+  {
+    "name": "Nils Charvin",
+    "email": "nils.charvin@sap.com"
+  },
+  {
+    "name": "Nissa Setiyo",
+    "email": "nissa.setiyo@sap.com"
+  },
+  {
+    "name": "Paul Pfimlin",
+    "email": "paul.pflimlin@sap.com"
+  },
+  {
+    "name": "Paula Trogisch Ezquerra",
+    "email": "paula.trogisch.ezquerra@sap.com"
+  },
+  {
+    "name": "Paula Vargas",
+    "email": "paula.vargas@sap.com"
+  },
+  {
+    "name": "Pranav Priyanshu",
+    "email": "pranav.priyanshu@sap.com"
+  },
+  {
+    "name": "Rafael Fransen",
+    "email": "rafael.fransen@sap.com"
+  },
+  {
+    "name": "Raphael Gr\u00fcner",
+    "email": "raphael.gruener@sap.com"
+  },
+  {
+    "name": "Raphael Jarrell Yin-Chuan Yang",
+    "email": "jarrell.yang@sap.com"
+  },
+  {
+    "name": "Raphaela Amaral",
+    "email": "raphaela.amaral@sap.com"
+  },
+  {
+    "name": "Rebecca Nelmes",
+    "email": "rebecca.nelmes@sap.com"
+  },
+  {
+    "name": "Renate V\u00f6hringer",
+    "email": "renate.voehringer@sap.com"
+  },
+  {
+    "name": "Riley Fong",
+    "email": "riley.fong@sap.com"
+  },
+  {
+    "name": "Roberto Grassia",
+    "email": "roberto.grassia@sap.com"
+  },
+  {
+    "name": "Ronan Luo",
+    "email": "nan.luo@sap.com"
+  },
+  {
+    "name": "Ryo Hirose",
+    "email": "ryo.hirose@sap.com"
+  },
+  {
+    "name": "Ryutaro Yamasaki",
+    "email": "r.yamasaki@sap.com"
+  },
+  {
+    "name": "Sakina Shah",
+    "email": "sakina.shah@sap.com"
+  },
+  {
+    "name": "Salom\u00e9 Wedemayer",
+    "email": "salome.wedemeyer@sap.com"
+  },
+  {
+    "name": "Sam Lai",
+    "email": "ho.sum.lai@sap.com"
+  },
+  {
+    "name": "Sami Seppala",
+    "email": "sami.seppaelae@sap.com"
+  },
+  {
+    "name": "Sannan Ahmed",
+    "email": "sannan.ahmed@sap.com"
+  },
+  {
+    "name": "Sara Alothman",
+    "email": "sara.alothman@sap.com"
+  },
+  {
+    "name": "Sara Thamer",
+    "email": "sara.thamer@sap.com"
+  },
+  {
+    "name": "Sarah Ghafoor",
+    "email": "sarah.ghafoor@sap.com"
+  },
+  {
+    "name": "Sharon Mhwaghoti",
+    "email": "sharon.mwaghoti@sap.com"
+  },
+  {
+    "name": "Shaun Baloyi",
+    "email": "khululeka.baloyi@sap.com"
+  },
+  {
+    "name": "Shreeja Dutta",
+    "email": "shreeja.dutta@sap.com"
+  },
+  {
+    "name": "Simon Kutschera",
+    "email": "simon.kutschera@sap.com"
+  },
+  {
+    "name": "Simone Cattaneo",
+    "email": "simone.cattaneo@sap.com"
+  },
+  {
+    "name": "Sinem Sahin",
+    "email": "sinem.sahin@sap.com"
+  },
+  {
+    "name": "Sofie Rottmann",
+    "email": "sofie.rottmann@sap.com"
+  },
+  {
+    "name": "Sondos Isa",
+    "email": "sondos.isa@sap.com"
+  },
+  {
+    "name": "Sonya Dong",
+    "email": "siyan.dong@sap.com"
+  },
+  {
+    "name": "Spiridoula Kiriaki Gianniou",
+    "email": "spiridoula.gianniou@sap.com"
+  },
+  {
+    "name": "Stella He",
+    "email": "yuan.he01@sap.com"
+  },
+  {
+    "name": "Steven HENEIN",
+    "email": "steven.henein@sap.com"
+  },
+  {
+    "name": "Steven Huwald",
+    "email": "steven.huwald@sap.com"
+  },
+  {
+    "name": "Stiven Sch\u00e4fer",
+    "email": "stiven.schaefer@sap.com"
+  },
+  {
+    "name": "Sven Heppner",
+    "email": "sven.rainer.heppner@sap.com"
+  },
+  {
+    "name": "Swetlana Samanta",
+    "email": "lana.samanta@sap.com"
+  },
+  {
+    "name": "Tala Aljifri",
+    "email": "tala.aljifri@sap.com"
+  },
+  {
+    "name": "Theo Manihera",
+    "email": "theo.manihera@sap.com"
+  },
+  {
+    "name": "Tim Brunnabend",
+    "email": "t.brunnabend@sap.com"
+  },
+  {
+    "name": "Tom Turner",
+    "email": "tom.turner@sap.com"
+  },
+  {
+    "name": "Tom Yip",
+    "email": "t.yip@sap.com"
+  },
+  {
+    "name": "Tommy Fryar",
+    "email": "tommy.fryar@sap.com"
+  },
+  {
+    "name": "Vera Furrer",
+    "email": "vera.furrer@sap.com"
+  },
+  {
+    "name": "Vi Nguyen",
+    "email": "vi.nguyen01@sap.com"
+  },
+  {
+    "name": "Victoria Sjodin",
+    "email": "victoria.sjodin@sap.com"
+  },
+  {
+    "name": "Vincent Neuweiler",
+    "email": "vincent.neuweiler@sap.com"
+  },
+  {
+    "name": "Vitoria Gimenez",
+    "email": "vitoria.steffen@sap.com"
+  },
+  {
+    "name": "William Matthew",
+    "email": "william.matthew@sap.com"
+  },
+  {
+    "name": "Wilma Gr\u00f6nqvist",
+    "email": "wilma.groenqvist@sap.com"
+  },
+  {
+    "name": "Winfred Paul",
+    "email": "winfred.paul@sap.com"
+  },
+  {
+    "name": "Yang Yan",
+    "email": "yang.yan@sap.com"
+  },
+  {
+    "name": "Yani Diagne",
+    "email": "yani.diagne@sap.com"
+  },
+  {
+    "name": "Yani Talbi\u00a0",
+    "email": "yani.talbi@sap.com"
+  },
+  {
+    "name": "Yannick Saladin",
+    "email": "yannick.saladin@sap.com"
+  },
+  {
+    "name": "Yash Trivedi",
+    "email": "y.trivedi@sap.com"
+  },
+  {
+    "name": "Youssef Hady",
+    "email": "youssef.hady@sap.com"
+  },
+  {
+    "name": "Yuanyuan Hu",
+    "email": "yuanyuan.hu@sap.com"
+  },
+  {
+    "name": "Yueran Zhao",
+    "email": "yueran.zhao@sap.com"
+  },
+  {
+    "name": "Yusuf Shamtoot",
+    "email": "yusuf.shamtoot@sap.com"
+  },
+  {
+    "name": "Zackary Dirmeyer",
+    "email": "zackary.dirmeyer@sap.com"
+  }
+]

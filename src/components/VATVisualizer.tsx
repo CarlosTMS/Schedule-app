@@ -3,6 +3,7 @@ import type { StudentRecord } from '../lib/excelParser';
 import { AlertTriangle, Users, AlertCircle, Plus, CheckSquare, Square, Zap, Info, ArrowRight, Send, CheckCircle, CalendarDays, Calendar, RotateCcw } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { extractScheduleKey as tzExtractKey, formatUtcHourLabel } from '../lib/timezones';
+import { getAssociateEmail } from '../lib/associateEmailDirectory';
 
 interface VATVisualizerProps {
     records: StudentRecord[];
@@ -181,7 +182,7 @@ export function VATVisualizer({
                 schedules: Array.from(new Set(members.map(m => m.Schedule).filter(Boolean))).sort() as string[],
                 members: members.map(m => ({
                     name: m['Full Name'] ?? '',
-                    email: m.Email ?? '',
+                    email: getAssociateEmail(m['Full Name'], m.Email),
                     country: m.Country ?? '',
                     office: m.Office ?? '',
                     solution_area: getAssignedSA(m),
@@ -283,6 +284,9 @@ export function VATVisualizer({
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                         <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{s['Full Name']}</span>
                                         <span style={{ fontSize: '0.75rem', color: isDupe ? '#c2410c' : 'var(--text-secondary)' }}>{displayTitle}</span>
+                                        {getAssociateEmail(s['Full Name'], s.Email) && (
+                                            <span style={{ fontSize: '0.75rem', color: '#0369a1' }}>{getAssociateEmail(s['Full Name'], s.Email)}</span>
+                                        )}
                                     </div>
                                     <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'right' }}>
                                         <div>{s.Country}</div>

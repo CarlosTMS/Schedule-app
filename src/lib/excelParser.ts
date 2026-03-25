@@ -2,6 +2,7 @@ import * as xlsx from 'xlsx';
 import { formatUtcHourLabel } from './timezones';
 import type { AllocationRule } from '../components/RuleBuilder';
 import type { RunSnapshot } from './runHistoryStorage';
+import { getAssociateEmail } from './associateEmailDirectory';
 
 
 
@@ -71,7 +72,10 @@ export const parseExcel = async (file: File): Promise<StudentRecord[]> => {
                         'Full Name': getVal(['Full Name', 'Name']),
                         'Country': getVal(['Country']),
                         'Office': getVal(['Office', 'Location']),
-                        'Email': getVal(['Email', 'E-mail', 'Email Address', 'Mail']),
+                        'Email': getAssociateEmail(
+                            getVal(['Full Name', 'Name']),
+                            getVal(['Email', 'E-mail', 'Email Address', 'Mail'])
+                        ),
                         '(AA) Secondary Specialization': getVal(['(AA) Secondary Specialization', 'Secondary Specialization', 'Specialization', 'Role', 'Program']),
                         'Solution Weeks SA': rawSA,
                         '(AA) Business Group': bgValue,
@@ -151,14 +155,49 @@ export const generateExcel = (data: StudentRecord[], config?: Partial<RunSnapsho
         const cleanRecord: Record<string, unknown> = {};
         Object.keys(record).forEach(key => {
             if (!key.startsWith('_')) {
-                cleanRecord[key] = record[key as keyof StudentRecord];
+                if (key === 'Email') {
+                    cleanRecord[key] = getAssociateEmail(record['Full Name'], record.Email);
+                } else {
+                    cleanRecord[key] = record[key as keyof StudentRecord];
+                }
             }
         });
+
+        if (!('Email' in cleanRecord)) {
+            cleanRecord.Email = getAssociateEmail(record['Full Name'], record.Email);
+        }
         return cleanRecord;
     });
 
+    // Keep a stable column order and make Email explicit so it is always exported
+    const preferredHeaders = [
+        'Full Name',
+        'First Name',
+        'Last Name',
+        'Email',
+        'Country',
+        'Office',
+        '(AA) Secondary Specialization',
+        'Role',
+        'Program',
+        '(AA) Business Group',
+        'Solution Weeks SA',
+        'Schedule',
+        'VAT',
+        'Asignacion de SMEs',
+        'Asignacion de Faculty',
+    ];
+
+    const discoveredHeaders = Array.from(
+        new Set(exportData.flatMap(record => Object.keys(record)))
+    );
+    const orderedHeaders = [
+        ...preferredHeaders.filter(header => discoveredHeaders.includes(header) || header === 'Email'),
+        ...discoveredHeaders.filter(header => !preferredHeaders.includes(header)),
+    ];
+
     const workbook = xlsx.utils.book_new();
-    const worksheet = xlsx.utils.json_to_sheet(exportData);
+    const worksheet = xlsx.utils.json_to_sheet(exportData, { header: orderedHeaders });
     xlsx.utils.book_append_sheet(workbook, worksheet, "Results");
 
     if (config) {

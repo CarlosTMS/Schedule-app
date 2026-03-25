@@ -7,6 +7,7 @@ import type { SME, SessionId as SmeSessionId } from './smeMatcher';
 import type { Faculty, SessionId as FacultySessionId } from './facultyMatcher';
 import { extractScheduleKey, getUtcOffset, makeSessionInstanceOverrideKey } from './timezones';
 import { FACULTY_LED_SME_LABEL, isFacultyOnlySession } from './sessionCatalog';
+import { getAssociateEmail } from './associateEmailDirectory';
 
 export interface ParsedJsonSummary {
     records: StudentRecord[];
@@ -74,6 +75,7 @@ export const parseEnrichedExcel = (records: StudentRecord[]): ParsedJsonSummary 
     });
 
     records.forEach(rec => {
+        rec.Email = getAssociateEmail(rec['Full Name'], rec.Email);
         rec._utcOffset = getUtcOffset(rec.Country, rec.Office);
         const sa = getAssignedSA(rec);
         const scheduleFull = rec.Schedule;
@@ -205,7 +207,7 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
                     'Full Name': name,
                     'Country': att.country as string,
                     'Office': att.office as string,
-                    'Email': att.email as string | undefined,
+                    'Email': getAssociateEmail(name, att.email as string | undefined),
                     '(AA) Secondary Specialization': att.specialization as string,
                     'Solution Weeks SA': sa,
                     Schedule: scheduleFull,
