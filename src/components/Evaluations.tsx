@@ -230,7 +230,6 @@ export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
                                             {evaluatorAssig.evaluator['Faculty Name']}
                                         </h4>
                                         <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
-                                            <span><strong>Role:</strong> {evaluatorAssig.evaluator.Role}</span>
                                             <span><strong>Timezone:</strong> UTC {evaluatorAssig.utcOffset > 0 ? '+' : ''}{evaluatorAssig.utcOffset}</span>
                                         </div>
                                     </div>
@@ -277,6 +276,29 @@ export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
                                                             ))}
                                                     </select>
                                                 </div>
+                                                {v.members && v.members.length > 0 && (
+                                                    <div style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                        {v.members.map((m, mIdx) => {
+                                                            const program = m.Program || m.Role || m['(AA) Secondary Specialization'] || 'Unknown Program';
+                                                            const office = m.Office || 'Unknown Office';
+                                                            return (
+                                                                <div key={mIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontSize: '0.75rem' }}>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1, paddingRight: '0.5rem' }}>
+                                                                        <span style={{ fontWeight: 600, color: '#334155' }}>
+                                                                            {m['Full Name'] || 'Unknown Name'}
+                                                                        </span>
+                                                                        <span style={{ color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={program}>
+                                                                            {program}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div style={{ color: '#64748b', textAlign: 'right', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                                                        {office}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
                                             </div>
                                         ))
                                     )}
