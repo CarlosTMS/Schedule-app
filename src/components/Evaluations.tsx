@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Download, Users, AlertTriangle, Calendar as CalendarIcon } from 'lucide-react';
 import type { StudentRecord } from '../lib/excelParser';
-import { assignEvaluators, type EvaluationEngineOutput } from '../lib/evaluationEngine';
+import { assignEvaluators, type EvaluationEngineOutput, type VatGroup } from '../lib/evaluationEngine';
 import type { FacultyAssignments } from './FacultySchedule';
+import type { EvaluatorRecord } from '../lib/excelParser';
 import evaluatorsData from '../evaluators-data.json';
 
 interface EvaluationsProps {
@@ -11,7 +12,7 @@ interface EvaluationsProps {
 }
 
 export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
-    const evaluators = evaluatorsData as any[];
+    const evaluators = evaluatorsData as EvaluatorRecord[];
     const [evalDate, setEvalDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [includeRAD, setIncludeRAD] = useState<boolean>(true);
     const [output, setOutput] = useState<EvaluationEngineOutput | null>(null);
@@ -26,6 +27,57 @@ export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
 
         const result = assignEvaluators(records, evaluators, facultyAssignments, dateObj, includeRAD);
         setOutput(result);
+    };
+
+    const handleMoveVat = (vatName: string, targetEvaluatorName: string) => {
+        if (!output) return;
+
+        setOutput(prev => {
+            if (!prev) return prev;
+
+            // 1. Find VAT and original evaluator
+            let vatToMove: VatGroup | null = null;
+            const nextAssignments = prev.assignments.map(assig => {
+                const vatIdx = assig.assignedVats.findIndex(v => v.name === vatName);
+                if (vatIdx !== -1) {
+                    vatToMove = assig.assignedVats[vatIdx];
+                    return {
+                        ...assig,
+                        assignedVats: assig.assignedVats.filter((_, i) => i !== vatIdx)
+                    };
+                }
+                return assig;
+            });
+
+            // If not found in assignments, check unassigned
+            let nextUnassigned = prev.unassignedVats;
+            if (!vatToMove) {
+                const unIdx = nextUnassigned.findIndex(v => v.name === vatName);
+                if (unIdx !== -1) {
+                    vatToMove = nextUnassigned[unIdx];
+                    nextUnassigned = nextUnassigned.filter((_, i) => i !== unIdx);
+                }
+            }
+
+            if (!vatToMove) return prev;
+
+            // 2. Add to target evaluator
+            const updatedAssignments = nextAssignments.map(assig => {
+                if (assig.evaluator['Faculty Name'] === targetEvaluatorName) {
+                    return {
+                        ...assig,
+                        assignedVats: [...assig.assignedVats, vatToMove!].sort((a, b) => a.name.localeCompare(b.name))
+                    };
+                }
+                return assig;
+            });
+
+            return {
+                ...prev,
+                assignments: updatedAssignments,
+                unassignedVats: nextUnassigned
+            };
+        });
     };
 
     const handleDownloadJson = () => {
@@ -143,13 +195,27 @@ export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
                                 <AlertTriangle size={18} /> {output.unassignedVats.length} Unassigned VATs
                             </h4>
                             <p style={{ color: '#991b1b', fontSize: '0.85rem' }}>
-                                These VATs could not be assigned because no evaluators in their Solution Area were within a 4-hour timezone difference.
+                                These VATs could not be assigned because no evaluators were within a 4-hour timezone difference.
                             </p>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
                                 {output.unassignedVats.map(v => (
-                                    <span key={v.name} style={{ background: '#fee2e2', color: '#991b1b', padding: '0.2rem 0.5rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 500 }}>
-                                        {v.name} ({v.sa}, UTC {v.utcOffset > 0 ? '+' : ''}{v.utcOffset.toFixed(1)})
-                                    </span>
+                                    <div key={v.name} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', background: '#fee2e2', padding: '0.5rem', borderRadius: '0.5rem', border: '1px solid #fca5a5' }}>
+                                        <span style={{ color: '#991b1b', fontSize: '0.75rem', fontWeight: 600 }}>
+                                            {v.name} ({v.sa}, UTC {v.utcOffset > 0 ? '+' : ''}{v.utcOffset.toFixed(1)})
+                                        </span>
+                                        <select
+                                            value=""
+                                            onChange={(e) => handleMoveVat(v.name, e.target.value)}
+                                            style={{ fontSize: '0.7rem', padding: '2px', borderRadius: '4px', border: '1px solid #fca5a5' }}
+                                        >
+                                            <option value="" disabled>Assign to...</option>
+                                            {output.assignments.map(a => (
+                                                <option key={a.evaluator['Faculty Name']} value={a.evaluator['Faculty Name']}>
+                                                    {a.evaluator['Faculty Name']} (UTC {a.utcOffset > 0 ? '+' : ''}{a.utcOffset})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 ))}
                             </div>
                         </div>
@@ -165,7 +231,6 @@ export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
                                         </h4>
                                         <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
                                             <span><strong>Role:</strong> {evaluatorAssig.evaluator.Role}</span>
-                                            <span><strong>SA:</strong> {evaluatorAssig.sa || 'None'}</span>
                                             <span><strong>Timezone:</strong> UTC {evaluatorAssig.utcOffset > 0 ? '+' : ''}{evaluatorAssig.utcOffset}</span>
                                         </div>
                                     </div>
@@ -182,12 +247,35 @@ export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
                                     ) : (
                                         evaluatorAssig.assignedVats.map(v => (
                                             <div key={v.name} style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.85rem' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: 'var(--text-color)', marginBottom: '0.25rem' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: 'var(--text-color)', marginBottom: '0.35rem' }}>
                                                     <span>{v.name}</span>
                                                     <span>UTC {v.utcOffset > 0 ? '+' : ''}{v.utcOffset.toFixed(1)}</span>
                                                 </div>
-                                                <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-                                                    Time gap: <strong>{Math.abs(v.utcOffset - evaluatorAssig.utcOffset).toFixed(1)} hrs</strong>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                                                        Gap: <strong>{Math.abs(v.utcOffset - evaluatorAssig.utcOffset).toFixed(1)} hrs</strong>
+                                                    </div>
+                                                    <select
+                                                        value=""
+                                                        onChange={(e) => handleMoveVat(v.name, e.target.value)}
+                                                        style={{ 
+                                                            fontSize: '0.7rem', 
+                                                            padding: '2px 4px', 
+                                                            borderRadius: '4px', 
+                                                            border: '1px solid #e2e8f0',
+                                                            background: 'white',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        <option value="" disabled>Move...</option>
+                                                        {output.assignments
+                                                            .filter(a => a.evaluator['Faculty Name'] !== evaluatorAssig.evaluator['Faculty Name'])
+                                                            .map(a => (
+                                                                <option key={a.evaluator['Faculty Name']} value={a.evaluator['Faculty Name']}>
+                                                                    to {a.evaluator['Faculty Name']}
+                                                                </option>
+                                                            ))}
+                                                    </select>
                                                 </div>
                                             </div>
                                         ))

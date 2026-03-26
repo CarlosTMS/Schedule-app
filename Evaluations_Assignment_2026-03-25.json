@@ -1,0 +1,658 @@
+{
+  "evaluationDate": "2026-03-25",
+  "includeRAD": true,
+  "assignments": [
+    {
+      "evaluatorName": "David Uichanco",
+      "sa": "Generalist",
+      "utcOffset": -7,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 47-oCFO",
+          "vatSa": "oCFO",
+          "vatAverageUtcOffset": -5,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 62-CX",
+          "vatSa": "CX",
+          "vatAverageUtcOffset": -4.333333333333333,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Sandra Bissels",
+      "sa": "Generalist",
+      "utcOffset": 1,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 10-BTM",
+          "vatSa": "BTM",
+          "vatAverageUtcOffset": 2.6666666666666665,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 28-Data & AI",
+          "vatSa": "Data & AI",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 44-oCFO",
+          "vatSa": "oCFO",
+          "vatAverageUtcOffset": 1.6666666666666667,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 72-Data & AI",
+          "vatSa": "Data & AI",
+          "vatAverageUtcOffset": 1.6666666666666667,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Carlos Moreno",
+      "sa": "Generalist",
+      "utcOffset": 1,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 12-HCM",
+          "vatSa": "HCM",
+          "vatAverageUtcOffset": 0.75,
+          "membersCount": 4
+        },
+        {
+          "vatName": "VAT 30-Data & AI",
+          "vatSa": "Data & AI",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 46-oCFO",
+          "vatSa": "oCFO",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 75-HCM",
+          "vatSa": "HCM",
+          "vatAverageUtcOffset": 1.5,
+          "membersCount": 4
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Hedda Samia",
+      "sa": "Generalist",
+      "utcOffset": 8,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 2-BTP",
+          "vatSa": "BTP",
+          "vatAverageUtcOffset": 8.666666666666666,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 3-BTP",
+          "vatSa": "BTP",
+          "vatAverageUtcOffset": 8.333333333333334,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 4-BTP",
+          "vatSa": "BTP",
+          "vatAverageUtcOffset": 7.375,
+          "membersCount": 4
+        },
+        {
+          "vatName": "VAT 69-Data & AI",
+          "vatSa": "Data & AI",
+          "vatAverageUtcOffset": 8.333333333333334,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 73-HCM",
+          "vatSa": "HCM",
+          "vatAverageUtcOffset": 11,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Aarohi Tamhane",
+      "sa": "Generalist",
+      "utcOffset": 5.5,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 1-BTP",
+          "vatSa": "BTP",
+          "vatAverageUtcOffset": 5.833333333333333,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 39-CX",
+          "vatSa": "CX",
+          "vatAverageUtcOffset": 7.875,
+          "membersCount": 4
+        },
+        {
+          "vatName": "VAT 53-Cloud ERP",
+          "vatSa": "Cloud ERP",
+          "vatAverageUtcOffset": 3.3333333333333335,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 74-HCM",
+          "vatSa": "HCM",
+          "vatAverageUtcOffset": 7.75,
+          "membersCount": 4
+        },
+        {
+          "vatName": "VAT 9-BTM",
+          "vatSa": "BTM",
+          "vatAverageUtcOffset": 6.333333333333333,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Nelly Rebollo",
+      "sa": "Generalist",
+      "utcOffset": -6,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 22-BTP",
+          "vatSa": "BTP",
+          "vatAverageUtcOffset": -5.333333333333333,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 61-CX",
+          "vatSa": "CX",
+          "vatAverageUtcOffset": -4,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Jessica Zhang",
+      "sa": "Generalist",
+      "utcOffset": -7,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 48-oCFO",
+          "vatSa": "oCFO",
+          "vatAverageUtcOffset": -4,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 66-Cloud ERP",
+          "vatSa": "Cloud ERP",
+          "vatAverageUtcOffset": -4,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Godfrey Leung",
+      "sa": "Generalist",
+      "utcOffset": -7,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 50-BTM",
+          "vatSa": "BTM",
+          "vatAverageUtcOffset": -4,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 68-Data & AI",
+          "vatSa": "Data & AI",
+          "vatAverageUtcOffset": -4.666666666666667,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Daron Smith",
+      "sa": "Generalist",
+      "utcOffset": -7,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 52-BTM",
+          "vatSa": "BTM",
+          "vatAverageUtcOffset": -3.75,
+          "membersCount": 4
+        },
+        {
+          "vatName": "VAT 76-SCM",
+          "vatSa": "SCM",
+          "vatAverageUtcOffset": -5.333333333333333,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Rissa Colayco",
+      "sa": "Generalist",
+      "utcOffset": 8,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 29-Data & AI",
+          "vatSa": "Data & AI",
+          "vatAverageUtcOffset": 9,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 36-SCM",
+          "vatSa": "SCM",
+          "vatAverageUtcOffset": 7.5,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 6-oCFO",
+          "vatSa": "oCFO",
+          "vatAverageUtcOffset": 8,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 7-oCFO",
+          "vatSa": "oCFO",
+          "vatAverageUtcOffset": 8,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 77-SCM",
+          "vatSa": "SCM",
+          "vatAverageUtcOffset": 11,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Maggie Ramaiah",
+      "sa": "Generalist",
+      "utcOffset": -7,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 54-Cloud ERP",
+          "vatSa": "Cloud ERP",
+          "vatAverageUtcOffset": -5.333333333333333,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Ivan Aguilar",
+      "sa": "Generalist",
+      "utcOffset": -5,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 15-HCM",
+          "vatSa": "HCM",
+          "vatAverageUtcOffset": -5.333333333333333,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 57-Cloud ERP",
+          "vatSa": "Cloud ERP",
+          "vatAverageUtcOffset": -5.333333333333333,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Fernando Sanchez",
+      "sa": "Generalist",
+      "utcOffset": -7,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 56-Cloud ERP",
+          "vatSa": "Cloud ERP",
+          "vatAverageUtcOffset": -5.25,
+          "membersCount": 4
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Hanna Aalen",
+      "sa": "Generalist",
+      "utcOffset": 1,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 13-HCM",
+          "vatSa": "HCM",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 31-Data & AI",
+          "vatSa": "Data & AI",
+          "vatAverageUtcOffset": 1.5,
+          "membersCount": 4
+        },
+        {
+          "vatName": "VAT 49-oCFO",
+          "vatSa": "oCFO",
+          "vatAverageUtcOffset": 1.3333333333333333,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 78-oCFO",
+          "vatSa": "oCFO",
+          "vatAverageUtcOffset": 4.333333333333333,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Juan Gonzalez",
+      "sa": "Generalist",
+      "utcOffset": 1,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 16-HCM",
+          "vatSa": "HCM",
+          "vatAverageUtcOffset": 1.6666666666666667,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 32-SCM",
+          "vatSa": "SCM",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 4
+        },
+        {
+          "vatName": "VAT 5-oCFO",
+          "vatSa": "oCFO",
+          "vatAverageUtcOffset": 3,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Nick Goffi",
+      "sa": "Generalist",
+      "utcOffset": -4,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 11-HCM",
+          "vatSa": "HCM",
+          "vatAverageUtcOffset": -4,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 51-BTM",
+          "vatSa": "BTM",
+          "vatAverageUtcOffset": -2,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Pau Pujol",
+      "sa": "Generalist",
+      "utcOffset": 1,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 17-BTP",
+          "vatSa": "BTP",
+          "vatAverageUtcOffset": 1.6666666666666667,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 34-SCM",
+          "vatSa": "SCM",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 55-Cloud ERP",
+          "vatSa": "Cloud ERP",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Bradley Cox",
+      "sa": "Generalist",
+      "utcOffset": 0,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 18-BTP",
+          "vatSa": "BTP",
+          "vatAverageUtcOffset": -0.3333333333333333,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 42-oCFO",
+          "vatSa": "oCFO",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 65-Cloud ERP",
+          "vatSa": "Cloud ERP",
+          "vatAverageUtcOffset": 0.3333333333333333,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Betriz Garrido",
+      "sa": "Generalist",
+      "utcOffset": 1,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 19-BTP",
+          "vatSa": "BTP",
+          "vatAverageUtcOffset": 2,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 35-SCM",
+          "vatSa": "SCM",
+          "vatAverageUtcOffset": 2.3333333333333335,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 59-HCM",
+          "vatSa": "HCM",
+          "vatAverageUtcOffset": 3,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Tina Grejsen",
+      "sa": "Generalist",
+      "utcOffset": 1,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 20-BTP",
+          "vatSa": "BTP",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 37-CX",
+          "vatSa": "CX",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 63-BTM",
+          "vatSa": "BTM",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Ed Kipley",
+      "sa": "Generalist",
+      "utcOffset": -4,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 23-BTP",
+          "vatSa": "BTP",
+          "vatAverageUtcOffset": -5.333333333333333,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 58-Cloud ERP",
+          "vatSa": "Cloud ERP",
+          "vatAverageUtcOffset": -4,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Hans Loekkegard",
+      "sa": "Generalist",
+      "utcOffset": 0,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 26-BTP",
+          "vatSa": "BTP",
+          "vatAverageUtcOffset": 0.6666666666666666,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 43-oCFO",
+          "vatSa": "oCFO",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 71-Data & AI",
+          "vatSa": "Data & AI",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Katie McKenna",
+      "sa": "Generalist",
+      "utcOffset": -4,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 33-SCM",
+          "vatSa": "SCM",
+          "vatAverageUtcOffset": -4,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 60-CX",
+          "vatSa": "CX",
+          "vatAverageUtcOffset": -4.333333333333333,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Hellen Milan",
+      "sa": "Generalist",
+      "utcOffset": -3,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 27-Data & AI",
+          "vatSa": "Data & AI",
+          "vatAverageUtcOffset": 0.75,
+          "membersCount": 4
+        },
+        {
+          "vatName": "VAT 45-oCFO",
+          "vatSa": "oCFO",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 8-BTM",
+          "vatSa": "BTM",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 4
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Verena Mühlbauer",
+      "sa": "Generalist",
+      "utcOffset": 1,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 21-BTP",
+          "vatSa": "BTP",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 38-CX",
+          "vatSa": "CX",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 64-CX",
+          "vatSa": "CX",
+          "vatAverageUtcOffset": 0.6666666666666666,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Caro Schoder",
+      "sa": "Generalist",
+      "utcOffset": 1,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 24-BTP",
+          "vatSa": "BTP",
+          "vatAverageUtcOffset": 1.3333333333333333,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 40-oCFO",
+          "vatSa": "oCFO",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 67-Data & AI",
+          "vatSa": "Data & AI",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 3
+        }
+      ]
+    },
+    {
+      "evaluatorName": "Marcel Storost",
+      "sa": "Generalist",
+      "utcOffset": 1,
+      "vatsAssigned": [
+        {
+          "vatName": "VAT 25-BTP",
+          "vatSa": "BTP",
+          "vatAverageUtcOffset": 1.75,
+          "membersCount": 4
+        },
+        {
+          "vatName": "VAT 41-oCFO",
+          "vatSa": "oCFO",
+          "vatAverageUtcOffset": 1.6666666666666667,
+          "membersCount": 3
+        },
+        {
+          "vatName": "VAT 70-Data & AI",
+          "vatSa": "Data & AI",
+          "vatAverageUtcOffset": 1,
+          "membersCount": 4
+        }
+      ]
+    }
+  ],
+  "unassignedVats": []
+}
