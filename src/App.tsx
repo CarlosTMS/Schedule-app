@@ -136,6 +136,29 @@ function App() {
     setPreviousMetrics(null);
   }, []);
 
+  const loadProjectSnapshot = useCallback(async (projectId: string, fallbackVersionId?: string | null) => {
+    const draftSnapshot = await repository.getDraft(projectId);
+    if (draftSnapshot) {
+      applySnapshot(draftSnapshot);
+      setActiveProjectId(projectId);
+      setLoadedVersionId(null);
+      return;
+    }
+
+    if (fallbackVersionId) {
+      const version = await repository.getVersion(fallbackVersionId);
+      if (version) {
+        applySnapshot(version.snapshot);
+        setActiveProjectId(projectId);
+        setLoadedVersionId(version.id);
+        return;
+      }
+    }
+
+    setActiveProjectId(projectId);
+    setLoadedVersionId(null);
+  }, [applySnapshot]);
+
   // ── Initial load ───────────────────────────────────────────────────────────
   useEffect(() => {
     const init = async () => {
@@ -146,20 +169,16 @@ function App() {
       if (draft) {
         applySnapshot(draft.snapshot);
         setActiveProjectId(draft.projectId);
+        setLoadedVersionId(null);
       } else if (lastPid) {
         const p = projs.find(x => x.id === lastPid);
-        if (p && p.activeVersionId) {
-          const v = await repository.getVersion(p.activeVersionId);
-          if (v) {
-            applySnapshot(v.snapshot);
-            setActiveProjectId(p.id);
-            setLoadedVersionId(v.id);
-          }
+        if (p) {
+          await loadProjectSnapshot(p.id, p.activeVersionId);
         }
       }
     };
     init();
-  }, [applySnapshot]);
+  }, [applySnapshot, loadProjectSnapshot]);
 
   // Update versions when active project changes
   useEffect(() => {
@@ -173,6 +192,11 @@ function App() {
   // ── Autosave Draft (Local & Remote Sync) ───────────────────────────────────
   useEffect(() => {
     if (!records.length) return;
+
+    if (loadedVersionId) {
+      setAutosaveStatus('idle');
+      return;
+    }
 
     // Always persist to local storage first
     persistDraft({
@@ -220,7 +244,7 @@ function App() {
 
     if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
     savedTimerRef.current = setTimeout(() => setAutosaveStatus('idle'), 3000);
-  }, [currentSnapshot, activeProjectId, records.length]);
+  }, [currentSnapshot, activeProjectId, loadedVersionId, records.length]);
 
 
 
@@ -252,13 +276,83 @@ function App() {
     setLoading(false);
   };
 
+  const handleSaveCurrentVersion = async () => {
+    if (!activeProjectId || !result) return;
+
+    setLoading(true);
+    setAutosaveStatus('saving');
+
+    const snapshotStr = JSON.stringify(currentSnapshot);
+    const expectedRevision = projectRevisionRef.current[activeProjectId]
+      ?? projectsRef.current.find(p => p.id === activeProjectId)?.revision
+      ?? 1;
+
+    if (loadedVersionId) {
+      const { version, project, status } = await repository.updateVersion(loadedVersionId, currentSnapshot);
+      setAutosaveStatus(status);
+      if (status === 'saved' || status === 'saved-local') {
+        persistDraft(null);
+        if (version) {
+          setProjectVersions(prev => prev.map(v => v.id === version.id ? version : v));
+        }
+        if (project) {
+          if (project.revision !== undefined) {
+            projectRevisionRef.current[project.id] = project.revision;
+          }
+          setProjects(prev => prev.map(p => p.id === project.id ? project : p));
+        }
+      }
+
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setAutosaveStatus('idle'), 3000);
+      setLoading(false);
+      return;
+    }
+
+    const res = await repository.syncDraft(activeProjectId, currentSnapshot, expectedRevision);
+
+    if (res.status === 'conflict') {
+      setAutosaveStatus('conflict');
+      setError('[Conflict] Someone else updated this project. Please refresh or reload version.');
+    } else {
+      setAutosaveStatus(res.status);
+      if (res.status === 'saved' && errorRef.current?.startsWith('[Conflict]')) {
+        setError(null);
+      }
+      if (res.status === 'saved') {
+        lastSyncedSnapshotRef.current = snapshotStr;
+      }
+      if (res.status === 'saved' || res.status === 'saved-local') {
+        setLoadedVersionId(null);
+      }
+      if (res.project) {
+        if (res.project.revision !== undefined) {
+          projectRevisionRef.current[res.project.id] = res.project.revision;
+        }
+        setProjects(prev => prev.map(p => p.id === res.project!.id ? res.project! : p));
+      }
+    }
+
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setAutosaveStatus('idle'), 3000);
+    setLoading(false);
+  };
+
   const handleLoadVersion = async (v: RunVersion) => {
     applySnapshot(v.snapshot);
+    persistDraft(null);
+    setActiveProjectId(v.projectId);
     setLoadedVersionId(v.id);
   };
 
   const handleDuplicateAsDraft = (v: RunVersion) => {
     applySnapshot(v.snapshot);
+    persistDraft({
+      projectId: v.projectId,
+      snapshot: v.snapshot,
+      updatedAt: new Date().toISOString()
+    });
+    setActiveProjectId(v.projectId);
     setLoadedVersionId(null);
   };
 
@@ -454,7 +548,7 @@ function App() {
                 <div className="project-list">
                   {projects.length === 0 && <p className="empty-text">{t('historyEmpty')}</p>}
                   {projects.map(p => (
-                    <div key={p.id} className={`project-item ${activeProjectId === p.id ? 'active' : ''}`} onClick={() => setActiveProjectId(p.id)}>
+                    <div key={p.id} className={`project-item ${activeProjectId === p.id ? 'active' : ''}`} onClick={() => { void loadProjectSnapshot(p.id, p.activeVersionId); }}>
                       <div className="project-info">
                         <span className="project-name">{p.name}</span>
                         <span className="project-date">{new Date(p.updatedAt).toLocaleDateString()}</span>
@@ -529,7 +623,10 @@ function App() {
                 {!activeProjectId ? (
                   <button onClick={handleCreateProject} className="btn btn-primary" style={{ gap: '0.5rem' }}><Save size={16} /> {t('projectNew')}</button>
                 ) : (
-                  <button onClick={handleSaveVersion} className="btn btn-primary" style={{ gap: '0.5rem' }}><Save size={16} /> {t('versionSave')}</button>
+                  <>
+                    <button onClick={handleSaveCurrentVersion} className="btn btn-secondary" style={{ gap: '0.5rem' }}><Save size={16} /> {t('versionSaveCurrent')}</button>
+                    <button onClick={handleSaveVersion} className="btn btn-primary" style={{ gap: '0.5rem' }}><Save size={16} /> {t('versionSave')}</button>
+                  </>
                 )}
               </div>
             )}

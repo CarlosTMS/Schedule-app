@@ -86,6 +86,10 @@ class RuntimeStore {
         this.drafts.set(id, snapshot);
     }
 
+    deleteDraft(id) {
+        this.drafts.delete(id);
+    }
+
 
     // ─── Versions ─────────────────────────────────────────────────────────────
 
@@ -97,6 +101,32 @@ class RuntimeStore {
 
     getVersion(id) {
         return this.versions.find(v => v.id === id) || null;
+    }
+
+    updateVersion(id, snapshot) {
+        const idx = this.versions.findIndex(v => v.id === id);
+        if (idx === -1) return null;
+
+        const existing = this.versions[idx];
+        const updated = {
+            ...existing,
+            snapshot,
+            createdAt: new Date().toISOString(),
+        };
+        this.versions[idx] = updated;
+
+        const project = this.getProject(existing.projectId);
+        if (project) {
+            project.activeVersionId = id;
+            project.updatedAt = new Date().toISOString();
+            project.revision = (project.revision || 1) + 1;
+            this.deleteDraft(existing.projectId);
+        }
+
+        return {
+            version: updated,
+            project: project ?? null,
+        };
     }
 
     deleteVersion(id) {

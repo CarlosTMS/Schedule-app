@@ -50,6 +50,7 @@ const corsHeaders = {
 };
 
 const jsonResponse = (res, statusCode, body) => {
+  if (res.writableEnded || res.destroyed) return;
   res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8', ...corsHeaders });
   res.end(JSON.stringify(body, null, 2));
 };
@@ -91,12 +92,49 @@ const validateVatsSnapshot = (payload) => {
   return null;
 };
 
+const isClientAbortError = (err) =>
+  Boolean(err) && (
+    err.code === 'ECONNRESET' ||
+    err.code === 'ERR_STREAM_PREMATURE_CLOSE' ||
+    err.name === 'AbortError' ||
+    String(err.message || '').toLowerCase().includes('aborted')
+  );
+
 const readBody = (req) =>
   new Promise((resolve, reject) => {
     const chunks = [];
-    req.on('data', (c) => chunks.push(c));
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-    req.on('error', reject);
+    let settled = false;
+
+    const cleanup = () => {
+      req.off('data', onData);
+      req.off('end', onEnd);
+      req.off('error', onError);
+      req.off('aborted', onAborted);
+      req.off('close', onClose);
+    };
+
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      fn(value);
+    };
+
+    const onData = (c) => chunks.push(c);
+    const onEnd = () => finish(resolve, Buffer.concat(chunks).toString('utf8'));
+    const onError = (err) => finish(reject, err);
+    const onAborted = () => finish(reject, Object.assign(new Error('Request aborted by client'), { code: 'ECONNRESET' }));
+    const onClose = () => {
+      if (!req.complete) {
+        finish(reject, Object.assign(new Error('Request connection closed before complete body was received'), { code: 'ECONNRESET' }));
+      }
+    };
+
+    req.on('data', onData);
+    req.on('end', onEnd);
+    req.on('error', onError);
+    req.on('aborted', onAborted);
+    req.on('close', onClose);
   });
 
 const ensureDataDir = () => {
@@ -143,216 +181,268 @@ const serveStatic = (req, res, pathname) => {
 };
 
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, `http://localhost:${PORT}`);
-  const { pathname } = url;
+  try {
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+    const { pathname } = url;
 
-  if (req.method === 'OPTIONS' && pathname.startsWith('/api/')) {
-    res.writeHead(204, corsHeaders);
-    res.end();
-    return;
-  }
+    if (req.method === 'OPTIONS' && pathname.startsWith('/api/')) {
+      res.writeHead(204, corsHeaders);
+      res.end();
+      return;
+    }
 
-  if (pathname === '/api/public/summary') {
-    if (req.method === 'GET') {
-      try {
-        ensureDataDir();
-        if (!fs.existsSync(DATA_FILE)) {
-          return jsonResponse(res, 404, { error: 'No summary snapshot published yet.' });
+    if (pathname === '/api/public/summary') {
+      if (req.method === 'GET') {
+        try {
+          ensureDataDir();
+          if (!fs.existsSync(DATA_FILE)) {
+            return jsonResponse(res, 404, { error: 'No summary snapshot published yet.' });
+          }
+          const raw = fs.readFileSync(DATA_FILE, 'utf8');
+          const data = JSON.parse(raw);
+          return jsonResponse(res, 200, data);
+        } catch (err) {
+          return jsonResponse(res, 500, { error: String(err) });
         }
-        const raw = fs.readFileSync(DATA_FILE, 'utf8');
-        const data = JSON.parse(raw);
+      }
+
+      if (req.method === 'POST') {
+        try {
+          const body = await readBody(req);
+          const parsed = JSON.parse(body);
+          const validationError = validateSummarySnapshot(parsed);
+          if (validationError) return jsonResponse(res, 400, { error: validationError });
+          ensureDataDir();
+          fs.writeFileSync(DATA_FILE, JSON.stringify(parsed, null, 2), 'utf8');
+          return jsonResponse(res, 200, { ok: true, saved_at: new Date().toISOString() });
+        } catch (err) {
+          return jsonResponse(res, 400, { error: `Invalid JSON body: ${err}` });
+        }
+      }
+
+      return jsonResponse(res, 405, { error: `Method not allowed: ${req.method}` });
+    }
+
+    if (pathname === '/api/public/vats') {
+      if (req.method === 'GET') {
+        try {
+          ensureDataDir();
+          if (!fs.existsSync(VATS_DATA_FILE)) {
+            return jsonResponse(res, 404, { error: 'No VAT snapshot published yet.' });
+          }
+          const raw = fs.readFileSync(VATS_DATA_FILE, 'utf8');
+          const data = JSON.parse(raw);
+          return jsonResponse(res, 200, data);
+        } catch (err) {
+          return jsonResponse(res, 500, { error: String(err) });
+        }
+      }
+
+      if (req.method === 'POST') {
+        try {
+          const body = await readBody(req);
+          const parsed = JSON.parse(body);
+          const validationError = validateVatsSnapshot(parsed);
+          if (validationError) return jsonResponse(res, 400, { error: validationError });
+          ensureDataDir();
+          fs.writeFileSync(VATS_DATA_FILE, JSON.stringify(parsed, null, 2), 'utf8');
+          return jsonResponse(res, 200, { ok: true, saved_at: new Date().toISOString() });
+        } catch (err) {
+          return jsonResponse(res, 400, { error: `Invalid JSON body: ${err}` });
+        }
+      }
+
+      return jsonResponse(res, 405, { error: `Method not allowed: ${req.method}` });
+    }
+
+    if (pathname === '/api/public/smes' && req.method === 'GET') {
+      try {
+        const upstream = await fetch(SME_SOURCE_URL, { headers: { Accept: 'application/json' } });
+        if (!upstream.ok) {
+          return jsonResponse(res, upstream.status, { error: `SME upstream failed: HTTP ${upstream.status}` });
+        }
+        const data = await upstream.json();
         return jsonResponse(res, 200, data);
       } catch (err) {
-        return jsonResponse(res, 500, { error: String(err) });
+        return jsonResponse(res, 502, { error: `SME proxy failed: ${String(err)}` });
       }
     }
 
-    if (req.method === 'POST') {
-      try {
-        const body = await readBody(req);
-        const parsed = JSON.parse(body);
-        const validationError = validateSummarySnapshot(parsed);
-        if (validationError) return jsonResponse(res, 400, { error: validationError });
-        ensureDataDir();
-        fs.writeFileSync(DATA_FILE, JSON.stringify(parsed, null, 2), 'utf8');
-        return jsonResponse(res, 200, { ok: true, saved_at: new Date().toISOString() });
-      } catch (err) {
-        return jsonResponse(res, 400, { error: `Invalid JSON body: ${err}` });
-      }
+    if (pathname === '/health' && req.method === 'GET') {
+      return jsonResponse(res, 200, { status: 'ok', port: PORT });
     }
 
-    return jsonResponse(res, 405, { error: `Method not allowed: ${req.method}` });
-  }
+    // ── Runtime Versioning API ──
 
-  if (pathname === '/api/public/vats') {
-    if (req.method === 'GET') {
-      try {
-        ensureDataDir();
-        if (!fs.existsSync(VATS_DATA_FILE)) {
-          return jsonResponse(res, 404, { error: 'No VAT snapshot published yet.' });
+    if (pathname === '/api/runtime/projects') {
+      if (req.method === 'GET') {
+        return jsonResponse(res, 200, { ok: true, data: runtimeStore.getProjects() });
+      }
+      if (req.method === 'POST') {
+        try {
+          const body = await readBody(req);
+          const { draftSnapshot, ...project } = JSON.parse(body);
+
+          if (!runtimeStore.isValidProject(project)) return jsonResponse(res, 400, { ok: false, error: 'Invalid project' });
+
+          // Ensure draft is stored separately if provided during initial creation
+          if (draftSnapshot) {
+            runtimeStore.upsertDraft(project.id, draftSnapshot);
+          }
+
+          const saved = runtimeStore.upsertProject(project);
+          return jsonResponse(res, 200, { ok: true, data: saved });
+        } catch (e) {
+          return jsonResponse(res, 400, { ok: false, error: String(e) });
         }
-        const raw = fs.readFileSync(VATS_DATA_FILE, 'utf8');
-        const data = JSON.parse(raw);
-        return jsonResponse(res, 200, data);
-      } catch (err) {
-        return jsonResponse(res, 500, { error: String(err) });
       }
     }
 
-    if (req.method === 'POST') {
-      try {
-        const body = await readBody(req);
-        const parsed = JSON.parse(body);
-        const validationError = validateVatsSnapshot(parsed);
-        if (validationError) return jsonResponse(res, 400, { error: validationError });
-        ensureDataDir();
-        fs.writeFileSync(VATS_DATA_FILE, JSON.stringify(parsed, null, 2), 'utf8');
-        return jsonResponse(res, 200, { ok: true, saved_at: new Date().toISOString() });
-      } catch (err) {
-        return jsonResponse(res, 400, { error: `Invalid JSON body: ${err}` });
+    if (pathname.startsWith('/api/runtime/projects/')) {
+      const parts = pathname.split('/');
+      const id = parts[4];
+      const subRoute = parts[5];
+
+      if (id && subRoute === 'draft' && req.method === 'GET') {
+        const draft = runtimeStore.getDraft(id);
+        return draft
+          ? jsonResponse(res, 200, { ok: true, data: draft })
+          : jsonResponse(res, 404, { ok: false, error: 'Draft not found' });
       }
-    }
 
-    return jsonResponse(res, 405, { error: `Method not allowed: ${req.method}` });
-  }
+      if (id && !subRoute) {
+        if (req.method === 'PATCH') {
+          try {
+            const body = await readBody(req);
+            const { expectedRevision, draftSnapshot, ...metadata } = JSON.parse(body);
 
-  if (pathname === '/api/public/smes' && req.method === 'GET') {
-    try {
-      const upstream = await fetch(SME_SOURCE_URL, { headers: { Accept: 'application/json' } });
-      if (!upstream.ok) {
-        return jsonResponse(res, upstream.status, { error: `SME upstream failed: HTTP ${upstream.status}` });
-      }
-      const data = await upstream.json();
-      return jsonResponse(res, 200, data);
-    } catch (err) {
-      return jsonResponse(res, 502, { error: `SME proxy failed: ${String(err)}` });
-    }
-  }
+            const conflict = runtimeStore.getConflict(id, expectedRevision);
+            if (conflict) {
+              console.warn(`[runtime] Conflict detected on project ${id}: Expected ${expectedRevision}, Actual ${conflict.revision}`);
+              return jsonResponse(res, 409, { ok: false, error: 'conflict', current: conflict });
+            }
 
-  if (pathname === '/health' && req.method === 'GET') {
-    return jsonResponse(res, 200, { status: 'ok', port: PORT });
-  }
+            const existing = runtimeStore.getProject(id);
+            if (!existing) return jsonResponse(res, 404, { ok: false, error: 'Project not found' });
 
-  // ── Runtime Versioning API ──
+            // Strip any legacy draftSnapshot if it somehow exists in the persistent record
+            const { draftSnapshot: _old, ...cleanExisting } = existing;
 
-  if (pathname === '/api/runtime/projects') {
-    if (req.method === 'GET') {
-      return jsonResponse(res, 200, { ok: true, data: runtimeStore.getProjects() });
-    }
-    if (req.method === 'POST') {
-      try {
-        const body = await readBody(req);
-        const { draftSnapshot, ...project } = JSON.parse(body);
+            // Separate draft working state from persistent metadata to avoid record inflation
+            if (draftSnapshot) {
+              runtimeStore.upsertDraft(id, draftSnapshot);
+            }
 
-        if (!runtimeStore.isValidProject(project)) return jsonResponse(res, 400, { ok: false, error: 'Invalid project' });
+            // Strictly prune metadata to avoid bloating persistence
+            const cleanMetadata = { ...metadata };
+            delete cleanMetadata.draftSnapshot;
+            delete cleanMetadata.expectedRevision;
 
-        // Ensure draft is stored separately if provided during initial creation
-        if (draftSnapshot) {
-          runtimeStore.upsertDraft(project.id, draftSnapshot);
+            const updated = runtimeStore.upsertProject({
+              ...cleanExisting,
+              ...cleanMetadata
+            });
+
+            console.log(`[runtime] Patched project: ${id} (Rev: ${updated.revision})${draftSnapshot ? ' [Draft Sync]' : ''}`);
+            return jsonResponse(res, 200, { ok: true, data: updated });
+          } catch (e) {
+            if (isClientAbortError(e)) {
+              console.warn(`[runtime] Client aborted PATCH for project ${id}`);
+              return;
+            }
+            return jsonResponse(res, 400, { ok: false, error: String(e) });
+          }
         }
 
-        const saved = runtimeStore.upsertProject(project);
-        return jsonResponse(res, 200, { ok: true, data: saved });
+        if (req.method === 'DELETE') {
+          const ok = runtimeStore.deleteProject(id);
+          return jsonResponse(res, ok ? 200 : 404, { ok });
+        }
+      }
+
+      if (id && subRoute === 'versions') {
+        if (req.method === 'GET') {
+          return jsonResponse(res, 200, { ok: true, data: runtimeStore.getVersions(id) });
+        }
+        if (req.method === 'POST') {
+          try {
+            const body = await readBody(req);
+            const v = JSON.parse(body);
+            if (!runtimeStore.isValidVersion(v)) return jsonResponse(res, 400, { ok: false, error: 'Invalid version' });
+            const saved = runtimeStore.addVersion(v);
+            return jsonResponse(res, 200, { ok: true, data: saved });
+          } catch (e) {
+            if (isClientAbortError(e)) {
+              console.warn(`[runtime] Client aborted version POST for project ${id}`);
+              return;
+            }
+            return jsonResponse(res, 400, { ok: false, error: String(e) });
+          }
+        }
+      }
+    }
+
+    if (pathname.startsWith('/api/runtime/versions/')) {
+      const id = pathname.split('/')[4];
+      if (id && req.method === 'GET') {
+        const v = runtimeStore.getVersion(id);
+        return v ? jsonResponse(res, 200, { ok: true, data: v }) : jsonResponse(res, 404, { ok: false });
+      }
+      if (id && req.method === 'PATCH') {
+        try {
+          const body = await readBody(req);
+          const { snapshot } = JSON.parse(body);
+          if (!snapshot) return jsonResponse(res, 400, { ok: false, error: 'Missing snapshot' });
+          const updated = runtimeStore.updateVersion(id, snapshot);
+          if (!updated) return jsonResponse(res, 404, { ok: false, error: 'Version not found' });
+          return jsonResponse(res, 200, { ok: true, data: updated });
+        } catch (e) {
+          if (isClientAbortError(e)) {
+            console.warn(`[runtime] Client aborted version PATCH for ${id}`);
+            return;
+          }
+          return jsonResponse(res, 400, { ok: false, error: String(e) });
+        }
+      }
+      if (id && req.method === 'DELETE') {
+        const deleted = runtimeStore.deleteVersion(id);
+        if (!deleted.ok) return jsonResponse(res, 404, { ok: false, error: deleted.error });
+        return jsonResponse(res, 200, { ok: true, data: deleted });
+      }
+    }
+
+    if (pathname === '/api/runtime/sync/batch' && req.method === 'POST') {
+      try {
+        const body = await readBody(req);
+        const { projects = [], versions = [] } = JSON.parse(body);
+        const result = runtimeStore.syncBatch(projects, versions);
+        console.log(`[runtime] Batch sync: ${result.addedProjects} projects, ${result.addedVersions} versions added.`);
+        return jsonResponse(res, 200, { ok: true, data: result });
       } catch (e) {
+        if (isClientAbortError(e)) {
+          console.warn('[runtime] Client aborted batch sync');
+          return;
+        }
         return jsonResponse(res, 400, { ok: false, error: String(e) });
       }
     }
-  }
 
-  if (pathname.startsWith('/api/runtime/projects/')) {
-    const parts = pathname.split('/');
-    const id = parts[4];
-    const subRoute = parts[5];
-
-    if (id && !subRoute) {
-      if (req.method === 'PATCH') {
-        const body = await readBody(req);
-        const { expectedRevision, draftSnapshot, ...metadata } = JSON.parse(body);
-
-        const conflict = runtimeStore.getConflict(id, expectedRevision);
-        if (conflict) {
-          console.warn(`[runtime] Conflict detected on project ${id}: Expected ${expectedRevision}, Actual ${conflict.revision}`);
-          return jsonResponse(res, 409, { ok: false, error: 'conflict', current: conflict });
-        }
-
-        const existing = runtimeStore.getProject(id);
-        if (!existing) return jsonResponse(res, 404, { ok: false, error: 'Project not found' });
-
-        // Strip any legacy draftSnapshot if it somehow exists in the persistent record
-        const { draftSnapshot: _old, ...cleanExisting } = existing;
-
-        // Separate draft working state from persistent metadata to avoid record inflation
-        if (draftSnapshot) {
-          runtimeStore.upsertDraft(id, draftSnapshot);
-        }
-
-        // Strictly prune metadata to avoid bloating persistence
-        const cleanMetadata = { ...metadata };
-        delete cleanMetadata.draftSnapshot;
-        delete cleanMetadata.expectedRevision;
-
-        const updated = runtimeStore.upsertProject({
-          ...cleanExisting,
-          ...cleanMetadata
-        });
-
-        console.log(`[runtime] Patched project: ${id} (Rev: ${updated.revision})${draftSnapshot ? ' [Draft Sync]' : ''}`);
-        return jsonResponse(res, 200, { ok: true, data: updated });
-      }
-
-
-
-      if (req.method === 'DELETE') {
-        const ok = runtimeStore.deleteProject(id);
-        return jsonResponse(res, ok ? 200 : 404, { ok });
-      }
+    if (pathname.startsWith('/api/')) {
+      return jsonResponse(res, 404, { error: `Not found: ${req.method} ${pathname}` });
     }
 
-    if (id && subRoute === 'versions') {
-      if (req.method === 'GET') {
-        return jsonResponse(res, 200, { ok: true, data: runtimeStore.getVersions(id) });
-      }
-      if (req.method === 'POST') {
-        const body = await readBody(req);
-        const v = JSON.parse(body);
-        if (!runtimeStore.isValidVersion(v)) return jsonResponse(res, 400, { ok: false, error: 'Invalid version' });
-        const saved = runtimeStore.addVersion(v);
-        return jsonResponse(res, 200, { ok: true, data: saved });
-      }
+    serveStatic(req, res, pathname);
+  } catch (err) {
+    if (isClientAbortError(err)) {
+      console.warn(`[app] Ignoring aborted request: ${req.method ?? 'UNKNOWN'} ${req.url ?? ''}`);
+      return;
+    }
+
+    console.error('[app] Unhandled request error:', err);
+    if (!res.writableEnded && !res.destroyed) {
+      jsonResponse(res, 500, { error: 'Internal server error' });
     }
   }
-
-  if (pathname.startsWith('/api/runtime/versions/')) {
-    const id = pathname.split('/')[4];
-    if (id && req.method === 'GET') {
-      const v = runtimeStore.getVersion(id);
-      return v ? jsonResponse(res, 200, { ok: true, data: v }) : jsonResponse(res, 404, { ok: false });
-    }
-    if (id && req.method === 'DELETE') {
-      const deleted = runtimeStore.deleteVersion(id);
-      if (!deleted.ok) return jsonResponse(res, 404, { ok: false, error: deleted.error });
-      return jsonResponse(res, 200, { ok: true, data: deleted });
-    }
-  }
-
-  if (pathname === '/api/runtime/sync/batch' && req.method === 'POST') {
-    try {
-      const body = await readBody(req);
-      const { projects = [], versions = [] } = JSON.parse(body);
-      const result = runtimeStore.syncBatch(projects, versions);
-      console.log(`[runtime] Batch sync: ${result.addedProjects} projects, ${result.addedVersions} versions added.`);
-      return jsonResponse(res, 200, { ok: true, data: result });
-    } catch (e) {
-      return jsonResponse(res, 400, { ok: false, error: String(e) });
-    }
-  }
-
-
-  if (pathname.startsWith('/api/')) {
-    return jsonResponse(res, 404, { error: `Not found: ${req.method} ${pathname}` });
-  }
-
-  serveStatic(req, res, pathname);
 });
 
 server.listen(PORT, () => {

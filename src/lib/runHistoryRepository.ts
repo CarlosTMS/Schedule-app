@@ -10,6 +10,7 @@ import {
     readProjects as readLocalProjects, persistProjects as persistLocalProjects,
     readVersions as readLocalVersions, persistVersions as persistLocalVersions,
     readActiveProjectId as readLocalActiveId, persistActiveProjectId as persistLocalActiveId,
+    readDraft as readLocalDraft,
     migrateToV3, newId
 } from './runHistoryStorage';
 
@@ -331,6 +332,84 @@ class RunHistoryRepository {
             this.runtimeAvailable = false;
         }
         return null;
+    }
+
+    async getDraft(projectId: string): Promise<RunSnapshot | null> {
+        try {
+            const res = await fetch(`${API_BASE}/projects/${projectId}/draft`);
+            if (res.status === 404) {
+                this.runtimeAvailable = true;
+                const localDraft = readLocalDraft();
+                return localDraft?.projectId === projectId ? localDraft.snapshot : null;
+            }
+            if (res.ok) {
+                const data = await res.json();
+                this.runtimeAvailable = true;
+                return data.data ?? null;
+            }
+            this.runtimeAvailable = false;
+        } catch {
+            this.runtimeAvailable = false;
+        }
+
+        const localDraft = readLocalDraft();
+        return localDraft?.projectId === projectId ? localDraft.snapshot : null;
+    }
+
+    async updateVersion(versionId: string, snapshot: RunSnapshot): Promise<{ version: RunVersion | null, project?: RunProject, status: SyncStatus }> {
+        let status: SyncStatus = 'saved';
+        let updatedVersion: RunVersion | null = null;
+        let updatedProject: RunProject | undefined;
+
+        try {
+            const res = await fetch(`${API_BASE}/versions/${versionId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ snapshot })
+            });
+
+            if (!res.ok) throw new Error('Remote update failed');
+
+            const data = await res.json();
+            updatedVersion = data?.data?.version ?? null;
+            updatedProject = data?.data?.project ?? undefined;
+            this.runtimeAvailable = true;
+        } catch {
+            this.runtimeAvailable = false;
+            status = 'saved-local';
+        }
+
+        const versions = readLocalVersions();
+        const versionIdx = versions.findIndex(v => v.id === versionId);
+        if (versionIdx !== -1) {
+            const baseVersion = versions[versionIdx];
+            versions[versionIdx] = {
+                ...baseVersion,
+                snapshot,
+                createdAt: updatedVersion?.createdAt ?? new Date().toISOString(),
+            };
+            updatedVersion = versions[versionIdx];
+            persistLocalVersions(versions);
+        }
+
+        if (updatedVersion) {
+            const projects = readLocalProjects();
+            const projectIdx = projects.findIndex(p => p.id === updatedVersion!.projectId);
+            if (projectIdx !== -1) {
+                projects[projectIdx] = {
+                    ...projects[projectIdx],
+                    ...(updatedProject ?? {}),
+                    activeVersionId: updatedVersion.id,
+                    updatedAt: updatedProject?.updatedAt ?? new Date().toISOString(),
+                    revision: updatedProject?.revision ?? projects[projectIdx].revision,
+                };
+                updatedProject = projects[projectIdx];
+                persistLocalProjects(projects);
+                persistLocalActiveId(updatedVersion.projectId);
+            }
+        }
+
+        return { version: updatedVersion, project: updatedProject, status };
     }
 
     async deleteVersion(projectId: string, versionId: string): Promise<boolean> {
