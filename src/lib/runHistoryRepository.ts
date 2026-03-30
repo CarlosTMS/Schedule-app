@@ -10,7 +10,6 @@ import {
     readProjects as readLocalProjects, persistProjects as persistLocalProjects,
     readVersions as readLocalVersions, persistVersions as persistLocalVersions,
     readActiveProjectId as readLocalActiveId, persistActiveProjectId as persistLocalActiveId,
-    readDraft as readLocalDraft,
     migrateToV3, newId
 } from './runHistoryStorage';
 
@@ -28,85 +27,9 @@ export interface SyncResult {
 
 class RunHistoryRepository {
     public runtimeAvailable = true;
-    private mutationQueues = new Map<string, Promise<void>>();
 
     constructor() {
         migrateToV3();
-    }
-
-    /**
-     * Serializes mutations for a specific ID.
-     */
-    private async enqueueMutation<T>(id: string, fn: () => Promise<T>): Promise<T> {
-        const prev = this.mutationQueues.get(id) || Promise.resolve();
-
-        const task = (async () => {
-            try { await prev; } catch { /* chain even if previous failed */ }
-            return await fn();
-        })();
-
-        // Map maintenance: remove entry once settles, but only if we are still the latest in flight
-        const cleanup = task.then(() => {
-            if (this.mutationQueues.get(id) === cleanup) {
-                this.mutationQueues.delete(id);
-            }
-        }, () => {
-            if (this.mutationQueues.get(id) === cleanup) {
-                this.mutationQueues.delete(id);
-            }
-        });
-
-        this.mutationQueues.set(id, cleanup);
-        return task;
-    }
-
-
-    /**
-     * Internal implementation of draft synchronization.
-     * Does NOT use the queue directly, allowing for recursion/retries within a single queued task.
-     */
-    private async _performSyncDraft(projectId: string, snapshot: RunSnapshot, expectedRevision: number, isRetry = false): Promise<SyncResult> {
-        try {
-            const res = await fetch(`${API_BASE}/projects/${projectId}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ draftSnapshot: snapshot, expectedRevision })
-            });
-            const data = await res.json();
-
-            if (res.status === 409 && !isRetry) {
-                console.warn(`[autosave-retry] Self-conflict detected on ${projectId} (Rev: ${expectedRevision}). Fetching latest and retrying...`);
-                const { projects } = await this.getSyncData();
-                const latest = projects.find(p => p.id === projectId);
-                if (latest) {
-                    return this._performSyncDraft(projectId, snapshot, latest.revision || 1, true);
-                }
-            }
-
-            if (res.status === 409) {
-                return { status: 'conflict', conflictData: data.current || data.data };
-            }
-
-            if (!res.ok) throw new Error(data.error);
-
-            this.runtimeAvailable = true;
-
-            // Update local projects
-            if (data.data) {
-                const projects = readLocalProjects();
-                const idx = projects.findIndex(p => p.id === projectId);
-                if (idx !== -1) {
-                    projects[idx] = data.data;
-                    persistLocalProjects(projects);
-                }
-            }
-
-            return { status: 'saved', project: data.data };
-        } catch (e) {
-            console.error('[Repository] _performSyncDraft failed:', e);
-            this.runtimeAvailable = false;
-            return { status: 'saved-local' };
-        }
     }
 
     /**
@@ -163,14 +86,6 @@ class RunHistoryRepository {
             status: 'saved-local'
         };
     }
-
-    /**
-     * Unified autosave: Syncs the current draft to the server with retry logic.
-     */
-    async syncDraft(projectId: string, snapshot: RunSnapshot, expectedRevision: number): Promise<SyncResult> {
-        return this.enqueueMutation(projectId, () => this._performSyncDraft(projectId, snapshot, expectedRevision));
-    }
-
 
     /**
      * Creates a new project with an initial version.
@@ -332,28 +247,6 @@ class RunHistoryRepository {
             this.runtimeAvailable = false;
         }
         return null;
-    }
-
-    async getDraft(projectId: string): Promise<RunSnapshot | null> {
-        try {
-            const res = await fetch(`${API_BASE}/projects/${projectId}/draft`);
-            if (res.status === 404) {
-                this.runtimeAvailable = true;
-                const localDraft = readLocalDraft();
-                return localDraft?.projectId === projectId ? localDraft.snapshot : null;
-            }
-            if (res.ok) {
-                const data = await res.json();
-                this.runtimeAvailable = true;
-                return data.data ?? null;
-            }
-            this.runtimeAvailable = false;
-        } catch {
-            this.runtimeAvailable = false;
-        }
-
-        const localDraft = readLocalDraft();
-        return localDraft?.projectId === projectId ? localDraft.snapshot : null;
     }
 
     async updateVersion(versionId: string, snapshot: RunSnapshot): Promise<{ version: RunVersion | null, project?: RunProject, status: SyncStatus }> {

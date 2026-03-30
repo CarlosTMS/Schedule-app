@@ -13,7 +13,6 @@ class RuntimeStore {
     constructor() {
         this.projects = [];
         this.versions = []; // Global list of versions
-        this.drafts = new Map(); // id -> snapshot
     }
 
     // ─── Projects ─────────────────────────────────────────────────────────────
@@ -27,16 +26,15 @@ class RuntimeStore {
     }
 
     upsertProject(project) {
-        const { draftSnapshot, ...cleanProject } = project;
-        const idx = this.projects.findIndex(p => p.id === cleanProject.id);
+        const idx = this.projects.findIndex(p => p.id === project.id);
 
-        let nextRevision = cleanProject.revision || 1;
+        let nextRevision = project.revision || 1;
         if (idx !== -1) {
             nextRevision = (this.projects[idx].revision || 1) + 1;
         }
 
         const updated = {
-            ...cleanProject,
+            ...project,
             revision: nextRevision,
             updatedAt: new Date().toISOString()
         };
@@ -53,7 +51,6 @@ class RuntimeStore {
             const removed = this.projects.splice(MAX_PROJECTS);
             const removedIds = removed.map(p => p.id);
             this.versions = this.versions.filter(v => !removedIds.includes(v.projectId));
-            removedIds.forEach(id => this.drafts.delete(id));
         }
 
         return updated;
@@ -64,7 +61,6 @@ class RuntimeStore {
         if (idx === -1) return false;
         this.projects.splice(idx, 1);
         this.versions = this.versions.filter(v => v.projectId !== id);
-        this.drafts.delete(id);
         return true;
     }
 
@@ -75,21 +71,6 @@ class RuntimeStore {
         if (p.revision !== expectedRevision) return p;
         return null;
     }
-
-    // ─── Drafts ──────────────────────────────────────────────────────────────
-
-    getDraft(id) {
-        return this.drafts.get(id) || null;
-    }
-
-    upsertDraft(id, snapshot) {
-        this.drafts.set(id, snapshot);
-    }
-
-    deleteDraft(id) {
-        this.drafts.delete(id);
-    }
-
 
     // ─── Versions ─────────────────────────────────────────────────────────────
 
@@ -120,7 +101,6 @@ class RuntimeStore {
             project.activeVersionId = id;
             project.updatedAt = new Date().toISOString();
             project.revision = (project.revision || 1) + 1;
-            this.deleteDraft(existing.projectId);
         }
 
         return {

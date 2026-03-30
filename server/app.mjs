@@ -281,14 +281,9 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'POST') {
         try {
           const body = await readBody(req);
-          const { draftSnapshot, ...project } = JSON.parse(body);
+          const project = JSON.parse(body);
 
           if (!runtimeStore.isValidProject(project)) return jsonResponse(res, 400, { ok: false, error: 'Invalid project' });
-
-          // Ensure draft is stored separately if provided during initial creation
-          if (draftSnapshot) {
-            runtimeStore.upsertDraft(project.id, draftSnapshot);
-          }
 
           const saved = runtimeStore.upsertProject(project);
           return jsonResponse(res, 200, { ok: true, data: saved });
@@ -303,18 +298,11 @@ const server = http.createServer(async (req, res) => {
       const id = parts[4];
       const subRoute = parts[5];
 
-      if (id && subRoute === 'draft' && req.method === 'GET') {
-        const draft = runtimeStore.getDraft(id);
-        return draft
-          ? jsonResponse(res, 200, { ok: true, data: draft })
-          : jsonResponse(res, 404, { ok: false, error: 'Draft not found' });
-      }
-
       if (id && !subRoute) {
         if (req.method === 'PATCH') {
           try {
             const body = await readBody(req);
-            const { expectedRevision, draftSnapshot, ...metadata } = JSON.parse(body);
+            const { expectedRevision, ...metadata } = JSON.parse(body);
 
             const conflict = runtimeStore.getConflict(id, expectedRevision);
             if (conflict) {
@@ -325,25 +313,16 @@ const server = http.createServer(async (req, res) => {
             const existing = runtimeStore.getProject(id);
             if (!existing) return jsonResponse(res, 404, { ok: false, error: 'Project not found' });
 
-            // Strip any legacy draftSnapshot if it somehow exists in the persistent record
-            const { draftSnapshot: _old, ...cleanExisting } = existing;
-
-            // Separate draft working state from persistent metadata to avoid record inflation
-            if (draftSnapshot) {
-              runtimeStore.upsertDraft(id, draftSnapshot);
-            }
-
             // Strictly prune metadata to avoid bloating persistence
             const cleanMetadata = { ...metadata };
-            delete cleanMetadata.draftSnapshot;
             delete cleanMetadata.expectedRevision;
 
             const updated = runtimeStore.upsertProject({
-              ...cleanExisting,
+              ...existing,
               ...cleanMetadata
             });
 
-            console.log(`[runtime] Patched project: ${id} (Rev: ${updated.revision})${draftSnapshot ? ' [Draft Sync]' : ''}`);
+            console.log(`[runtime] Patched project: ${id} (Rev: ${updated.revision})`);
             return jsonResponse(res, 200, { ok: true, data: updated });
           } catch (e) {
             if (isClientAbortError(e)) {
