@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { StudentRecord } from '../lib/excelParser';
 import { useI18n } from '../i18n';
-import { getKnownUtcOffset } from '../lib/timezones';
-
+import { getKnownUtcOffset, getEffectiveSessionUtcHour, formatUtcHourLabel, makeSessionInstanceOverrideKey, wrapUtcHour } from '../lib/timezones';
+import { activePlanningSessions } from '../lib/sessionCatalog';
+import { Minus, Plus, Users } from 'lucide-react';
+import type { SessionId } from '../lib/smeMatcher';
 
 interface SessionBreakdownProps {
     records: StudentRecord[];
@@ -10,6 +12,9 @@ interface SessionBreakdownProps {
     onSessionTimeChange?: (scheduleKey: string, newUtcHour: number) => void;
     onMoveToSession?: (recordIndices: number[], targetSchedule: string) => void;
     maxSessionSize?: number;
+    schedulesBySA?: Record<string, Set<string>>;
+    sessionInstanceTimeOverrides?: Record<string, number>;
+    onSessionInstanceTimeOverridesChange?: (next: Record<string, number>) => void;
 }
 
 // Extract the session key (without time part) from a full schedule string
@@ -28,12 +33,32 @@ const extractUtcHour = (scheduleName: string): number => {
     return 0;
 };
 
-export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSessionTimeChange, onMoveToSession, maxSessionSize = 40 }: SessionBreakdownProps) {
+export function SessionBreakdown({ 
+    records, 
+    sessionTimeOverrides = {}, 
+    onSessionTimeChange, 
+    onMoveToSession, 
+    maxSessionSize = 40,
+    schedulesBySA = {},
+    sessionInstanceTimeOverrides = {},
+    onSessionInstanceTimeOverridesChange
+}: SessionBreakdownProps) {
     const { t } = useI18n();
+    const [selectedView, setSelectedView] = useState<string>('Overview');
+
     const getAssignedSA = (r: StudentRecord): string => {
         const legacy = (r as StudentRecord & { 'Solution Week SA'?: string })['Solution Week SA'];
         return r['Solution Weeks SA'] || legacy || '';
     };
+
+    const uniqueSAs = useMemo(() => {
+        const sas = new Set<string>();
+        records.forEach(r => {
+            const sa = getAssignedSA(r);
+            if (sa && sa !== 'Unassigned') sas.add(sa);
+        });
+        return Array.from(sas).sort();
+    }, [records]);
 
     const data = useMemo(() => {
         const bySA: Record<string, { totalInSA: number, allocated: number, sessions: Record<string, StudentRecord[]> }> = {};
@@ -121,15 +146,13 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
             .sort((a, b) => a.sa.localeCompare(b.sa));
     }, [records, sessionTimeOverrides]);
 
-
-
     // Effective UTC hour for a session name (override or original)
     const getEffectiveUtcHour = (sessionName: string): number => {
         const key = extractScheduleKey(sessionName);
         return key in sessionTimeOverrides ? sessionTimeOverrides[key] : extractUtcHour(sessionName);
     };
 
-    const getGlobalTimes = (utcHour: number): string => {
+    const getGlobalTimes = (utcHour: number, referenceDate?: string): string => {
         const formatCityTime = (h: number, offset: number, label: string) => {
             let curr = h + offset;
             while (curr < 0) curr += 24;
@@ -139,9 +162,9 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
             const mm = (totalMin % 60).toString().padStart(2, '0');
             return `${hh}:${mm} ${label}`;
         };
-        const sgOffset = getKnownUtcOffset(undefined, undefined, 'Singapore');
-        const berOffset = getKnownUtcOffset(undefined, undefined, 'Germany');
-        const nyOffset = getKnownUtcOffset(undefined, undefined, 'United States');
+        const sgOffset = getKnownUtcOffset(undefined, referenceDate, 'Singapore');
+        const berOffset = getKnownUtcOffset(undefined, referenceDate, 'Germany');
+        const nyOffset = getKnownUtcOffset(undefined, referenceDate, 'United States');
 
         const sgTime = formatCityTime(utcHour, sgOffset, 'SG');
         const berTime = formatCityTime(utcHour, berOffset, 'BER');
@@ -151,11 +174,18 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
 
     if (data.length === 0) return null;
 
-    return (
-        <div className="glass-panel" style={{ marginTop: '2rem', overflowX: 'auto' }}>
-            <h3 style={{ marginBottom: '1rem', marginTop: 0 }}>{t('sessionsBreakdownBySA') || 'Sessions Breakdown by Solution Area'}</h3>
+    const handleSessionTimeAdjustment = (targetSA: string, schedule: string, sessionId: SessionId, delta: number) => {
+        if (!onSessionInstanceTimeOverridesChange) return;
+        const key = makeSessionInstanceOverrideKey(targetSA, schedule, sessionId);
+        const currentHour = getEffectiveSessionUtcHour(targetSA, schedule, sessionId, sessionInstanceTimeOverrides, sessionTimeOverrides);
+        onSessionInstanceTimeOverridesChange({
+            ...sessionInstanceTimeOverrides,
+            [key]: wrapUtcHour(currentHour + delta),
+        });
+    };
 
-
+    const renderOverview = () => (
+        <div style={{ marginTop: '1rem', overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.95rem' }}>
                 <thead>
                     <tr style={{ borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
@@ -329,6 +359,163 @@ export function SessionBreakdown({ records, sessionTimeOverrides = {}, onSession
                     })}
                 </tbody>
             </table>
+        </div>
+    );
+
+    const renderDetailSA = (sa: string) => {
+        const availableSchedules = Array.from(schedulesBySA[sa] || []).sort((a, b) => a.localeCompare(b));
+        const visibleSessions = activePlanningSessions.filter(session => session.facilitatorType !== 'faculty_only');
+        
+        return (
+            <div style={{ background: 'rgba(255,255,255,0.6)', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--glass-border)', marginTop: '1.5rem' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                        <tr style={{ background: 'rgba(248, 250, 252, 0.8)', borderBottom: '1px solid #e2e8f0' }}>
+                            <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', width: '30%' }}>Session Topic</th>
+                            <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', width: '30%' }}>Schedule</th>
+                            <th style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-secondary)', width: '40%' }}>Student Detail</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {visibleSessions.map((session, tIndex) => {
+                            const topicIsLast = tIndex === visibleSessions.length - 1;
+
+                            return availableSchedules.map((schedule, sIndex) => {
+                                const scheduleIsLast = sIndex === availableSchedules.length - 1;
+                                const showBorder = scheduleIsLast && !topicIsLast;
+
+                                const utcHour = getEffectiveSessionUtcHour(sa, schedule, session.id, sessionInstanceTimeOverrides, sessionTimeOverrides);
+                                
+                                // Provide student detail info similar to the overview but specific to this session
+                                const matchDetail = data.find(d => d.sa === sa);
+                                const currentSessionStudents = matchDetail?.sessions.find(s => s.name === schedule);
+
+                                return (
+                                    <tr
+                                        key={`${session.id}-${schedule}`}
+                                        style={{
+                                            borderBottom: showBorder ? '1px solid #cbd5e1' : (topicIsLast && scheduleIsLast ? 'none' : '1px solid #e2e8f0'),
+                                        }}
+                                    >
+                                        {sIndex === 0 && (
+                                            <td rowSpan={availableSchedules.length} style={{ padding: '1rem', fontWeight: 500, verticalAlign: 'top', borderRight: '1px solid #e2e8f0' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                    <span>{session.title}</span>
+                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{session.onlineSessionDay}</span>
+                                                    <span style={{ fontSize: '0.75rem', color: '#0369a1' }}>{session.date}</span>
+                                                </div>
+                                            </td>
+                                        )}
+                                        <td style={{ padding: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                            <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
+                                                {extractScheduleKey(schedule).replace(`${sa} `, '')}
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSessionTimeAdjustment(sa, schedule, session.id, -0.25)}
+                                                    style={{ border: '1px solid #cbd5e1', background: '#fff', borderRadius: '6px', padding: '0.2rem', display: 'flex', cursor: 'pointer' }}
+                                                    title="Move session 15 mins earlier"
+                                                >
+                                                    <Minus size={12} />
+                                                </button>
+                                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--primary-color)' }}>
+                                                    {formatUtcHourLabel(utcHour)}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSessionTimeAdjustment(sa, schedule, session.id, 0.25)}
+                                                    style={{ border: '1px solid #cbd5e1', background: '#fff', borderRadius: '6px', padding: '0.2rem', display: 'flex', cursor: 'pointer' }}
+                                                    title="Move session 15 mins later"
+                                                >
+                                                    <Plus size={12} />
+                                                </button>
+                                            </div>
+                                            <div style={{ color: '#0ea5e9', fontSize: '0.8rem', marginTop: '0.4rem', fontWeight: 500 }}>
+                                                🌎 {getGlobalTimes(utcHour, session.date)}
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: '1rem', fontSize: '0.85rem' }}>
+                                            {currentSessionStudents ? (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                    <span style={{ fontWeight: 600, color: currentSessionStudents.count > maxSessionSize ? 'var(--danger-color)' : 'inherit' }}>
+                                                        {currentSessionStudents.count} Attendees {currentSessionStudents.count > maxSessionSize && '(OVER CAPACITY)'}
+                                                    </span>
+                                                    {Object.entries(currentSessionStudents.localTimes).map(([lt, count]) => (
+                                                        <span key={lt} style={{ color: 'var(--text-secondary)' }}>- {count} {t('peopleAt')} {lt}</span>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <span style={{ color: 'var(--text-secondary)' }}>No attendees</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            });
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        );
+    };
+
+    return (
+        <div className="animated-fade-in" style={{ marginTop: '0' }}>
+            {/* Context Controls */}
+            <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{ background: 'rgba(59, 130, 246, 0.1)', padding: '0.5rem', borderRadius: '8px', color: 'var(--primary-color)' }}>
+                            <Users size={24} />
+                        </div>
+                        <h3 style={{ margin: 0, fontSize: '1.25rem' }}>{t('sessionsBreakdownBySA') || 'Sessions Breakdown by Solution Area'}</h3>
+                    </div>
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <button
+                        onClick={() => setSelectedView('Overview')}
+                        style={{
+                            padding: '0.5rem 1rem',
+                            borderRadius: '9999px',
+                            border: '1px solid',
+                            borderColor: selectedView === 'Overview' ? 'var(--primary-color)' : 'var(--glass-border)',
+                            background: selectedView === 'Overview' ? 'var(--primary-color)' : 'rgba(255,255,255,0.5)',
+                            color: selectedView === 'Overview' ? 'white' : 'var(--text-primary)',
+                            fontWeight: selectedView === 'Overview' ? 600 : 400,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            boxShadow: selectedView === 'Overview' ? '0 4px 6px -1px rgba(59, 130, 246, 0.3)' : 'none'
+                        }}
+                    >
+                        Overview
+                    </button>
+                    {uniqueSAs.map(sa => (
+                        <button
+                            key={sa}
+                            onClick={() => setSelectedView(sa)}
+                            style={{
+                                padding: '0.5rem 1rem',
+                                borderRadius: '9999px',
+                                border: '1px solid',
+                                borderColor: selectedView === sa ? 'var(--primary-color)' : 'var(--glass-border)',
+                                background: selectedView === sa ? 'var(--primary-color)' : 'rgba(255,255,255,0.5)',
+                                color: selectedView === sa ? 'white' : 'var(--text-primary)',
+                                fontWeight: selectedView === sa ? 600 : 400,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                boxShadow: selectedView === sa ? '0 4px 6px -1px rgba(59, 130, 246, 0.3)' : 'none'
+                            }}
+                        >
+                            {sa}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '1.5rem' }}>
+                {selectedView === 'Overview' ? renderOverview() : renderDetailSA(selectedView)}
+            </div>
         </div>
     );
 }

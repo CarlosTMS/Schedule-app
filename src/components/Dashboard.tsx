@@ -16,6 +16,7 @@ import { FacultyDebriefSchedule } from './FacultyDebriefSchedule';
 import { Summary } from './Summary';
 import { CalendarBlockers } from './CalendarBlockers';
 import { Evaluations } from './Evaluations';
+import type { EvaluationEngineOutput } from '../lib/evaluationEngine';
 import { useI18n } from '../i18n';
 import { loadSMEData, forceFetchSMEData } from '../lib/smeDataLoader';
 import type { SMECacheStatus } from '../lib/smeDataLoader';
@@ -40,6 +41,8 @@ interface DashboardProps {
     onSmeConfirmationStateChange?: (v: SmeConfirmationState) => void;
     manualFacultyAssignments?: FacultyAssignments;
     onManualFacultyAssignmentsChange?: (v: FacultyAssignments) => void;
+    evaluationsOutput?: EvaluationEngineOutput | null;
+    onEvaluationsOutputChange?: (v: EvaluationEngineOutput | null) => void;
     versionInfo?: ReactNode;
 
     // ── Live editing state (if omitted, falls back to internal state) ──
@@ -66,6 +69,8 @@ export function Dashboard({
     onSmeConfirmationStateChange,
     manualFacultyAssignments: controlledFaculty,
     onManualFacultyAssignmentsChange,
+    evaluationsOutput: controlledEvaluations,
+    onEvaluationsOutputChange,
     versionInfo,
     localRecords: controlledRecords,
     onLocalRecordsChange,
@@ -102,6 +107,7 @@ export function Dashboard({
     const [internalSme, setInternalSme] = useState<SmeAssignments>({});
     const [internalSmeConfirmationState, setInternalSmeConfirmationState] = useState<SmeConfirmationState>({});
     const [internalFaculty, setInternalFaculty] = useState<FacultyAssignments>({});
+    const [internalEvaluations, setInternalEvaluations] = useState<EvaluationEngineOutput | null>(null);
 
     // Resolve: prefer controlled props, fall back to internal
     const sessionTimeOverrides = controlledOverrides ?? internalOverrides;
@@ -109,6 +115,7 @@ export function Dashboard({
     const manualSmeAssignments = controlledSme ?? internalSme;
     const smeConfirmationState = controlledSmeConfirmationState ?? internalSmeConfirmationState;
     const manualFacultyAssignments = controlledFaculty ?? internalFaculty;
+    const evaluationsOutput = controlledEvaluations ?? internalEvaluations;
 
     const setSessionTimeOverrides = (v: Record<string, number> | ((p: Record<string, number>) => Record<string, number>)) => {
         const next = typeof v === 'function' ? v(sessionTimeOverrides) : v;
@@ -134,6 +141,12 @@ export function Dashboard({
         const next = typeof v === 'function' ? v(manualFacultyAssignments) : v;
         if (onManualFacultyAssignmentsChange) onManualFacultyAssignmentsChange(next);
         else setInternalFaculty(next);
+    };
+
+    const setEvaluationsOutput = (v: EvaluationEngineOutput | null | ((p: EvaluationEngineOutput | null) => EvaluationEngineOutput | null)) => {
+        const next = typeof v === 'function' ? v(evaluationsOutput) : v;
+        if (onEvaluationsOutputChange) onEvaluationsOutputChange(next);
+        else setInternalEvaluations(next);
     };
 
     const [smeList, setSmeList] = useState<SME[]>([]);
@@ -533,6 +546,9 @@ export function Dashboard({
                             onSessionTimeChange={handleSessionTimeChange}
                             onMoveToSession={handleMoveToSession}
                             maxSessionSize={result.config.assumptions.maxSessionSize}
+                            schedulesBySA={schedulesBySA}
+                            sessionInstanceTimeOverrides={sessionInstanceTimeOverrides}
+                            onSessionInstanceTimeOverridesChange={setSessionInstanceTimeOverrides}
                         />
                     </div>
                 )}
@@ -754,6 +770,8 @@ export function Dashboard({
                         <Evaluations
                             records={localRecords}
                             facultyAssignments={manualFacultyAssignments}
+                            output={evaluationsOutput}
+                            onOutputChange={setEvaluationsOutput}
                         />
                     </div>
                 )}

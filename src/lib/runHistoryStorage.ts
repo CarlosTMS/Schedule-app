@@ -12,6 +12,7 @@ import type { AllocationRule } from '../components/RuleBuilder';
 import type { DistributionTarget } from '../components/Randomizer';
 import type { SmeAssignments, SmeConfirmationState } from '../components/SMESchedule';
 import type { FacultyAssignments } from '../components/FacultySchedule';
+import type { EvaluationEngineOutput } from './evaluationEngine';
 
 // ─── Schema version ───────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ export interface RunSnapshot {
     manualSmeAssignments: SmeAssignments;
     smeConfirmationState: SmeConfirmationState;
     manualFacultyAssignments: FacultyAssignments;
+    evaluationsOutput?: EvaluationEngineOutput | null;
 }
 
 export interface RunProject {

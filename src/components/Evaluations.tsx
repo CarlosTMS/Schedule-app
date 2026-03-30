@@ -1,24 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Download, Users, AlertTriangle, Calendar as CalendarIcon } from 'lucide-react';
 import type { StudentRecord } from '../lib/excelParser';
 import { assignEvaluators, type EvaluationEngineOutput, type VatGroup } from '../lib/evaluationEngine';
 import type { FacultyAssignments } from './FacultySchedule';
 import type { EvaluatorRecord } from '../lib/excelParser';
+import { SUN_THU_COUNTRIES } from '../lib/timezones';
 import evaluatorsData from '../evaluators-data.json';
 
 interface EvaluationsProps {
     records: StudentRecord[];
     facultyAssignments: FacultyAssignments;
+    output: EvaluationEngineOutput | null;
+    onOutputChange: (v: EvaluationEngineOutput | null | ((p: EvaluationEngineOutput | null) => EvaluationEngineOutput | null)) => void;
 }
 
-export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
+export function Evaluations({ records, facultyAssignments, output, onOutputChange }: EvaluationsProps) {
     const evaluators = evaluatorsData as EvaluatorRecord[];
     const [evalDate, setEvalDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [includeRAD, setIncludeRAD] = useState<boolean>(true);
-    const [output, setOutput] = useState<EvaluationEngineOutput | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const hasAutoRun = useRef(false);
 
-    const handleRunAssignment = () => {
+    const handleRunAssignment = useCallback(() => {
         const dateObj = new Date(evalDate);
         if (isNaN(dateObj.getTime())) {
             setError("Invalid date selected.");
@@ -26,13 +29,24 @@ export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
         }
 
         const result = assignEvaluators(records, evaluators, facultyAssignments, dateObj, includeRAD);
-        setOutput(result);
-    };
+        onOutputChange(result);
+    }, [records, evaluators, facultyAssignments, evalDate, includeRAD, onOutputChange]);
+
+    // Auto-run simulation when component mounts if not already simulated
+    useEffect(() => {
+        if (!output && records.length > 0 && !hasAutoRun.current) {
+            hasAutoRun.current = true;
+            const timer = setTimeout(() => {
+                handleRunAssignment();
+            }, 0);
+            return () => clearTimeout(timer);
+        }
+    }, [records, output, handleRunAssignment]);
 
     const handleMoveVat = (vatName: string, targetEvaluatorName: string) => {
         if (!output) return;
 
-        setOutput(prev => {
+        onOutputChange(prev => {
             if (!prev) return prev;
 
             // 1. Find VAT and original evaluator
@@ -242,10 +256,18 @@ export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
                                     {evaluatorAssig.assignedVats.length === 0 ? (
                                         <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem 0' }}>
                                             No VATs assigned
-                                        </div>
+                                         </div>
                                     ) : (
-                                        evaluatorAssig.assignedVats.map(v => (
-                                            <div key={v.name} style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.85rem' }}>
+                                        evaluatorAssig.assignedVats.map(v => {
+                                            const isSunThuVat = v.members?.some(m => SUN_THU_COUNTRIES.some(c => (m.Country || '').toLowerCase().includes(c)));
+                                            return (
+                                                <div key={v.name} style={{ 
+                                                    background: isSunThuVat ? '#f0fdf4' : '#f8fafc', 
+                                                    padding: '0.75rem', 
+                                                    borderRadius: '0.375rem', 
+                                                    border: `1px solid ${isSunThuVat ? '#10b981' : '#e2e8f0'}`, 
+                                                    fontSize: '0.85rem' 
+                                                }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: 'var(--text-color)', marginBottom: '0.35rem' }}>
                                                     <span>{v.name}</span>
                                                     <span>UTC {v.utcOffset > 0 ? '+' : ''}{v.utcOffset.toFixed(1)}</span>
@@ -280,7 +302,7 @@ export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
                                                     <div style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                                         {v.members.map((m, mIdx) => {
                                                             const program = m.Program || m.Role || m['(AA) Secondary Specialization'] || 'Unknown Program';
-                                                            const office = m.Office || 'Unknown Office';
+                                                            const country = m.Country || 'Unknown Country';
                                                             return (
                                                                 <div key={mIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontSize: '0.75rem' }}>
                                                                     <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1, paddingRight: '0.5rem' }}>
@@ -292,15 +314,16 @@ export function Evaluations({ records, facultyAssignments }: EvaluationsProps) {
                                                                         </span>
                                                                     </div>
                                                                     <div style={{ color: '#64748b', textAlign: 'right', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                                                                        {office}
+                                                                        {country}
                                                                     </div>
                                                                 </div>
                                                             );
                                                         })}
                                                     </div>
                                                 )}
-                                            </div>
-                                        ))
+                                                </div>
+                                            );
+                                        })
                                     )}
                                 </div>
                             </div>

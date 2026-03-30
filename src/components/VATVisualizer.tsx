@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { StudentRecord } from '../lib/excelParser';
 import { AlertTriangle, Users, AlertCircle, Plus, CheckSquare, Square, Zap, Info, ArrowRight, Send, CheckCircle, CalendarDays, Calendar, RotateCcw } from 'lucide-react';
 import { useI18n } from '../i18n';
-import { extractScheduleKey as tzExtractKey, formatUtcHourLabel } from '../lib/timezones';
+import { extractScheduleKey as tzExtractKey, formatUtcHourLabel, SUN_THU_COUNTRIES } from '../lib/timezones';
 import { getAssociateEmail } from '../lib/associateEmailDirectory';
 
 interface VATVisualizerProps {
@@ -48,16 +48,6 @@ interface Recommendation {
     names: string;
 }
 
-const SUN_THU_COUNTRIES = [
-    'saudi arabia', 'arabia saudita', 
-    'kuwait', 
-    'qatar', 
-    'bahrain', 'bahrein', 
-    'oman', 
-    'jordan', 'jordania', 
-    'egypt', 'egipto', 
-    'israel'
-];
 
 const resolveApiBase = (): string => {
     const envBase = import.meta.env.VITE_API_BASE as string | undefined;

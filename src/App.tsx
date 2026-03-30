@@ -18,6 +18,7 @@ import { repository, type SyncStatus } from './lib/runHistoryRepository';
 import { type RunProject, type RunVersion, type RunSnapshot, persistDraft, readDraft } from './lib/runHistoryStorage';
 import type { SmeAssignments, SmeConfirmationState } from './components/SMESchedule';
 import type { FacultyAssignments } from './components/FacultySchedule';
+import type { EvaluationEngineOutput } from './lib/evaluationEngine';
 import { useI18n } from './i18n';
 import { Globe, Clock, Trash2, RotateCcw, Pencil, CheckCircle2, Plus, History, Save, Copy, Loader2, ShieldAlert, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -68,6 +69,7 @@ function App() {
   const [manualSmeAssignments, setManualSmeAssignments] = useState<SmeAssignments>({});
   const [smeConfirmationState, setSmeConfirmationState] = useState<SmeConfirmationState>({});
   const [manualFacultyAssignments, setManualFacultyAssignments] = useState<FacultyAssignments>({});
+  const [evaluationsOutput, setEvaluationsOutput] = useState<EvaluationEngineOutput | null>(null);
 
   // ── Persistence / Versioning state ─────────────────────────────────────────
   const [projects, setProjects] = useState<RunProject[]>([]);
@@ -111,8 +113,8 @@ function App() {
   const currentSnapshot = useMemo((): RunSnapshot => ({
     records, assumptions, rules, fsDistributions, aeDistributions, startHour, endHour,
     result: (result && dashboardMetrics) ? { ...result, records: dashboardRecords, metrics: dashboardMetrics } : result as AllocationResult,
-    sessionTimeOverrides, sessionInstanceTimeOverrides, manualSmeAssignments, smeConfirmationState, manualFacultyAssignments
-  }), [records, assumptions, rules, fsDistributions, aeDistributions, startHour, endHour, result, dashboardRecords, dashboardMetrics, sessionTimeOverrides, sessionInstanceTimeOverrides, manualSmeAssignments, smeConfirmationState, manualFacultyAssignments]);
+    sessionTimeOverrides, sessionInstanceTimeOverrides, manualSmeAssignments, smeConfirmationState, manualFacultyAssignments, evaluationsOutput
+  }), [records, assumptions, rules, fsDistributions, aeDistributions, startHour, endHour, result, dashboardRecords, dashboardMetrics, sessionTimeOverrides, sessionInstanceTimeOverrides, manualSmeAssignments, smeConfirmationState, manualFacultyAssignments, evaluationsOutput]);
 
   const applySnapshot = useCallback((s: RunSnapshot) => {
     setRecords(s.records);
@@ -130,6 +132,7 @@ function App() {
     setManualSmeAssignments(s.manualSmeAssignments);
     setSmeConfirmationState(s.smeConfirmationState ?? {});
     setManualFacultyAssignments(s.manualFacultyAssignments);
+    setEvaluationsOutput(s.evaluationsOutput ?? null);
     setPreviousMetrics(null);
   }, []);
 
@@ -322,6 +325,7 @@ function App() {
         setSmeConfirmationState({});
         setManualSmeAssignments({});
         setManualFacultyAssignments({});
+        setEvaluationsOutput(null);
         setLoadedVersionId(null);
       } catch (e) {
         setError("Error during allocation engine execution.");
@@ -345,6 +349,7 @@ function App() {
         setManualFacultyAssignments(parsed.manualFacultyAssignments);
         setSessionTimeOverrides(parsed.sessionTimeOverrides);
         setSessionInstanceTimeOverrides(parsed.sessionInstanceTimeOverrides ?? {});
+        setEvaluationsOutput(parsed.evaluationsOutput ?? null);
         
         // Ensure result is set to bypass configurator
         setResult(parsed.fakeResult);
@@ -366,6 +371,7 @@ function App() {
             setManualFacultyAssignments(parsed.manualFacultyAssignments);
             setSessionTimeOverrides(parsed.sessionTimeOverrides);
             setSessionInstanceTimeOverrides(parsed.sessionInstanceTimeOverrides ?? {});
+            setEvaluationsOutput(parsed.evaluationsOutput ?? null);
             
             // Bypass configurator
             setResult(parsed.fakeResult);
@@ -384,6 +390,7 @@ function App() {
             setManualSmeAssignments({});
             setSmeConfirmationState({});
             setManualFacultyAssignments({});
+            setEvaluationsOutput(null);
             setActiveProjectId(null);
             setLoadedVersionId(null);
         }
@@ -583,6 +590,8 @@ function App() {
             onManualSmeAssignmentsChange={setManualSmeAssignments}
             manualFacultyAssignments={manualFacultyAssignments}
             onManualFacultyAssignmentsChange={setManualFacultyAssignments}
+            evaluationsOutput={evaluationsOutput}
+            onEvaluationsOutputChange={setEvaluationsOutput}
             onLocalMetricsChange={setDashboardMetrics}
             onLocalRecordsChange={setDashboardRecords}
             projectName={projects.find(p => p.id === activeProjectId)?.name ?? null}

@@ -12,6 +12,17 @@ const normalizeLocation = (value: string | undefined): string =>
         .toLowerCase()
         .trim();
 
+export const SUN_THU_COUNTRIES = [
+    'saudi arabia', 'arabia saudita', 
+    'kuwait', 
+    'qatar', 
+    'bahrain', 'bahrein', 
+    'oman', 
+    'jordan', 'jordania', 
+    'egypt', 'egipto', 
+    'israel'
+];
+
 const OFFICE_TIME_ZONES: Array<[string, string]> = [
     ['hong kong', 'Asia/Hong_Kong'],
     ['singapore', 'Asia/Singapore'],

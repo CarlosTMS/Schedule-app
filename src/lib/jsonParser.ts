@@ -2,6 +2,7 @@ import type { StudentRecord } from './excelParser';
 import type { SmeAssignments, SmeConfirmationState } from '../components/SMESchedule';
 import type { FacultyAssignments } from '../components/FacultySchedule';
 import { sessions as sessionDefs } from './smeMatcher';
+import type { EvaluationEngineOutput } from './evaluationEngine';
 import { calculateMetrics, recalculateVATs, type AllocationResult } from './allocationEngine';
 import type { SME, SessionId as SmeSessionId } from './smeMatcher';
 import type { Faculty, SessionId as FacultySessionId } from './facultyMatcher';
@@ -18,6 +19,7 @@ export interface ParsedJsonSummary {
     sessionInstanceTimeOverrides: Record<string, number>;
     config: Record<string, unknown>;
     fakeResult: AllocationResult;
+    evaluationsOutput?: EvaluationEngineOutput | null;
 }
 
 export const parseEnrichedExcel = (records: StudentRecord[]): ParsedJsonSummary => {
@@ -146,7 +148,8 @@ export const parseEnrichedExcel = (records: StudentRecord[]): ParsedJsonSummary 
         sessionTimeOverrides,
         sessionInstanceTimeOverrides,
         config: fakeResult.config,
-        fakeResult
+        fakeResult,
+        evaluationsOutput: null
     };
 };
 
@@ -286,7 +289,8 @@ export const parseSummaryJson = async (file: File): Promise<ParsedJsonSummary> =
         sessionTimeOverrides,
         sessionInstanceTimeOverrides,
         config: data.config,
-        fakeResult
+        fakeResult,
+        evaluationsOutput: data.evaluationsOutput || null
     };
 };
 
