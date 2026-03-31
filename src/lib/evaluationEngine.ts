@@ -28,7 +28,7 @@ export interface EvaluationEngineOutput {
 export const assignEvaluators = (
     records: StudentRecord[],
     evaluators: EvaluatorRecord[],
-    _facultyAssignments: any, // Unused as SA criteria is removed
+    _facultyAssignments: unknown, // Unused as SA criteria is removed
     evaluationDate: Date,
     includeRAD: boolean
 ): EvaluationEngineOutput => {

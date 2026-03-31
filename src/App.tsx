@@ -556,7 +556,6 @@ function App() {
             sessionLength={assumptions.sessionLength}
             facultyStartHour={assumptions.facultyStartHour ?? 6}
             sessionTimeOverrides={sessionTimeOverrides}
-            onSessionTimeOverridesChange={setSessionTimeOverrides}
             sessionInstanceTimeOverrides={sessionInstanceTimeOverrides}
             onSessionInstanceTimeOverridesChange={setSessionInstanceTimeOverrides}
             manualSmeAssignments={manualSmeAssignments}

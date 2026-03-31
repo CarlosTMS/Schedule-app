@@ -32,7 +32,6 @@ interface DashboardProps {
     facultyStartHour?: number;
     // ── Controlled editable state (optional — if omitted, Dashboard uses internal state) ──
     sessionTimeOverrides?: Record<string, number>;
-    onSessionTimeOverridesChange?: (v: Record<string, number>) => void;
     sessionInstanceTimeOverrides?: Record<string, number>;
     onSessionInstanceTimeOverridesChange?: (v: Record<string, number>) => void;
     manualSmeAssignments?: SmeAssignments;
@@ -60,7 +59,6 @@ export function Dashboard({
     result, onReset, previousMetrics, sessionLength = 90,
     facultyStartHour = 6,
     sessionTimeOverrides: controlledOverrides,
-    onSessionTimeOverridesChange,
     sessionInstanceTimeOverrides: controlledSessionInstanceOverrides,
     onSessionInstanceTimeOverridesChange,
     manualSmeAssignments: controlledSme,
@@ -102,7 +100,7 @@ export function Dashboard({
     };
 
     // Internal fallback state — used when parent does NOT pass controlled props
-    const [internalOverrides, setInternalOverrides] = useState<Record<string, number>>({});
+    const [internalOverrides] = useState<Record<string, number>>({});
     const [internalSessionInstanceOverrides, setInternalSessionInstanceOverrides] = useState<Record<string, number>>({});
     const [internalSme, setInternalSme] = useState<SmeAssignments>({});
     const [internalSmeConfirmationState, setInternalSmeConfirmationState] = useState<SmeConfirmationState>({});
@@ -117,11 +115,6 @@ export function Dashboard({
     const manualFacultyAssignments = controlledFaculty ?? internalFaculty;
     const evaluationsOutput = controlledEvaluations ?? internalEvaluations;
 
-    const setSessionTimeOverrides = (v: Record<string, number> | ((p: Record<string, number>) => Record<string, number>)) => {
-        const next = typeof v === 'function' ? v(sessionTimeOverrides) : v;
-        if (onSessionTimeOverridesChange) onSessionTimeOverridesChange(next);
-        else setInternalOverrides(next);
-    };
     const setSessionInstanceTimeOverrides = (v: Record<string, number> | ((p: Record<string, number>) => Record<string, number>)) => {
         const next = typeof v === 'function' ? v(sessionInstanceTimeOverrides) : v;
         if (onSessionInstanceTimeOverridesChange) onSessionInstanceTimeOverridesChange(next);
@@ -165,10 +158,6 @@ export function Dashboard({
             setSmeList(smes);
             setSmeStatus(status);
         });
-    };
-
-    const handleSessionTimeChange = (scheduleKey: string, newUtcHour: number) => {
-        setSessionTimeOverrides(prev => ({ ...prev, [scheduleKey]: newUtcHour }));
     };
 
     const handleMoveToSession = (recordIndices: number[], targetSchedule: string) => {
@@ -543,7 +532,6 @@ export function Dashboard({
                         <SessionBreakdown
                             records={localRecords}
                             sessionTimeOverrides={sessionTimeOverrides}
-                            onSessionTimeChange={handleSessionTimeChange}
                             onMoveToSession={handleMoveToSession}
                             maxSessionSize={result.config.assumptions.maxSessionSize}
                             schedulesBySA={schedulesBySA}

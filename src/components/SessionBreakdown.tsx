@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { StudentRecord } from '../lib/excelParser';
 import { useI18n } from '../i18n';
-import { getKnownUtcOffset, getEffectiveSessionUtcHour, formatUtcHourLabel, makeSessionInstanceOverrideKey, wrapUtcHour } from '../lib/timezones';
+import { getKnownUtcOffset, getEffectiveSessionUtcHour, formatUtcHourLabel, makeSessionInstanceOverrideKey, wrapUtcHour, parseSessionDate } from '../lib/timezones';
 import { activePlanningSessions } from '../lib/sessionCatalog';
 import { Minus, Plus, Users } from 'lucide-react';
 import type { SessionId } from '../lib/smeMatcher';
@@ -9,7 +9,6 @@ import type { SessionId } from '../lib/smeMatcher';
 interface SessionBreakdownProps {
     records: StudentRecord[];
     sessionTimeOverrides?: Record<string, number>; // scheduleKey (e.g. "Cloud ERP Session 1") -> UTC hour
-    onSessionTimeChange?: (scheduleKey: string, newUtcHour: number) => void;
     onMoveToSession?: (recordIndices: number[], targetSchedule: string) => void;
     maxSessionSize?: number;
     schedulesBySA?: Record<string, Set<string>>;
@@ -36,7 +35,6 @@ const extractUtcHour = (scheduleName: string): number => {
 export function SessionBreakdown({ 
     records, 
     sessionTimeOverrides = {}, 
-    onSessionTimeChange, 
     onMoveToSession, 
     maxSessionSize = 40,
     schedulesBySA = {},
@@ -91,68 +89,17 @@ export function SessionBreakdown({
                 totalInSA: info.totalInSA,
                 allocated: info.allocated,
                 sessions: Object.entries(info.sessions)
-                    .map(([name, students]) => {
-                        const scheduleKey = extractScheduleKey(name);
-                        const originalUtcHour = extractUtcHour(name);
-                        const utcHour = scheduleKey in sessionTimeOverrides ? sessionTimeOverrides[scheduleKey] : originalUtcHour;
-
-                        // Per-localTime buckets: both a count map and full record arrays
-                        const localTimeBuckets: Record<string, StudentRecord[]> = {};
-                        students.forEach((s: StudentRecord) => {
-                            const offset = s._utcOffset ?? 0;
-                            let localStart = utcHour + offset;
-                            while (localStart < 0) localStart += 24;
-                            while (localStart >= 24) localStart -= 24;
-                            
-                            const totalMin = Math.round(localStart * 60);
-                            const h = Math.floor(totalMin / 60).toString().padStart(2, '0');
-                            const m = (totalMin % 60).toString().padStart(2, '0');
-                            const displayStartStr = `${h}:${m} Local`;
-                            
-                            if (!localTimeBuckets[displayStartStr]) localTimeBuckets[displayStartStr] = [];
-                            localTimeBuckets[displayStartStr].push(s);
-                        });
-                        const localTimes: Record<string, number> = {};
-                        Object.entries(localTimeBuckets).forEach(([lt, recs]) => { localTimes[lt] = recs.length; });
-
-                        const formatCityTime = (h: number, offset: number, label: string) => {
-                            let curr = h + offset;
-                            while (curr < 0) curr += 24;
-                            while (curr >= 24) curr -= 24;
-                            const totalMin = Math.round(curr * 60);
-                            const hh = Math.floor(totalMin / 60).toString().padStart(2, '0');
-                            const mm = (totalMin % 60).toString().padStart(2, '0');
-                            return `${hh}:${mm} ${label}`;
-                        };
-
-                        const sgOffset = getKnownUtcOffset(undefined, undefined, 'Singapore');
-                        const berOffset = getKnownUtcOffset(undefined, undefined, 'Germany');
-                        const nyOffset = getKnownUtcOffset(undefined, undefined, 'United States');
-
-                        const singaporeTime = formatCityTime(utcHour, sgOffset, 'SG');
-                        const berlinTime = formatCityTime(utcHour, berOffset, 'BER');
-                        const nyTime = formatCityTime(utcHour, nyOffset, 'NY');
-
-                        return {
-                            name,
-                            count: students.length,
-                            localTimes,
-                            localTimeBuckets,
-                            globalTimes: `${singaporeTime} | ${berlinTime} | ${nyTime}`
-                        };
-                    })
+                    .map(([name, students]) => ({
+                        name,
+                        count: students.length,
+                        students,
+                    }))
                     .sort((a, b) => a.name.localeCompare(b.name))
             }))
             .sort((a, b) => a.sa.localeCompare(b.sa));
-    }, [records, sessionTimeOverrides]);
+    }, [records]);
 
-    // Effective UTC hour for a session name (override or original)
-    const getEffectiveUtcHour = (sessionName: string): number => {
-        const key = extractScheduleKey(sessionName);
-        return key in sessionTimeOverrides ? sessionTimeOverrides[key] : extractUtcHour(sessionName);
-    };
-
-    const getGlobalTimes = (utcHour: number, referenceDate?: string): string => {
+    const getGlobalTimes = (utcHour: number, referenceDate?: Date | string): string => {
         const formatCityTime = (h: number, offset: number, label: string) => {
             let curr = h + offset;
             while (curr < 0) curr += 24;
@@ -184,6 +131,27 @@ export function SessionBreakdown({
         });
     };
 
+    const buildLocalTimeBuckets = (students: StudentRecord[], utcHour: number) => {
+        const localTimeBuckets: Record<string, StudentRecord[]> = {};
+
+        students.forEach((student) => {
+            const offset = student._utcOffset ?? 0;
+            let localStart = utcHour + offset;
+            while (localStart < 0) localStart += 24;
+            while (localStart >= 24) localStart -= 24;
+
+            const totalMin = Math.round(localStart * 60);
+            const h = Math.floor(totalMin / 60).toString().padStart(2, '0');
+            const m = (totalMin % 60).toString().padStart(2, '0');
+            const displayStartStr = `${h}:${m} Local`;
+
+            if (!localTimeBuckets[displayStartStr]) localTimeBuckets[displayStartStr] = [];
+            localTimeBuckets[displayStartStr].push(student);
+        });
+
+        return localTimeBuckets;
+    };
+
     const renderOverview = () => (
         <div style={{ marginTop: '1rem', overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.95rem' }}>
@@ -202,12 +170,7 @@ export function SessionBreakdown({
 
                         const renderSession = (s: typeof s1, otherSession: typeof s2) => {
                             if (!s) return <span style={{ color: '#94a3b8' }}>N/A</span>;
-                            const effectiveUtcHour = getEffectiveUtcHour(s.name);
-                            const effectiveGlobalTimes = getGlobalTimes(effectiveUtcHour);
-                            const sessionLabel = s.name.replace(`${row.sa} `, '');
-                            const isModified = extractScheduleKey(s.name) in sessionTimeOverrides;
                             const scheduleKey = extractScheduleKey(s.name);
-                            const originalHour = extractUtcHour(s.name);
                             const arrowDir = otherSession ? (s.name < otherSession.name ? '→' : '←') : null;
 
                             return (
@@ -230,113 +193,157 @@ export function SessionBreakdown({
                                             </span>
                                         )}
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
-                                        <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
-                                            {sessionLabel.replace(/ \(\d{1,2}:\d{2} UTC\)/, '')}
-                                        </span>
-                                        <input
-                                            type="time"
-                                            value={`${Math.floor(effectiveUtcHour).toString().padStart(2, '0')}:${Math.round((effectiveUtcHour % 1) * 60).toString().padStart(2, '0')}`}
-                                            onChange={(e) => {
-                                                if (!onSessionTimeChange) return;
-                                                const [h, m] = e.target.value.split(':').map(Number);
-                                                if (!isNaN(h) && !isNaN(m)) onSessionTimeChange(scheduleKey, h + (m / 60));
-                                            }}
-                                            title="Adjust UTC start time"
-                                            style={{
-                                                padding: '2px 4px',
-                                                borderRadius: '5px',
-                                                border: isModified ? '1.5px solid var(--primary-color)' : '1px solid #cbd5e1',
-                                                background: isModified ? 'rgba(59,130,246,0.08)' : '#f8fafc',
-                                                fontSize: '0.8rem',
-                                                color: isModified ? 'var(--primary-color)' : '#64748b',
-                                                fontWeight: isModified ? 700 : 400,
-                                                cursor: onSessionTimeChange ? 'pointer' : 'default',
-                                                outline: 'none',
-                                                width: '88px'
-                                            }}
-                                            readOnly={!onSessionTimeChange}
-                                        />
-                                        <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>UTC</span>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                            {isModified && onSessionTimeChange && (
-                                                <button
-                                                    onClick={() => onSessionTimeChange(scheduleKey, originalHour)}
-                                                    title="Reset to original"
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        {activePlanningSessions.map((session) => {
+                                            const effectiveUtcHour = getEffectiveSessionUtcHour(
+                                                row.sa,
+                                                s.name,
+                                                session.id,
+                                                sessionInstanceTimeOverrides,
+                                                sessionTimeOverrides
+                                            );
+                                            const localTimeBuckets = buildLocalTimeBuckets(s.students, effectiveUtcHour);
+                                            const localTimes = Object.fromEntries(
+                                                Object.entries(localTimeBuckets).map(([localTime, bucket]) => [localTime, bucket.length])
+                                            );
+                                            const resetHour = extractUtcHour(s.name);
+                                            const sessionOverrideKey = makeSessionInstanceOverrideKey(row.sa, s.name, session.id);
+                                            const isModified = sessionOverrideKey in sessionInstanceTimeOverrides;
+                                            const referenceDate = parseSessionDate(session.date) ?? session.date;
+
+                                            return (
+                                                <div
+                                                    key={`${row.sa}-${scheduleKey}-${session.id}`}
                                                     style={{
-                                                        background: 'none',
-                                                        border: 'none',
-                                                        cursor: 'pointer',
-                                                        color: '#94a3b8',
-                                                        padding: '0',
-                                                        fontSize: '0.9rem',
-                                                        lineHeight: 1
+                                                        padding: '0.65rem 0.75rem',
+                                                        borderRadius: '10px',
+                                                        background: isModified ? 'rgba(59,130,246,0.07)' : 'rgba(248,250,252,0.9)',
+                                                        border: isModified ? '1px solid rgba(59,130,246,0.18)' : '1px solid #e2e8f0',
                                                     }}
-                                                >↺</button>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div style={{ color: '#0ea5e9', fontSize: '0.8rem', marginBottom: '0.4rem', fontWeight: 500 }}>
-                                        🌎 {effectiveGlobalTimes}
-                                    </div>
-                                    {Object.keys(s.localTimes).length > 0 && (
-                                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', paddingLeft: '0.5rem', borderLeft: '2px solid #e2e8f0' }}>
-                                            {Object.entries(s.localTimes).sort().map(([localTime, count]) => {
-                                                const bucket = s.localTimeBuckets?.[localTime] ?? [];
-                                                const indices = bucket.map(r => r._originalIndex).filter((i): i is number => i !== undefined);
-                                                return (
-                                                    <div key={localTime} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                                        <span>- {count} {t('peopleAt')} {localTime}</span>
-                                                        {onMoveToSession && otherSession && indices.length > 0 && (
-                                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', marginLeft: 'auto' }}>
-                                                                <input 
-                                                                    type="number" 
-                                                                    min={1} 
-                                                                    max={count}
-                                                                    defaultValue={count}
-                                                                    key={`qty-${scheduleKey}-${localTime}-${count}`} // forced reset on count change
-                                                                    id={`qty-${scheduleKey}-${localTime}`}
-                                                                    style={{
-                                                                        width: '45px',
-                                                                        padding: '1px 3px',
-                                                                        fontSize: '0.75rem',
-                                                                        borderRadius: '3px',
-                                                                        border: '1px solid #cbd5e1',
-                                                                        background: 'white'
-                                                                    }}
-                                                                />
+                                                >
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                                            <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+                                                                {session.title}
+                                                            </span>
+                                                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                                                                {session.onlineSessionDay}
+                                                            </span>
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleSessionTimeAdjustment(row.sa, s.name, session.id, -0.25)}
+                                                                style={{ border: '1px solid #cbd5e1', background: '#fff', borderRadius: '6px', padding: '0.2rem', display: 'flex', cursor: 'pointer' }}
+                                                                title="Move session 15 mins earlier"
+                                                            >
+                                                                <Minus size={12} />
+                                                            </button>
+                                                            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--primary-color)' }}>
+                                                                {formatUtcHourLabel(effectiveUtcHour)}
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleSessionTimeAdjustment(row.sa, s.name, session.id, 0.25)}
+                                                                style={{ border: '1px solid #cbd5e1', background: '#fff', borderRadius: '6px', padding: '0.2rem', display: 'flex', cursor: 'pointer' }}
+                                                                title="Move session 15 mins later"
+                                                            >
+                                                                <Plus size={12} />
+                                                            </button>
+                                                            {isModified && onSessionInstanceTimeOverridesChange && (
                                                                 <button
+                                                                    type="button"
                                                                     onClick={() => {
-                                                                        const input = document.getElementById(`qty-${scheduleKey}-${localTime}`) as HTMLInputElement;
-                                                                        const qty = parseInt(input?.value || '0');
-                                                                        if (qty > 0) {
-                                                                            const toMove = indices.slice(0, Math.min(qty, indices.length));
-                                                                            onMoveToSession(toMove, otherSession.name);
-                                                                        }
+                                                                        const next = { ...sessionInstanceTimeOverrides };
+                                                                        delete next[sessionOverrideKey];
+                                                                        onSessionInstanceTimeOverridesChange(next);
                                                                     }}
-                                                                    title={`Move people to ${otherSession.name.replace(`${row.sa} `, '')}`}
+                                                                    title="Reset to schedule default"
                                                                     style={{
-                                                                        background: 'rgba(99,102,241,0.08)',
-                                                                        border: '1px solid rgba(99,102,241,0.25)',
-                                                                        borderRadius: '4px',
+                                                                        background: 'none',
+                                                                        border: 'none',
                                                                         cursor: 'pointer',
-                                                                        color: '#6366f1',
-                                                                        padding: '0 5px',
-                                                                        fontSize: '0.8rem',
-                                                                        lineHeight: '1.4',
-                                                                        fontWeight: 600,
-                                                                        flexShrink: 0
+                                                                        color: '#94a3b8',
+                                                                        padding: '0',
+                                                                        fontSize: '0.9rem',
+                                                                        lineHeight: 1
                                                                     }}
                                                                 >
-                                                                    {arrowDir}
+                                                                    ↺
                                                                 </button>
-                                                            </div>
-                                                        )}
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
+                                                    <div style={{ color: '#0ea5e9', fontSize: '0.8rem', marginBottom: '0.35rem', fontWeight: 500 }}>
+                                                        🌎 {getGlobalTimes(effectiveUtcHour, referenceDate)}
+                                                    </div>
+                                                    {Object.keys(localTimes).length > 0 && (
+                                                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', paddingLeft: '0.5rem', borderLeft: '2px solid #e2e8f0' }}>
+                                                            {Object.entries(localTimes).sort().map(([localTime, count]) => {
+                                                                const bucket = localTimeBuckets[localTime] ?? [];
+                                                                const indices = bucket.map(r => r._originalIndex).filter((i): i is number => i !== undefined);
+                                                                return (
+                                                                    <div key={`${session.id}-${localTime}`} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                                        <span>- {count} {t('peopleAt')} {localTime}</span>
+                                                                        {onMoveToSession && otherSession && indices.length > 0 && (
+                                                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', marginLeft: 'auto' }}>
+                                                                                <input
+                                                                                    type="number"
+                                                                                    min={1}
+                                                                                    max={count}
+                                                                                    defaultValue={count}
+                                                                                    key={`qty-${scheduleKey}-${session.id}-${localTime}-${count}`}
+                                                                                    id={`qty-${scheduleKey}-${session.id}-${localTime}`}
+                                                                                    style={{
+                                                                                        width: '45px',
+                                                                                        padding: '1px 3px',
+                                                                                        fontSize: '0.75rem',
+                                                                                        borderRadius: '3px',
+                                                                                        border: '1px solid #cbd5e1',
+                                                                                        background: 'white'
+                                                                                    }}
+                                                                                />
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        const input = document.getElementById(`qty-${scheduleKey}-${session.id}-${localTime}`) as HTMLInputElement;
+                                                                                        const qty = parseInt(input?.value || '0');
+                                                                                        if (qty > 0) {
+                                                                                            const toMove = indices.slice(0, Math.min(qty, indices.length));
+                                                                                            onMoveToSession(toMove, otherSession.name);
+                                                                                        }
+                                                                                    }}
+                                                                                    title={`Move people to ${otherSession.name.replace(`${row.sa} `, '')}`}
+                                                                                    style={{
+                                                                                        background: 'rgba(99,102,241,0.08)',
+                                                                                        border: '1px solid rgba(99,102,241,0.25)',
+                                                                                        borderRadius: '4px',
+                                                                                        cursor: 'pointer',
+                                                                                        color: '#6366f1',
+                                                                                        padding: '0 5px',
+                                                                                        fontSize: '0.8rem',
+                                                                                        lineHeight: '1.4',
+                                                                                        fontWeight: 600,
+                                                                                        flexShrink: 0
+                                                                                    }}
+                                                                                >
+                                                                                    {arrowDir}
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                    {!isModified && (
+                                                        <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginTop: '0.35rem' }}>
+                                                            Base schedule time: {formatUtcHourLabel(resetHour)}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </>
                             );
                         };
@@ -441,8 +448,8 @@ export function SessionBreakdown({
                                                     <span style={{ fontWeight: 600, color: currentSessionStudents.count > maxSessionSize ? 'var(--danger-color)' : 'inherit' }}>
                                                         {currentSessionStudents.count} Attendees {currentSessionStudents.count > maxSessionSize && '(OVER CAPACITY)'}
                                                     </span>
-                                                    {Object.entries(currentSessionStudents.localTimes).map(([lt, count]) => (
-                                                        <span key={lt} style={{ color: 'var(--text-secondary)' }}>- {count} {t('peopleAt')} {lt}</span>
+                                                    {Object.entries(buildLocalTimeBuckets(currentSessionStudents.students, utcHour)).map(([lt, bucket]) => (
+                                                        <span key={lt} style={{ color: 'var(--text-secondary)' }}>- {bucket.length} {t('peopleAt')} {lt}</span>
                                                     ))}
                                                 </div>
                                             ) : (
