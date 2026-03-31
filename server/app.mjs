@@ -14,7 +14,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { store as runtimeStore } from './runtime-store.mjs';
+import { createPersistence } from './persistence.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '..');
@@ -27,6 +27,7 @@ const ALLOWED_ORIGIN = process.env.CORS_ORIGIN ?? '*';
 const SME_SOURCE_URL =
   process.env.SME_SOURCE_URL ??
   'https://solweeks-academy-web.cfapps.us10.hana.ondemand.com/api/public/smes';
+const persistence = createPersistence();
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -194,12 +195,10 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/public/summary') {
       if (req.method === 'GET') {
         try {
-          ensureDataDir();
-          if (!fs.existsSync(DATA_FILE)) {
+          const data = await persistence.getPublication('summary.latest');
+          if (!data) {
             return jsonResponse(res, 404, { error: 'No summary snapshot published yet.' });
           }
-          const raw = fs.readFileSync(DATA_FILE, 'utf8');
-          const data = JSON.parse(raw);
           return jsonResponse(res, 200, data);
         } catch (err) {
           return jsonResponse(res, 500, { error: String(err) });
@@ -212,9 +211,8 @@ const server = http.createServer(async (req, res) => {
           const parsed = JSON.parse(body);
           const validationError = validateSummarySnapshot(parsed);
           if (validationError) return jsonResponse(res, 400, { error: validationError });
-          ensureDataDir();
-          fs.writeFileSync(DATA_FILE, JSON.stringify(parsed, null, 2), 'utf8');
-          return jsonResponse(res, 200, { ok: true, saved_at: new Date().toISOString() });
+          const result = await persistence.savePublication('summary.latest', parsed);
+          return jsonResponse(res, 200, { ok: true, saved_at: result.savedAt });
         } catch (err) {
           return jsonResponse(res, 400, { error: `Invalid JSON body: ${err}` });
         }
@@ -226,12 +224,10 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/public/vats') {
       if (req.method === 'GET') {
         try {
-          ensureDataDir();
-          if (!fs.existsSync(VATS_DATA_FILE)) {
+          const data = await persistence.getPublication('vats.latest');
+          if (!data) {
             return jsonResponse(res, 404, { error: 'No VAT snapshot published yet.' });
           }
-          const raw = fs.readFileSync(VATS_DATA_FILE, 'utf8');
-          const data = JSON.parse(raw);
           return jsonResponse(res, 200, data);
         } catch (err) {
           return jsonResponse(res, 500, { error: String(err) });
@@ -244,9 +240,8 @@ const server = http.createServer(async (req, res) => {
           const parsed = JSON.parse(body);
           const validationError = validateVatsSnapshot(parsed);
           if (validationError) return jsonResponse(res, 400, { error: validationError });
-          ensureDataDir();
-          fs.writeFileSync(VATS_DATA_FILE, JSON.stringify(parsed, null, 2), 'utf8');
-          return jsonResponse(res, 200, { ok: true, saved_at: new Date().toISOString() });
+          const result = await persistence.savePublication('vats.latest', parsed);
+          return jsonResponse(res, 200, { ok: true, saved_at: result.savedAt });
         } catch (err) {
           return jsonResponse(res, 400, { error: `Invalid JSON body: ${err}` });
         }
@@ -269,23 +264,23 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/health' && req.method === 'GET') {
-      return jsonResponse(res, 200, { status: 'ok', port: PORT });
+      return jsonResponse(res, 200, { status: 'ok', port: PORT, persistence: persistence.getStatus() });
     }
 
     // ── Runtime Versioning API ──
 
     if (pathname === '/api/runtime/projects') {
       if (req.method === 'GET') {
-        return jsonResponse(res, 200, { ok: true, data: runtimeStore.getProjects() });
+        return jsonResponse(res, 200, { ok: true, data: await persistence.getProjects() });
       }
       if (req.method === 'POST') {
         try {
           const body = await readBody(req);
           const project = JSON.parse(body);
 
-          if (!runtimeStore.isValidProject(project)) return jsonResponse(res, 400, { ok: false, error: 'Invalid project' });
+          if (!persistence.isValidProject(project)) return jsonResponse(res, 400, { ok: false, error: 'Invalid project' });
 
-          const saved = runtimeStore.upsertProject(project);
+          const saved = await persistence.upsertProject(project);
           return jsonResponse(res, 200, { ok: true, data: saved });
         } catch (e) {
           return jsonResponse(res, 400, { ok: false, error: String(e) });
@@ -304,20 +299,20 @@ const server = http.createServer(async (req, res) => {
             const body = await readBody(req);
             const { expectedRevision, ...metadata } = JSON.parse(body);
 
-            const conflict = runtimeStore.getConflict(id, expectedRevision);
+            const conflict = await persistence.getConflict(id, expectedRevision);
             if (conflict) {
               console.warn(`[runtime] Conflict detected on project ${id}: Expected ${expectedRevision}, Actual ${conflict.revision}`);
               return jsonResponse(res, 409, { ok: false, error: 'conflict', current: conflict });
             }
 
-            const existing = runtimeStore.getProject(id);
+            const existing = await persistence.getProject(id);
             if (!existing) return jsonResponse(res, 404, { ok: false, error: 'Project not found' });
 
             // Strictly prune metadata to avoid bloating persistence
             const cleanMetadata = { ...metadata };
             delete cleanMetadata.expectedRevision;
 
-            const updated = runtimeStore.upsertProject({
+            const updated = await persistence.upsertProject({
               ...existing,
               ...cleanMetadata
             });
@@ -334,21 +329,21 @@ const server = http.createServer(async (req, res) => {
         }
 
         if (req.method === 'DELETE') {
-          const ok = runtimeStore.deleteProject(id);
+          const ok = await persistence.deleteProject(id);
           return jsonResponse(res, ok ? 200 : 404, { ok });
         }
       }
 
       if (id && subRoute === 'versions') {
         if (req.method === 'GET') {
-          return jsonResponse(res, 200, { ok: true, data: runtimeStore.getVersions(id) });
+          return jsonResponse(res, 200, { ok: true, data: await persistence.getVersions(id) });
         }
         if (req.method === 'POST') {
           try {
             const body = await readBody(req);
             const v = JSON.parse(body);
-            if (!runtimeStore.isValidVersion(v)) return jsonResponse(res, 400, { ok: false, error: 'Invalid version' });
-            const saved = runtimeStore.addVersion(v);
+            if (!persistence.isValidVersion(v)) return jsonResponse(res, 400, { ok: false, error: 'Invalid version' });
+            const saved = await persistence.addVersion(v);
             return jsonResponse(res, 200, { ok: true, data: saved });
           } catch (e) {
             if (isClientAbortError(e)) {
@@ -364,7 +359,7 @@ const server = http.createServer(async (req, res) => {
     if (pathname.startsWith('/api/runtime/versions/')) {
       const id = pathname.split('/')[4];
       if (id && req.method === 'GET') {
-        const v = runtimeStore.getVersion(id);
+        const v = await persistence.getVersion(id);
         return v ? jsonResponse(res, 200, { ok: true, data: v }) : jsonResponse(res, 404, { ok: false });
       }
       if (id && req.method === 'PATCH') {
@@ -372,7 +367,7 @@ const server = http.createServer(async (req, res) => {
           const body = await readBody(req);
           const { snapshot } = JSON.parse(body);
           if (!snapshot) return jsonResponse(res, 400, { ok: false, error: 'Missing snapshot' });
-          const updated = runtimeStore.updateVersion(id, snapshot);
+          const updated = await persistence.updateVersion(id, snapshot);
           if (!updated) return jsonResponse(res, 404, { ok: false, error: 'Version not found' });
           return jsonResponse(res, 200, { ok: true, data: updated });
         } catch (e) {
@@ -384,7 +379,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
       if (id && req.method === 'DELETE') {
-        const deleted = runtimeStore.deleteVersion(id);
+        const deleted = await persistence.deleteVersion(id);
         if (!deleted.ok) return jsonResponse(res, 404, { ok: false, error: deleted.error });
         return jsonResponse(res, 200, { ok: true, data: deleted });
       }
@@ -394,7 +389,7 @@ const server = http.createServer(async (req, res) => {
       try {
         const body = await readBody(req);
         const { projects = [], versions = [] } = JSON.parse(body);
-        const result = runtimeStore.syncBatch(projects, versions);
+        const result = await persistence.syncBatch(projects, versions);
         console.log(`[runtime] Batch sync: ${result.addedProjects} projects, ${result.addedVersions} versions added.`);
         return jsonResponse(res, 200, { ok: true, data: result });
       } catch (e) {
