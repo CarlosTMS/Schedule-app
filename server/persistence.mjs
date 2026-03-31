@@ -13,6 +13,8 @@ const PUBLICATION_CONFIG = {
   'vats.latest': { file: VATS_FILE, type: 'vats' },
 };
 
+const PUBLIC_API_SOURCE_KEY = 'public-api-source';
+
 const HANA_ENV_KEYS = ['HANA_HOST', 'HANA_PORT', 'HANA_SCHEMA', 'HANA_USER', 'HANA_PASSWORD'];
 
 const ensureDataDir = () => {
@@ -37,34 +39,100 @@ class MemoryFilePersistence {
   constructor() {
     this.mode = 'memory';
     this.enabled = false;
+    this.publicationStore = new Map();
+    this.appState = new Map();
   }
 
   getStatus() {
     return { mode: this.mode, enabled: this.enabled };
   }
 
-  async getPublication(key) {
+  async getPublicationRecord(key) {
     const config = PUBLICATION_CONFIG[key];
-    if (!config) return null;
-    ensureDataDir();
-    if (!fs.existsSync(config.file)) return null;
-    return JSON.parse(fs.readFileSync(config.file, 'utf8'));
+    if (config) {
+      ensureDataDir();
+      if (!fs.existsSync(config.file)) return null;
+      return {
+        key,
+        type: config.type,
+        payload: JSON.parse(fs.readFileSync(config.file, 'utf8')),
+        publishedAt: fs.statSync(config.file).mtime.toISOString(),
+        sourceProjectId: null,
+        sourceVersionId: null,
+      };
+    }
+
+    return this.publicationStore.get(key) ?? null;
   }
 
-  async savePublication(key, payload) {
+  async getPublication(key) {
+    const record = await this.getPublicationRecord(key);
+    return record?.payload ?? null;
+  }
+
+  async savePublication(key, payload, options = {}) {
     const config = PUBLICATION_CONFIG[key];
-    if (!config) throw new Error(`Unsupported publication key: ${key}`);
-    ensureDataDir();
-    fs.writeFileSync(config.file, JSON.stringify(payload, null, 2), 'utf8');
-    return { savedAt: new Date().toISOString() };
+    const type = options.type ?? config?.type;
+    if (!type) throw new Error(`Unsupported publication key: ${key}`);
+
+    const record = {
+      key,
+      type,
+      payload,
+      publishedAt: new Date().toISOString(),
+      sourceProjectId: options.sourceProjectId ?? null,
+      sourceVersionId: options.sourceVersionId ?? null,
+    };
+
+    if (config) {
+      ensureDataDir();
+      fs.writeFileSync(config.file, JSON.stringify(payload, null, 2), 'utf8');
+    }
+
+    this.publicationStore.set(key, record);
+    return { savedAt: record.publishedAt };
+  }
+
+  async getPublicApiSource() {
+    return this.appState.get(PUBLIC_API_SOURCE_KEY) ?? null;
+  }
+
+  async setPublicApiSource(projectId, versionId) {
+    const payload = {
+      projectId,
+      versionId,
+      updatedAt: new Date().toISOString(),
+    };
+    this.appState.set(PUBLIC_API_SOURCE_KEY, payload);
+    return payload;
+  }
+
+  async getAppState(key) {
+    return this.appState.get(key) ?? null;
+  }
+
+  async setAppState(key, value) {
+    this.appState.set(key, value);
+    return value;
   }
 
   async getProjects() {
-    return clone(runtimeStore.getProjects());
+    const projects = clone(runtimeStore.getProjects());
+    const publicSource = await this.getPublicApiSource();
+    return projects.map((project) => ({
+      ...project,
+      publicApiVersionId: publicSource?.projectId === project.id ? publicSource.versionId : null,
+    }));
   }
 
   async getProject(id) {
-    return clone(runtimeStore.getProject(id));
+    const project = clone(runtimeStore.getProject(id));
+    if (!project) return null;
+    const publicSource = await this.getPublicApiSource();
+    return {
+      ...project,
+      publicApiVersionId: publicSource?.projectId === project.id ? publicSource.versionId : null,
+    };
   }
 
   async upsertProject(project) {
@@ -72,6 +140,10 @@ class MemoryFilePersistence {
   }
 
   async deleteProject(id) {
+    const publicSource = await this.getPublicApiSource();
+    if (publicSource?.projectId === id) {
+      this.appState.delete(PUBLIC_API_SOURCE_KEY);
+    }
     return runtimeStore.deleteProject(id);
   }
 
@@ -96,6 +168,11 @@ class MemoryFilePersistence {
   }
 
   async deleteVersion(id) {
+    const publicSource = await this.getPublicApiSource();
+    const version = runtimeStore.getVersion(id);
+    if (version && publicSource?.versionId === id) {
+      this.appState.delete(PUBLIC_API_SOURCE_KEY);
+    }
     return clone(runtimeStore.deleteVersion(id));
   }
 
@@ -136,37 +213,99 @@ class HANAStore {
     };
   }
 
-  async getPublication(key) {
+  async getPublicationRecord(key) {
     const rows = await this.exec(
-      `SELECT PAYLOAD_JSON FROM ${this.table('SCHEDULER_PUBLICATIONS')} WHERE PUBLICATION_KEY = ${sqlString(key)}`
+      `SELECT PUBLICATION_KEY, PAYLOAD_TYPE, PAYLOAD_JSON, PUBLISHED_AT, SOURCE_PROJECT_ID, SOURCE_VERSION_ID
+       FROM ${this.table('SCHEDULER_PUBLICATIONS')}
+       WHERE PUBLICATION_KEY = ${sqlString(key)}`
     );
     if (!rows.length) return null;
-    return JSON.parse(rows[0].PAYLOAD_JSON);
+    return {
+      key: rows[0].PUBLICATION_KEY,
+      type: rows[0].PAYLOAD_TYPE,
+      payload: JSON.parse(rows[0].PAYLOAD_JSON),
+      publishedAt: new Date(rows[0].PUBLISHED_AT).toISOString(),
+      sourceProjectId: rows[0].SOURCE_PROJECT_ID ?? null,
+      sourceVersionId: rows[0].SOURCE_VERSION_ID ?? null,
+    };
   }
 
-  async savePublication(key, payload) {
+  async getPublication(key) {
+    const record = await this.getPublicationRecord(key);
+    return record?.payload ?? null;
+  }
+
+  async savePublication(key, payload, options = {}) {
     const config = PUBLICATION_CONFIG[key];
-    if (!config) throw new Error(`Unsupported publication key: ${key}`);
+    const type = options.type ?? config?.type;
+    if (!type) throw new Error(`Unsupported publication key: ${key}`);
     const sql = `
 MERGE INTO ${this.table('SCHEDULER_PUBLICATIONS')}
 USING (
   SELECT
     ${sqlString(key)} AS PUBLICATION_KEY,
-    ${sqlString(config.type)} AS PAYLOAD_TYPE,
+    ${sqlString(type)} AS PAYLOAD_TYPE,
     ${sqlJson(payload)} AS PAYLOAD_JSON,
-    CURRENT_UTCTIMESTAMP AS PUBLISHED_AT
+    CURRENT_UTCTIMESTAMP AS PUBLISHED_AT,
+    ${sqlString(options.sourceProjectId ?? null)} AS SOURCE_PROJECT_ID,
+    ${sqlString(options.sourceVersionId ?? null)} AS SOURCE_VERSION_ID
   FROM DUMMY
 ) source
 ON ${this.table('SCHEDULER_PUBLICATIONS')}.PUBLICATION_KEY = source.PUBLICATION_KEY
 WHEN MATCHED THEN UPDATE SET
   ${this.table('SCHEDULER_PUBLICATIONS')}.PAYLOAD_TYPE = source.PAYLOAD_TYPE,
   ${this.table('SCHEDULER_PUBLICATIONS')}.PAYLOAD_JSON = source.PAYLOAD_JSON,
-  ${this.table('SCHEDULER_PUBLICATIONS')}.PUBLISHED_AT = source.PUBLISHED_AT
-WHEN NOT MATCHED THEN INSERT (PUBLICATION_KEY, PAYLOAD_TYPE, PAYLOAD_JSON, PUBLISHED_AT)
-VALUES (source.PUBLICATION_KEY, source.PAYLOAD_TYPE, source.PAYLOAD_JSON, source.PUBLISHED_AT)
+  ${this.table('SCHEDULER_PUBLICATIONS')}.PUBLISHED_AT = source.PUBLISHED_AT,
+  ${this.table('SCHEDULER_PUBLICATIONS')}.SOURCE_PROJECT_ID = source.SOURCE_PROJECT_ID,
+  ${this.table('SCHEDULER_PUBLICATIONS')}.SOURCE_VERSION_ID = source.SOURCE_VERSION_ID
+WHEN NOT MATCHED THEN INSERT (PUBLICATION_KEY, PAYLOAD_TYPE, PAYLOAD_JSON, PUBLISHED_AT, SOURCE_PROJECT_ID, SOURCE_VERSION_ID)
+VALUES (source.PUBLICATION_KEY, source.PAYLOAD_TYPE, source.PAYLOAD_JSON, source.PUBLISHED_AT, source.SOURCE_PROJECT_ID, source.SOURCE_VERSION_ID)
 `;
     await this.exec(sql);
     return { savedAt: new Date().toISOString() };
+  }
+
+  async getPublicApiSource() {
+    return this.getAppState(PUBLIC_API_SOURCE_KEY);
+  }
+
+  async setPublicApiSource(projectId, versionId) {
+    const value = {
+      projectId,
+      versionId,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.setAppState(PUBLIC_API_SOURCE_KEY, value);
+    return value;
+  }
+
+  async getAppState(key) {
+    const rows = await this.exec(`
+SELECT STATE_JSON
+FROM ${this.table('SCHEDULER_APP_STATE')}
+WHERE STATE_KEY = ${sqlString(key)}
+`);
+    return rows.length ? JSON.parse(rows[0].STATE_JSON) : null;
+  }
+
+  async setAppState(key, value) {
+    await this.exec(`
+MERGE INTO ${this.table('SCHEDULER_APP_STATE')}
+USING (
+  SELECT
+    ${sqlString(key)} AS STATE_KEY,
+    ${sqlJson(value)} AS STATE_JSON,
+    CURRENT_UTCTIMESTAMP AS UPDATED_AT
+  FROM DUMMY
+) source
+ON ${this.table('SCHEDULER_APP_STATE')}.STATE_KEY = source.STATE_KEY
+WHEN MATCHED THEN UPDATE SET
+  ${this.table('SCHEDULER_APP_STATE')}.STATE_JSON = source.STATE_JSON,
+  ${this.table('SCHEDULER_APP_STATE')}.UPDATED_AT = source.UPDATED_AT
+WHEN NOT MATCHED THEN INSERT (STATE_KEY, STATE_JSON, UPDATED_AT)
+VALUES (source.STATE_KEY, source.STATE_JSON, source.UPDATED_AT)
+`);
+    return value;
   }
 
   async getProjects() {
@@ -175,7 +314,8 @@ SELECT ID, NAME, CREATED_AT, UPDATED_AT, ACTIVE_VERSION_ID, REVISION
 FROM ${this.table('SCHEDULER_PROJECTS')}
 ORDER BY UPDATED_AT DESC
 `);
-    return rows.map((row) => this.mapProject(row));
+    const publicSource = await this.getPublicApiSource();
+    return rows.map((row) => this.mapProject(row, publicSource));
   }
 
   async getProject(id) {
@@ -184,7 +324,8 @@ SELECT ID, NAME, CREATED_AT, UPDATED_AT, ACTIVE_VERSION_ID, REVISION
 FROM ${this.table('SCHEDULER_PROJECTS')}
 WHERE ID = ${sqlString(id)}
 `);
-    return rows.length ? this.mapProject(rows[0]) : null;
+    const publicSource = await this.getPublicApiSource();
+    return rows.length ? this.mapProject(rows[0], publicSource) : null;
   }
 
   async upsertProject(project) {
@@ -225,6 +366,10 @@ VALUES (source.ID, source.NAME, source.CREATED_AT, source.UPDATED_AT, source.ACT
   async deleteProject(id) {
     const existing = await this.getProject(id);
     if (!existing) return false;
+    const publicSource = await this.getPublicApiSource();
+    if (publicSource?.projectId === id) {
+      await this.exec(`DELETE FROM ${this.table('SCHEDULER_APP_STATE')} WHERE STATE_KEY = ${sqlString(PUBLIC_API_SOURCE_KEY)}`);
+    }
     await this.exec(`DELETE FROM ${this.table('SCHEDULER_PROJECTS')} WHERE ID = ${sqlString(id)}`);
     return true;
   }
@@ -318,6 +463,10 @@ WHERE ID = ${sqlString(existing.projectId)}
   async deleteVersion(id) {
     const existing = await this.getVersion(id);
     if (!existing) return { ok: false, error: 'Version not found' };
+    const publicSource = await this.getPublicApiSource();
+    if (publicSource?.versionId === id) {
+      await this.exec(`DELETE FROM ${this.table('SCHEDULER_APP_STATE')} WHERE STATE_KEY = ${sqlString(PUBLIC_API_SOURCE_KEY)}`);
+    }
 
     const projectId = existing.projectId;
     const project = await this.getProject(projectId);
@@ -421,7 +570,7 @@ WHERE ID = ${sqlString(project.id)}
     return `${process.env.HANA_SCHEMA}.${name}`;
   }
 
-  mapProject(row) {
+  mapProject(row, publicSource = null) {
     return {
       id: row.ID,
       name: row.NAME,
@@ -429,6 +578,7 @@ WHERE ID = ${sqlString(project.id)}
       updatedAt: new Date(row.UPDATED_AT).toISOString(),
       activeVersionId: row.ACTIVE_VERSION_ID,
       revision: Number(row.REVISION || 1),
+      publicApiVersionId: publicSource?.projectId === row.ID ? publicSource.versionId : null,
     };
   }
 

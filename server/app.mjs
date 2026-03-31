@@ -93,6 +93,39 @@ const validateVatsSnapshot = (payload) => {
   return null;
 };
 
+const versionedPublicationKey = (type, projectId, versionId) => `${type}.project.${projectId}.version.${versionId}`;
+
+const normalizeTypeFromPath = (segment) => {
+  if (segment === 'summary') return 'summary';
+  if (segment === 'vats') return 'vats';
+  return null;
+};
+
+const syncLatestPublicationIfNeeded = async ({ type, projectId, versionId, payload }) => {
+  const source = await persistence.getPublicApiSource?.();
+  if (!source || source.projectId !== projectId || source.versionId !== versionId) {
+    return null;
+  }
+
+  const latestKey = `${type}.latest`;
+  return persistence.savePublication(latestKey, payload, {
+    type,
+    sourceProjectId: projectId,
+    sourceVersionId: versionId,
+  });
+};
+
+const saveVersionedPublication = async ({ type, projectId, versionId, payload }) => {
+  const key = versionedPublicationKey(type, projectId, versionId);
+  const saved = await persistence.savePublication(key, payload, {
+    type,
+    sourceProjectId: projectId,
+    sourceVersionId: versionId,
+  });
+  const latest = await syncLatestPublicationIfNeeded({ type, projectId, versionId, payload });
+  return { saved, latestSynced: Boolean(latest) };
+};
+
 const isClientAbortError = (err) =>
   Boolean(err) && (
     err.code === 'ECONNRESET' ||
@@ -250,6 +283,88 @@ const server = http.createServer(async (req, res) => {
       return jsonResponse(res, 405, { error: `Method not allowed: ${req.method}` });
     }
 
+    if (pathname === '/api/public/status' && req.method === 'GET') {
+      try {
+        const [publicSource, summaryRecord, vatsRecord] = await Promise.all([
+          persistence.getPublicApiSource?.() ?? null,
+          persistence.getPublicationRecord?.('summary.latest') ?? null,
+          persistence.getPublicationRecord?.('vats.latest') ?? null,
+        ]);
+
+        return jsonResponse(res, 200, {
+          ok: true,
+          data: {
+            publicSource,
+            latest: {
+              summary: summaryRecord
+                ? {
+                    publishedAt: summaryRecord.publishedAt,
+                    sourceProjectId: summaryRecord.sourceProjectId,
+                    sourceVersionId: summaryRecord.sourceVersionId,
+                    url: '/api/public/summary',
+                  }
+                : null,
+              vats: vatsRecord
+                ? {
+                    publishedAt: vatsRecord.publishedAt,
+                    sourceProjectId: vatsRecord.sourceProjectId,
+                    sourceVersionId: vatsRecord.sourceVersionId,
+                    url: '/api/public/vats',
+                  }
+                : null,
+            },
+          },
+        });
+      } catch (err) {
+        return jsonResponse(res, 500, { error: String(err) });
+      }
+    }
+
+    const publicVersionMatch = pathname.match(/^\/api\/public\/projects\/([^/]+)\/versions\/([^/]+)\/(summary|vats)$/);
+    if (publicVersionMatch) {
+      const [, projectId, versionId, typeSegment] = publicVersionMatch;
+      const type = normalizeTypeFromPath(typeSegment);
+      if (!type) {
+        return jsonResponse(res, 404, { error: `Unsupported publication type: ${typeSegment}` });
+      }
+
+      if (req.method === 'GET') {
+        try {
+          const data = await persistence.getPublication(versionedPublicationKey(type, projectId, versionId));
+          if (!data) {
+            return jsonResponse(res, 404, { error: `No ${type} snapshot published for this project version yet.` });
+          }
+          return jsonResponse(res, 200, data);
+        } catch (err) {
+          return jsonResponse(res, 500, { error: String(err) });
+        }
+      }
+
+      if (req.method === 'POST') {
+        try {
+          const body = await readBody(req);
+          const parsed = JSON.parse(body);
+          const validationError = type === 'summary'
+            ? validateSummarySnapshot(parsed)
+            : validateVatsSnapshot(parsed);
+          if (validationError) {
+            return jsonResponse(res, 400, { error: validationError });
+          }
+
+          const result = await saveVersionedPublication({ type, projectId, versionId, payload: parsed });
+          return jsonResponse(res, 200, {
+            ok: true,
+            saved_at: result.saved.savedAt,
+            latest_synced: result.latestSynced,
+          });
+        } catch (err) {
+          return jsonResponse(res, 400, { error: `Invalid JSON body: ${err}` });
+        }
+      }
+
+      return jsonResponse(res, 405, { error: `Method not allowed: ${req.method}` });
+    }
+
     if (pathname === '/api/public/smes' && req.method === 'GET') {
       try {
         const upstream = await fetch(SME_SOURCE_URL, { headers: { Accept: 'application/json' } });
@@ -284,6 +399,37 @@ const server = http.createServer(async (req, res) => {
           return jsonResponse(res, 200, { ok: true, data: saved });
         } catch (e) {
           return jsonResponse(res, 400, { ok: false, error: String(e) });
+        }
+      }
+    }
+
+    if (pathname === '/api/runtime/public-api-source') {
+      if (req.method === 'GET') {
+        try {
+          const data = await persistence.getPublicApiSource?.();
+          return jsonResponse(res, 200, { ok: true, data: data ?? null });
+        } catch (err) {
+          return jsonResponse(res, 500, { ok: false, error: String(err) });
+        }
+      }
+
+      if (req.method === 'PATCH') {
+        try {
+          const body = await readBody(req);
+          const { projectId, versionId } = JSON.parse(body);
+          if (!projectId || !versionId) {
+            return jsonResponse(res, 400, { ok: false, error: 'projectId and versionId are required' });
+          }
+
+          const version = await persistence.getVersion(versionId);
+          if (!version || version.projectId !== projectId) {
+            return jsonResponse(res, 400, { ok: false, error: 'Version does not belong to the specified project' });
+          }
+
+          const data = await persistence.setPublicApiSource(projectId, versionId);
+          return jsonResponse(res, 200, { ok: true, data });
+        } catch (err) {
+          return jsonResponse(res, 400, { ok: false, error: String(err) });
         }
       }
     }

@@ -25,6 +25,30 @@ export interface SyncResult {
     project?: RunProject;
 }
 
+export interface PublicApiSource {
+    projectId: string;
+    versionId: string;
+    updatedAt: string;
+}
+
+export interface PublicApiStatus {
+    publicSource: PublicApiSource | null;
+    latest: {
+        summary: {
+            publishedAt: string;
+            sourceProjectId: string | null;
+            sourceVersionId: string | null;
+            url: string;
+        } | null;
+        vats: {
+            publishedAt: string;
+            sourceProjectId: string | null;
+            sourceVersionId: string | null;
+            url: string;
+        } | null;
+    };
+}
+
 class RunHistoryRepository {
     public runtimeAvailable = true;
 
@@ -101,6 +125,7 @@ class RunHistoryRepository {
             createdAt: now,
             updatedAt: now,
             activeVersionId: versionId,
+            publicApiVersionId: versionId,
             revision: 1
         };
 
@@ -419,6 +444,47 @@ class RunHistoryRepository {
             return status;
         }
         return 'error';
+    }
+
+    async setPublicApiSource(projectId: string, versionId: string): Promise<{ source: PublicApiSource | null, status: SyncStatus }> {
+        let status: SyncStatus = 'saved';
+        let source: PublicApiSource | null = null;
+
+        try {
+            const res = await fetch(`${API_BASE}/public-api-source`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectId, versionId })
+            });
+            if (!res.ok) throw new Error('Failed to update public API source');
+            const data = await res.json();
+            source = data?.data ?? null;
+            this.runtimeAvailable = true;
+        } catch {
+            this.runtimeAvailable = false;
+            status = 'error';
+        }
+
+        if (source) {
+            const projects = readLocalProjects().map(project => ({
+                ...project,
+                publicApiVersionId: project.id === projectId ? versionId : null,
+            }));
+            persistLocalProjects(projects);
+        }
+
+        return { source, status };
+    }
+
+    async getPublicApiStatus(): Promise<PublicApiStatus | null> {
+        try {
+            const res = await fetch('/api/public/status');
+            if (!res.ok) throw new Error('Failed to load public API status');
+            const data = await res.json();
+            return data?.data ?? null;
+        } catch {
+            return null;
+        }
     }
 }
 

@@ -16,6 +16,7 @@ import type { SMECacheStatus } from '../lib/smeDataLoader';
 import type { SmeAssignments } from './SMESchedule';
 import type { FacultyAssignments } from './FacultySchedule';
 import { useI18n } from '../i18n';
+import { buildSummaryExport, type SummaryExport } from '../lib/publicApiPayloads';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,8 @@ interface SummaryProps {
     onFacultyAssignmentsChange: (next: FacultyAssignments) => void;
     smeList: SME[];
     smeStatus: SMECacheStatus | null;
+    projectId?: string | null;
+    versionId?: string | null;
 }
 
 interface SessionWarning {
@@ -51,46 +54,6 @@ interface SessionRow {
     eligibleSMEs: SME[];
     eligibleFaculty: Faculty[];
     warnings: SessionWarning[];
-}
-
-// ─── JSON export shape ────────────────────────────────────────────────────────
-
-interface SummaryExportSession {
-    solution_area: string;
-    schedule: string;
-    session_id: SessionId;
-    facilitator_type: 'faculty_only' | 'sme_and_faculty';
-    session_topic: string;
-    utc_hour: number;
-    attendees_count: number;
-    attendees: {
-        name: string;
-        email?: string;
-        country: string;
-        office: string;
-        specialization: string;
-        utc_offset: number | undefined;
-        vat?: string;
-    }[];
-    sme: { name: string; lob: string; office_location: string; office: string; email: string } | null;
-    faculty: { name: string; office: string; email?: string } | null;
-    warnings: { code: SessionWarning['type']; label: string }[];
-    warning_codes: SessionWarning['type'][];
-}
-
-interface SummaryExport {
-    generated_at: string;
-    source: {
-        sme_last_updated_at: string | null;
-        sme_source: string;
-    };
-    config: {
-        startHour: number;
-        endHour: number;
-        sessionTimeOverrides: Record<string, number>;
-        sessionInstanceTimeOverrides: Record<string, number>;
-    };
-    sessions: SummaryExportSession[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -177,6 +140,8 @@ export function Summary({
     onFacultyAssignmentsChange,
     smeList,
     smeStatus,
+    projectId,
+    versionId,
 }: SummaryProps) {
     const { t } = useI18n();
     const effectiveFacultyStartHour = facultyStartHour ?? startHour;
@@ -384,54 +349,18 @@ export function Summary({
 
     // ── Build export payload ────────────────────────────────────────────────
 
-    const buildExportPayload = (): SummaryExport => ({
-        generated_at: new Date().toISOString(),
-        source: {
-            sme_last_updated_at: smeStatus?.lastUpdatedAt ?? null,
-            sme_source: smeStatus?.source ?? 'unknown',
-        },
-        config: { startHour, endHour, sessionTimeOverrides, sessionInstanceTimeOverrides },
-        sessions: sessionRows.map(row => ({
-            solution_area: row.sa,
-            schedule: row.schedule,
-            session_id: row.sessionDef.id,
-            facilitator_type: row.sessionDef.facilitatorType,
-            session_topic: row.sessionDef.title,
-            utc_hour: row.utcHour,
-            attendees_count: row.attendees.length,
-            attendees: row.attendees.map(a => ({
-                name: a['Full Name'] ?? '',
-                email: a.Email ?? '',
-                country: a.Country ?? '',
-                office: a.Office ?? '',
-                specialization: a['(AA) Secondary Specialization'] ?? '',
-                program: a.Program ?? '',
-                utc_offset: a._utcOffset,
-                vat: a.VAT,
-            })),
-            sme: row.assignedSME
-                ? {
-                    name: row.assignedSME.name,
-                    lob: row.assignedSME.lob,
-                    office_location: row.assignedSME.office_location,
-                    office: row.assignedSME.office_location,
-                    email: row.assignedSME.email ?? '',
-                }
-                : (row.sessionDef.facilitatorType === 'faculty_only'
-                    ? {
-                        name: FACULTY_LED_SME_LABEL,
-                        lob: '',
-                        office_location: '',
-                        office: '',
-                        email: '',
-                    }
-                    : null),
-            faculty: row.assignedFaculty
-                ? { name: row.assignedFaculty.name, office: row.assignedFaculty.office, email: row.assignedFaculty.email }
-                : null,
-            warnings: row.warnings.map(w => ({ code: w.type, label: w.label })),
-            warning_codes: row.warnings.map(w => w.type),
-        })),
+    const buildExportPayload = (): SummaryExport => buildSummaryExport({
+        records,
+        schedulesBySA,
+        startHour,
+        endHour,
+        facultyStartHour,
+        sessionTimeOverrides,
+        sessionInstanceTimeOverrides,
+        manualSmeAssignments,
+        manualFacultyAssignments,
+        smeList,
+        smeStatus,
     });
 
 
@@ -592,13 +521,16 @@ export function Summary({
         setPublishing(true);
         try {
             const payload = buildExportPayload();
-            const res = await fetch(`${API_BASE}/api/public/summary`, {
+            const publishUrl = projectId && versionId
+                ? `${API_BASE}/api/public/projects/${projectId}/versions/${versionId}/summary`
+                : `${API_BASE}/api/public/summary`;
+            const res = await fetch(publishUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            setPublishedUrl(`${API_BASE}/api/public/summary`);
+            setPublishedUrl(publishUrl);
         } catch (err) {
             setPublishedUrl(null);
             alert(t('publishFailed').replace('{err}', String(err)));

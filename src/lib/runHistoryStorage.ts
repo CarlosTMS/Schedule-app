@@ -49,6 +49,7 @@ export interface RunProject {
     createdAt: string;
     updatedAt: string;
     activeVersionId: string | null;
+    publicApiVersionId?: string | null;
     revision?: number;
 }
 
@@ -159,6 +160,7 @@ export const migrateToV3 = (): void => {
                 createdAt: r.createdAt,
                 updatedAt: r.updatedAt,
                 activeVersionId: `v1_${r.id}`,
+                publicApiVersionId: `v1_${r.id}`,
                 revision: 1
             };
             const version: RunVersion = {

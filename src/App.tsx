@@ -14,13 +14,16 @@ import { parseSummaryJson, parseEnrichedExcel } from './lib/jsonParser';
 import type { StudentRecord } from './lib/excelParser';
 import { runAllocation } from './lib/allocationEngine';
 import type { AllocationResult } from './lib/allocationEngine';
-import { repository, type SyncStatus } from './lib/runHistoryRepository';
+import { repository, type PublicApiStatus, type SyncStatus } from './lib/runHistoryRepository';
 import { type RunProject, type RunVersion, type RunSnapshot } from './lib/runHistoryStorage';
 import type { SmeAssignments, SmeConfirmationState } from './components/SMESchedule';
 import type { FacultyAssignments } from './components/FacultySchedule';
 import type { EvaluationEngineOutput } from './lib/evaluationEngine';
 import { useI18n } from './i18n';
-import { Globe, Clock, Trash2, RotateCcw, Pencil, CheckCircle2, Plus, History, Save, Loader2, ShieldAlert, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Globe, Clock, Trash2, RotateCcw, Pencil, CheckCircle2, Plus, History, Save, Loader2, ShieldAlert, ChevronLeft, ChevronRight, Link2 } from 'lucide-react';
+import { forceFetchSMEData, loadSMEData, type SMECacheStatus } from './lib/smeDataLoader';
+import type { SME } from './lib/smeMatcher';
+import { buildSchedulesBySA, buildSummaryExport, buildVatsExport } from './lib/publicApiPayloads';
 
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -76,6 +79,7 @@ function App() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [projectVersions, setProjectVersions] = useState<RunVersion[]>([]);
   const [loadedVersionId, setLoadedVersionId] = useState<string | null>(null);
+  const [publicApiStatus, setPublicApiStatus] = useState<PublicApiStatus | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
@@ -84,6 +88,8 @@ function App() {
     }
   });
   const [autosaveStatus, setAutosaveStatus] = useState<SyncStatus>('idle');
+  const [smeList, setSmeList] = useState<SME[]>([]);
+  const [smeStatus, setSmeStatus] = useState<SMECacheStatus | null>(null);
 
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectRevisionRef = useRef<Record<string, number>>({});
@@ -110,6 +116,16 @@ function App() {
     result: (result && dashboardMetrics) ? { ...result, records: dashboardRecords, metrics: dashboardMetrics } : result as AllocationResult,
     sessionTimeOverrides, sessionInstanceTimeOverrides, manualSmeAssignments, smeConfirmationState, manualFacultyAssignments, evaluationsOutput
   }), [records, assumptions, rules, fsDistributions, aeDistributions, startHour, endHour, result, dashboardRecords, dashboardMetrics, sessionTimeOverrides, sessionInstanceTimeOverrides, manualSmeAssignments, smeConfirmationState, manualFacultyAssignments, evaluationsOutput]);
+
+  const workingRecords = useMemo(
+    () => ((result && dashboardRecords.length > 0) ? dashboardRecords : records),
+    [dashboardRecords, records, result]
+  );
+  const schedulesBySA = useMemo(() => buildSchedulesBySA(workingRecords), [workingRecords]);
+  const publicSourceVersionId = useMemo(
+    () => projects.find((project) => project.publicApiVersionId)?.publicApiVersionId ?? null,
+    [projects]
+  );
 
   const applySnapshot = useCallback((s: RunSnapshot) => {
     setRecords(s.records);
@@ -146,10 +162,90 @@ function App() {
     setLoadedVersionId(null);
   }, [applySnapshot]);
 
+  const refreshPublicApiStatus = useCallback(async () => {
+    const status = await repository.getPublicApiStatus();
+    setPublicApiStatus(status);
+  }, []);
+
+  const refreshSmes = useCallback(async () => {
+    const { smes, status } = await forceFetchSMEData();
+    setSmeList(smes);
+    setSmeStatus(status);
+  }, []);
+
+  const publishVersionOutputs = useCallback(async (projectId: string, versionId: string) => {
+    if (!result) return;
+
+    let effectiveSmeList = smeList;
+    let effectiveSmeStatus = smeStatus;
+    if (effectiveSmeList.length === 0) {
+      const loaded = await loadSMEData();
+      effectiveSmeList = loaded.smes;
+      effectiveSmeStatus = loaded.status;
+      setSmeList(loaded.smes);
+      setSmeStatus(loaded.status);
+    }
+
+    const summaryPayload = buildSummaryExport({
+      records: workingRecords,
+      schedulesBySA,
+      startHour,
+      endHour,
+      facultyStartHour: assumptions.facultyStartHour ?? 6,
+      sessionTimeOverrides,
+      sessionInstanceTimeOverrides,
+      manualSmeAssignments,
+      manualFacultyAssignments,
+      smeList: effectiveSmeList,
+      smeStatus: effectiveSmeStatus,
+    });
+    const vatsPayload = buildVatsExport(workingRecords);
+
+    const base = `/api/public/projects/${projectId}/versions/${versionId}`;
+    const [summaryRes, vatsRes] = await Promise.all([
+      fetch(`${base}/summary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(summaryPayload),
+      }),
+      fetch(`${base}/vats`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(vatsPayload),
+      }),
+    ]);
+
+    if (!summaryRes.ok || !vatsRes.ok) {
+      throw new Error(`Failed to publish versioned APIs (${summaryRes.status}/${vatsRes.status})`);
+    }
+
+    await refreshPublicApiStatus();
+  }, [
+    result,
+    workingRecords,
+    schedulesBySA,
+    startHour,
+    endHour,
+    assumptions.facultyStartHour,
+    sessionTimeOverrides,
+    sessionInstanceTimeOverrides,
+    manualSmeAssignments,
+    manualFacultyAssignments,
+    smeList,
+    smeStatus,
+    refreshPublicApiStatus,
+  ]);
+
   // ── Initial load ───────────────────────────────────────────────────────────
   useEffect(() => {
     const init = async () => {
-      const { projects: projs, activeProjectId: lastPid } = await repository.getSyncData();
+      const [{ smes, status }, { projects: projs, activeProjectId: lastPid }] = await Promise.all([
+        loadSMEData(),
+        repository.getSyncData(),
+      ]);
+      setSmeList(smes);
+      setSmeStatus(status);
+      await refreshPublicApiStatus();
       setProjects(projs);
       if (lastPid) {
         const p = projs.find(x => x.id === lastPid);
@@ -159,7 +255,7 @@ function App() {
       }
     };
     init();
-  }, [applySnapshot, loadProjectSnapshot]);
+  }, [applySnapshot, loadProjectSnapshot, refreshPublicApiStatus]);
 
   // Update versions when active project changes
   useEffect(() => {
@@ -183,12 +279,25 @@ function App() {
     if (!name) return;
 
     setLoading(true);
-    const { project, version } = await repository.createProject(name, currentSnapshot);
-    setProjects(prev => [project, ...prev]);
-    setActiveProjectId(project.id);
-    setProjectVersions([version]);
-    setLoadedVersionId(version.id);
-    setLoading(false);
+    try {
+      const { project, version } = await repository.createProject(name, currentSnapshot);
+      const publicSourceResult = await repository.setPublicApiSource(project.id, version.id);
+      if (publicSourceResult.source) {
+        project.publicApiVersionId = version.id;
+      }
+      await publishVersionOutputs(project.id, version.id);
+      setProjects(prev => [
+        project,
+        ...prev.map(existing => ({ ...existing, publicApiVersionId: null })),
+      ]);
+      setActiveProjectId(project.id);
+      setProjectVersions([version]);
+      setLoadedVersionId(version.id);
+    } catch (err) {
+      setError(t('publicApiProjectCreatePublishFailed').replace('{err}', String(err)));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSaveVersion = async () => {
@@ -196,13 +305,19 @@ function App() {
     const label = window.prompt(t('versionLabel')) || undefined;
 
     setLoading(true);
-    const { version } = await repository.saveAsNewVersion(activeProjectId, currentSnapshot, label);
-    setProjectVersions(prev => [version, ...prev]);
-    setLoadedVersionId(version.id);
+    try {
+      const { version } = await repository.saveAsNewVersion(activeProjectId, currentSnapshot, label);
+      await publishVersionOutputs(activeProjectId, version.id);
+      setProjectVersions(prev => [version, ...prev]);
+      setLoadedVersionId(version.id);
 
-    const { projects: updatedProjs } = await repository.getSyncData();
-    setProjects(updatedProjs);
-    setLoading(false);
+      const { projects: updatedProjs } = await repository.getSyncData();
+      setProjects(updatedProjs);
+    } catch (err) {
+      setError(t('publicApiPublishFailed').replace('{err}', String(err)));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSaveCurrentVersion = async () => {
@@ -211,27 +326,65 @@ function App() {
     setLoading(true);
     setAutosaveStatus('saving');
 
-    const { version, project, status } = await repository.updateVersion(loadedVersionId, currentSnapshot);
-    setAutosaveStatus(status);
-    if (version) {
-      setProjectVersions(prev => prev.map(v => v.id === version.id ? version : v));
-    }
-    if (project) {
-      if (project.revision !== undefined) {
-        projectRevisionRef.current[project.id] = project.revision;
+    try {
+      const { version, project, status } = await repository.updateVersion(loadedVersionId, currentSnapshot);
+      if (version) {
+        await publishVersionOutputs(activeProjectId, version.id);
       }
-      setProjects(prev => prev.map(p => p.id === project.id ? project : p));
-    }
+      setAutosaveStatus(status);
+      if (version) {
+        setProjectVersions(prev => prev.map(v => v.id === version.id ? version : v));
+      }
+      if (project) {
+        if (project.revision !== undefined) {
+          projectRevisionRef.current[project.id] = project.revision;
+        }
+        setProjects(prev => prev.map(p => p.id === project.id ? project : p));
+      }
 
-    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-    savedTimerRef.current = setTimeout(() => setAutosaveStatus('idle'), 3000);
-    setLoading(false);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setAutosaveStatus('idle'), 3000);
+    } catch (err) {
+      setAutosaveStatus('error');
+      setError(t('publicApiPublishFailed').replace('{err}', String(err)));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLoadVersion = async (v: RunVersion) => {
     applySnapshot(v.snapshot);
     setActiveProjectId(v.projectId);
     setLoadedVersionId(v.id);
+  };
+
+  const handleSetPublicApiSource = async (projectId: string, versionId: string) => {
+    setLoading(true);
+    const { source, status } = await repository.setPublicApiSource(projectId, versionId);
+    if (status === 'error' || !source) {
+      setError(t('publicApiSourceUpdateFailed'));
+      setLoading(false);
+      return;
+    }
+
+    setProjects(prev =>
+      prev.map(project => ({
+        ...project,
+        publicApiVersionId: project.id === projectId ? versionId : null,
+      }))
+    );
+
+    if (loadedVersionId === versionId && result) {
+      try {
+        await publishVersionOutputs(projectId, versionId);
+      } catch (err) {
+        setError(`Saved the public source selection, but failed to refresh APIs. ${String(err)}`);
+      }
+    } else {
+      await refreshPublicApiStatus();
+    }
+
+    setLoading(false);
   };
 
   const handleDeleteVersion = async (version: RunVersion) => {
@@ -428,7 +581,10 @@ function App() {
                   {projects.map(p => (
                     <div key={p.id} className={`project-item ${activeProjectId === p.id ? 'active' : ''}`} onClick={() => { void loadProjectSnapshot(p.id, p.activeVersionId); }}>
                       <div className="project-info">
-                        <span className="project-name">{p.name}</span>
+                        <span className="project-name">
+                          {p.name}
+                          {p.publicApiVersionId && <span className="project-public-pill"><Globe size={11} /> Public API</span>}
+                        </span>
                         <span className="project-date">{new Date(p.updatedAt).toLocaleDateString()}</span>
                       </div>
                       <div className="project-actions">
@@ -448,6 +604,13 @@ function App() {
                       <span className="version-num">v{v.versionNumber}</span>
                       <span className="version-label">{v.label}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); void handleSetPublicApiSource(v.projectId, v.id); }}
+                          className={`btn-subtle ${publicSourceVersionId === v.id ? 'public-source' : ''}`}
+                          title={publicSourceVersionId === v.id ? t('publicApiSourceLabel') : t('publicApiSetSource')}
+                        >
+                          <Globe size={12} />
+                        </button>
                         {loadedVersionId === v.id && <CheckCircle2 size={12} className="active-icon" />}
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDeleteVersion(v); }}
@@ -480,10 +643,17 @@ function App() {
                 <span className="tag-label">PROJECT:</span>
                 <span className="tag-value">{projects.find(p => p.id === activeProjectId)?.name}</span>
                 {loadedVersionId && <span className="tag-version">v{projectVersions.find(v => v.id === loadedVersionId)?.versionNumber}</span>}
+                {loadedVersionId && publicSourceVersionId === loadedVersionId && <span className="tag-public-source"><Globe size={12} /> {t('publicApiSourceLabel')}</span>}
               </div>
             ) : <h2 className="page-title">{t('appTitle')}</h2>}
           </div>
           <div className="top-bar-right">
+            {publicApiStatus?.publicSource && (
+              <div className="autosave-indicator" style={{ marginRight: '0.5rem' }}>
+                <Link2 size={14} />
+                {t('publicApiCurrentSource')}: {projects.find(p => p.id === publicApiStatus.publicSource?.projectId)?.name ?? 'Project'} / v{projectVersions.find(v => v.id === publicApiStatus.publicSource?.versionId)?.versionNumber ?? '?'}
+              </div>
+            )}
             {autosaveStatus !== 'idle' && (
               <div className={`autosave-indicator status-${autosaveStatus}`}>
                 {autosaveStatus === 'saving' ? <Loader2 className="animate-spin" size={14} /> :
@@ -570,6 +740,11 @@ function App() {
             onLocalRecordsChange={setDashboardRecords}
             projectName={projects.find(p => p.id === activeProjectId)?.name ?? null}
             versionLabel={loadedVersionId ? `v${projectVersions.find(v => v.id === loadedVersionId)?.versionNumber ?? ''}` : null}
+            projectId={activeProjectId}
+            versionId={loadedVersionId}
+            smeList={smeList}
+            smeStatus={smeStatus}
+            onRefreshSMEs={() => { void refreshSmes(); }}
             versionInfo={
               loadedVersionId ? (
                 <div className="version-status-box" style={{ padding: '0.5rem', marginTop: '0.5rem' }}>
@@ -602,12 +777,14 @@ function App() {
         .project-item:hover, .version-item:hover { background: #f1f5f9; }
         .project-item.active { background: #eff6ff; border-color: #bfdbfe; }
         .project-name { display: block; font-weight: 600; color: #1e293b; font-size: 0.9rem; }
+        .project-public-pill { display: inline-flex; align-items: center; gap: 0.25rem; margin-left: 0.4rem; padding: 0.1rem 0.35rem; border-radius: 9999px; background: #eff6ff; color: #1d4ed8; font-size: 0.65rem; font-weight: 700; vertical-align: middle; }
         .project-date { font-size: 0.7rem; color: #94a3b8; }
         .version-item.active { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
         .version-num { font-weight: 800; font-size: 0.8rem; margin-right: 0.5rem; }
         .version-label { font-size: 0.85rem; flex: 1; }
         .btn-subtle { background: none; border: none; padding: 0.25rem; cursor: pointer; color: #94a3b8; border-radius: 0.25rem; }
         .btn-subtle:hover { background: #e2e8f0; color: #475569; }
+        .btn-subtle.public-source { background: #eff6ff; color: #2563eb; }
         .btn-subtle.danger:hover { background: #fee2e2; color: #dc2626; }
         .main-content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
         .top-bar { height: 64px; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; padding: 0 1.5rem; flex-shrink: 0; }
@@ -615,6 +792,7 @@ function App() {
         .tag-label { font-size: 0.65rem; font-weight: 800; color: #64748b; }
         .tag-value { font-size: 0.85rem; font-weight: 600; color: #1e293b; }
         .tag-version { background: #3b82f6; color: #fff; font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px; }
+        .tag-public-source { display: inline-flex; align-items: center; gap: 0.25rem; background: #eff6ff; color: #1d4ed8; font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 9999px; }
         .autosave-indicator { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: #64748b; margin-right: 1rem; }
         .sync-badge { padding: 0.25rem 0.5rem; font-size: 0.65rem; font-weight: 700; border-radius: 4px; text-transform: uppercase; }
         .sync-badge.online { background: #dcfce7; color: #166534; }

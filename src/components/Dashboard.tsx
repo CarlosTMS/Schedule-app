@@ -51,6 +51,11 @@ interface DashboardProps {
     onLocalMetricsChange?: (metrics: AllocationResult['metrics']) => void;
     projectName?: string | null;
     versionLabel?: string | null;
+    projectId?: string | null;
+    versionId?: string | null;
+    smeList?: SME[];
+    smeStatus?: SMECacheStatus | null;
+    onRefreshSMEs?: () => void;
 }
 
 type TabType = 'overview' | 'sessions' | 'smes' | 'faculty' | 'summary' | 'blockers' | 'debrief' | 'vats' | 'data' | 'evaluations';
@@ -76,6 +81,11 @@ export function Dashboard({
     onLocalMetricsChange,
     projectName,
     versionLabel,
+    projectId,
+    versionId,
+    smeList: controlledSmeList,
+    smeStatus: controlledSmeStatus,
+    onRefreshSMEs,
 }: DashboardProps) {
 
     const { t } = useI18n();
@@ -142,21 +152,28 @@ export function Dashboard({
         else setInternalEvaluations(next);
     };
 
-    const [smeList, setSmeList] = useState<SME[]>([]);
-    const [smeStatus, setSmeStatus] = useState<SMECacheStatus | null>(null);
+    const [internalSmeList, setInternalSmeList] = useState<SME[]>([]);
+    const [internalSmeStatus, setInternalSmeStatus] = useState<SMECacheStatus | null>(null);
+    const smeList = controlledSmeList ?? internalSmeList;
+    const smeStatus = controlledSmeStatus ?? internalSmeStatus;
 
     // Fetch SME data on mount; daily cache prevents unnecessary network calls
     useEffect(() => {
+        if (controlledSmeList) return;
         loadSMEData().then(({ smes, status }) => {
-            setSmeList(smes);
-            setSmeStatus(status);
+            setInternalSmeList(smes);
+            setInternalSmeStatus(status);
         });
-    }, []);
+    }, [controlledSmeList]);
 
     const handleRefreshSMEs = () => {
+        if (onRefreshSMEs) {
+            onRefreshSMEs();
+            return;
+        }
         forceFetchSMEData().then(({ smes, status }) => {
-            setSmeList(smes);
-            setSmeStatus(status);
+            setInternalSmeList(smes);
+            setInternalSmeStatus(status);
         });
     };
 
@@ -595,6 +612,8 @@ export function Dashboard({
                             onFacultyAssignmentsChange={setManualFacultyAssignments}
                             smeList={smeList}
                             smeStatus={smeStatus}
+                            projectId={projectId}
+                            versionId={versionId}
                         />
                     </div>
                 )}
@@ -634,6 +653,8 @@ export function Dashboard({
                     <div className="animated-fade-in">
                         <VATVisualizer
                             records={localRecords}
+                            projectId={projectId}
+                            versionId={versionId}
                             onMoveDelegate={(idx, targetVat) => handleMoveToVAT([idx], targetVat)}
                             onMoveMultipleDelegates={(indices, targetVat) => handleMoveToVAT(indices, targetVat)}
                             onSyncVatsToSessions={handleSyncVatsToSessions}

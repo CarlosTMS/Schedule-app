@@ -4,39 +4,18 @@ import { AlertTriangle, Users, AlertCircle, Plus, CheckSquare, Square, Zap, Info
 import { useI18n } from '../i18n';
 import { extractScheduleKey as tzExtractKey, formatUtcHourLabel, SUN_THU_COUNTRIES } from '../lib/timezones';
 import { getAssociateEmail } from '../lib/associateEmailDirectory';
+import { buildVatsExport, getAssignedSA, type VatsExport } from '../lib/publicApiPayloads';
 
 interface VATVisualizerProps {
     records: StudentRecord[];
+    projectId?: string | null;
+    versionId?: string | null;
     onMoveDelegate?: (originalIndex: number, targetVat: string) => void;
     onMoveMultipleDelegates?: (originalIndices: number[], targetVat: string) => void;
     onSyncVatsToSessions?: () => void;
     onUndoSync?: () => void;
     hasSyncHistory?: boolean;
     sessionTimeOverrides?: Record<string, number>;
-}
-
-interface VatsExport {
-    generated_at: string;
-    total_records: number;
-    source_records_count: number;
-    excluded_records_count: number;
-    total_vats: number;
-    vats: {
-        vat: string;
-        members_count: number;
-        solution_areas: string[];
-        schedules: string[];
-        members: {
-            name: string;
-            email: string;
-            country: string;
-            office: string;
-            solution_area: string;
-            specialization: string;
-            schedule: string;
-            utc_offset: number | undefined;
-        }[];
-    }[];
 }
 
 interface Recommendation {
@@ -72,7 +51,9 @@ const localExtractUtcHour = (name: string) => {
 };
 
 export function VATVisualizer({ 
-    records, 
+    records,
+    projectId,
+    versionId,
     onMoveDelegate, 
     onMoveMultipleDelegates, 
     onSyncVatsToSessions, 
@@ -81,10 +62,6 @@ export function VATVisualizer({
     sessionTimeOverrides = {}
 }: VATVisualizerProps) {
     const { t } = useI18n();
-    const getAssignedSA = (record: StudentRecord): string => {
-        const legacy = (record as StudentRecord & { 'Solution Week SA'?: string })['Solution Week SA'];
-        return record['Solution Weeks SA'] || legacy || '';
-    };
     const [filterSA, setFilterSA] = useState<string>('All');
     const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
     const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
@@ -154,58 +131,22 @@ export function VATVisualizer({
         ];
     }, [data.vatsBySA, data.unassigned]);
 
-    const buildVatsPayload = (): VatsExport => {
-        const grouped = new Map<string, StudentRecord[]>();
-        for (const r of records) {
-            const vat = (r.VAT || '').trim();
-            if (!vat || vat === 'Unassigned' || vat === 'Outlier-Size' || !r.Schedule || r.Schedule === 'Outlier-Schedule') continue;
-            const list = grouped.get(vat) || [];
-            list.push(r);
-            grouped.set(vat, list);
-        }
-
-        const vats = Array.from(grouped.entries())
-            .map(([vat, members]) => ({
-                vat,
-                members_count: members.length,
-                solution_areas: Array.from(new Set(members.map(m => getAssignedSA(m)).filter(Boolean))).sort() as string[],
-                schedules: Array.from(new Set(members.map(m => m.Schedule).filter(Boolean))).sort() as string[],
-                members: members.map(m => ({
-                    name: m['Full Name'] ?? '',
-                    email: getAssociateEmail(m['Full Name'], m.Email),
-                    country: m.Country ?? '',
-                    office: m.Office ?? '',
-                    solution_area: getAssignedSA(m),
-                    specialization: m['(AA) Secondary Specialization'] ?? '',
-                    schedule: m.Schedule ?? '',
-                    utc_offset: m._utcOffset,
-                }))
-            }))
-            .sort((a, b) => a.vat.localeCompare(b.vat));
-
-        const exportedRecordsCount = vats.reduce((sum, vat) => sum + vat.members_count, 0);
-
-        return {
-            generated_at: new Date().toISOString(),
-            total_records: exportedRecordsCount,
-            source_records_count: records.length,
-            excluded_records_count: records.length - exportedRecordsCount,
-            total_vats: vats.length,
-            vats
-        };
-    };
+    const buildVatsPayload = (): VatsExport => buildVatsExport(records);
 
     const handlePublishVatsAPI = async () => {
         setPublishingVats(true);
         try {
             const payload = buildVatsPayload();
-            const res = await fetch(`${API_BASE}/api/public/vats`, {
+            const publishUrl = projectId && versionId
+                ? `${API_BASE}/api/public/projects/${projectId}/versions/${versionId}/vats`
+                : `${API_BASE}/api/public/vats`;
+            const res = await fetch(publishUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            setPublishedVatsUrl(`${API_BASE}/api/public/vats`);
+            setPublishedVatsUrl(publishUrl);
         } catch (err) {
             setPublishedVatsUrl(null);
             alert(t('publishFailed').replace('{err}', String(err)));
