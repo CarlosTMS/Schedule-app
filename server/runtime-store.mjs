@@ -13,6 +13,7 @@ class RuntimeStore {
     constructor() {
         this.projects = [];
         this.versions = []; // Global list of versions
+        this.appState = new Map();
     }
 
     // ─── Projects ─────────────────────────────────────────────────────────────
@@ -84,7 +85,7 @@ class RuntimeStore {
         return this.versions.find(v => v.id === id) || null;
     }
 
-    updateVersion(id, snapshot) {
+    updateVersion(id, snapshot, editor) {
         const idx = this.versions.findIndex(v => v.id === id);
         if (idx === -1) return null;
 
@@ -93,6 +94,7 @@ class RuntimeStore {
             ...existing,
             snapshot,
             createdAt: new Date().toISOString(),
+            savedBy: editor?.name ?? existing.savedBy ?? null,
         };
         this.versions[idx] = updated;
 
@@ -101,6 +103,7 @@ class RuntimeStore {
             project.activeVersionId = id;
             project.updatedAt = new Date().toISOString();
             project.revision = (project.revision || 1) + 1;
+            project.updatedBy = editor?.name ?? project.updatedBy ?? null;
         }
 
         return {
@@ -156,6 +159,15 @@ class RuntimeStore {
 
         this.versions.push(version);
         return version;
+    }
+
+    getState(key) {
+        return this.appState.get(key) ?? null;
+    }
+
+    setState(key, value) {
+        this.appState.set(key, value);
+        return value;
     }
 
     // ─── Batch Sync ───────────────────────────────────────────────────────────

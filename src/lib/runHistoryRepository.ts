@@ -25,6 +25,22 @@ export interface SyncResult {
     project?: RunProject;
 }
 
+export interface EditorIdentity {
+    id: string;
+    name: string;
+}
+
+export interface VersionPresence {
+    versionId: string;
+    editor: EditorIdentity;
+    updatedAt: string;
+}
+
+export interface VersionUpdateConflict {
+    project: RunProject;
+    version: RunVersion | null;
+}
+
 export interface PublicApiSource {
     projectId: string;
     versionId: string;
@@ -54,6 +70,17 @@ class RunHistoryRepository {
 
     constructor() {
         migrateToV3();
+    }
+
+    async getProject(projectId: string): Promise<RunProject | null> {
+        try {
+            const res = await fetch(`${API_BASE}/projects/${projectId}`);
+            if (!res.ok) throw new Error('Project fetch failed');
+            const data = await res.json();
+            return data?.data ?? null;
+        } catch {
+            return readLocalProjects().find(project => project.id === projectId) ?? null;
+        }
     }
 
     /**
@@ -114,7 +141,7 @@ class RunHistoryRepository {
     /**
      * Creates a new project with an initial version.
      */
-    async createProject(name: string, snapshot: RunSnapshot): Promise<{ project: RunProject, version: RunVersion, status: SyncStatus }> {
+    async createProject(name: string, snapshot: RunSnapshot, editor?: EditorIdentity): Promise<{ project: RunProject, version: RunVersion, status: SyncStatus }> {
         const now = new Date().toISOString();
         const projectId = newId();
         const versionId = newId();
@@ -126,6 +153,7 @@ class RunHistoryRepository {
             updatedAt: now,
             activeVersionId: versionId,
             publicApiVersionId: versionId,
+            updatedBy: editor?.name ?? null,
             revision: 1
         };
 
@@ -135,6 +163,7 @@ class RunHistoryRepository {
             versionNumber: 1,
             label: 'Initial version',
             createdAt: now,
+            savedBy: editor?.name ?? null,
             snapshot
         };
 
@@ -174,7 +203,7 @@ class RunHistoryRepository {
     /**
      * Saves a new immutable version for an existing project.
      */
-    async saveAsNewVersion(projectId: string, snapshot: RunSnapshot, label?: string): Promise<{ version: RunVersion, status: SyncStatus }> {
+    async saveAsNewVersion(projectId: string, snapshot: RunSnapshot, label?: string, editor?: EditorIdentity): Promise<{ version: RunVersion, status: SyncStatus }> {
         const localVersions = readLocalVersions(projectId);
         const nextNum = (localVersions[0]?.versionNumber || 0) + 1;
         const now = new Date().toISOString();
@@ -187,6 +216,7 @@ class RunHistoryRepository {
             label: label || `Version ${nextNum}`,
             parentVersionId: localVersions[0]?.id || null,
             createdAt: now,
+            savedBy: editor?.name ?? null,
             snapshot
         };
 
@@ -206,7 +236,7 @@ class RunHistoryRepository {
             const pRes = await fetch(`${API_BASE}/projects/${projectId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ activeVersionId: versionId, updatedAt: now, expectedRevision: currentRev })
+                body: JSON.stringify({ activeVersionId: versionId, updatedAt: now, updatedBy: editor?.name ?? null, expectedRevision: currentRev })
             });
 
             if (!vRes.ok || !pRes.ok) throw new Error('Remote save failed');
@@ -254,17 +284,24 @@ class RunHistoryRepository {
         return readLocalVersions(projectId);
     }
 
-    async getVersion(versionId: string): Promise<RunVersion | null> {
-        // Check local first as it's a snapshot
-        const local = readLocalVersions().find(v => v.id === versionId);
-        if (local) return local;
+    async getVersion(versionId: string, options?: { forceRemote?: boolean }): Promise<RunVersion | null> {
+        if (!options?.forceRemote) {
+            const local = readLocalVersions().find(v => v.id === versionId);
+            if (local) return local;
+        }
 
         try {
             const res = await fetch(`${API_BASE}/versions/${versionId}`);
             if (res.ok) {
                 const data = await res.json();
                 this.runtimeAvailable = true;
-                return data.data;
+                const remote = data.data as RunVersion;
+                const versions = readLocalVersions();
+                const idx = versions.findIndex(v => v.id === remote.id);
+                if (idx !== -1) versions[idx] = remote;
+                else versions.push(remote);
+                persistLocalVersions(versions);
+                return remote;
             } else {
                 this.runtimeAvailable = false;
             }
@@ -274,17 +311,32 @@ class RunHistoryRepository {
         return null;
     }
 
-    async updateVersion(versionId: string, snapshot: RunSnapshot): Promise<{ version: RunVersion | null, project?: RunProject, status: SyncStatus }> {
+    async updateVersion(
+        versionId: string,
+        snapshot: RunSnapshot,
+        options?: { expectedRevision?: number; editor?: EditorIdentity }
+    ): Promise<{ version: RunVersion | null, project?: RunProject, status: SyncStatus, conflict?: VersionUpdateConflict }> {
         let status: SyncStatus = 'saved';
         let updatedVersion: RunVersion | null = null;
         let updatedProject: RunProject | undefined;
+        let conflict: VersionUpdateConflict | undefined;
 
         try {
             const res = await fetch(`${API_BASE}/versions/${versionId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ snapshot })
+                body: JSON.stringify({ snapshot, expectedRevision: options?.expectedRevision, editor: options?.editor })
             });
+
+            if (res.status === 409) {
+                const data = await res.json();
+                status = 'conflict';
+                conflict = {
+                    project: data?.currentProject,
+                    version: data?.currentVersion ?? null,
+                };
+                return { version: null, project: undefined, status, conflict };
+            }
 
             if (!res.ok) throw new Error('Remote update failed');
 
@@ -327,7 +379,30 @@ class RunHistoryRepository {
             }
         }
 
-        return { version: updatedVersion, project: updatedProject, status };
+        return { version: updatedVersion, project: updatedProject, status, conflict };
+    }
+
+    async getPresence(versionId: string): Promise<VersionPresence[]> {
+        try {
+            const res = await fetch(`${API_BASE}/versions/${versionId}/presence`);
+            if (!res.ok) return [];
+            const data = await res.json();
+            return data?.data ?? [];
+        } catch {
+            return [];
+        }
+    }
+
+    async touchPresence(versionId: string, editor: EditorIdentity): Promise<void> {
+        try {
+            await fetch(`${API_BASE}/versions/${versionId}/presence`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ editor })
+            });
+        } catch {
+            // Presence is best-effort only.
+        }
     }
 
     async deleteVersion(projectId: string, versionId: string): Promise<boolean> {

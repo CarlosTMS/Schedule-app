@@ -50,6 +50,7 @@ export interface RunProject {
     updatedAt: string;
     activeVersionId: string | null;
     publicApiVersionId?: string | null;
+    updatedBy?: string | null;
     revision?: number;
 }
 
@@ -61,6 +62,7 @@ export interface RunVersion {
     label?: string;
     parentVersionId?: string | null;
     createdAt: string;
+    savedBy?: string | null;
     snapshot: RunSnapshot;
 }
 

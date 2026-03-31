@@ -116,6 +116,58 @@ class MemoryFilePersistence {
     return value;
   }
 
+  async touchPresence(versionId, editor) {
+    const key = `presence.version.${versionId}.${editor.id}`;
+    const value = {
+      versionId,
+      editor,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.setAppState(key, value);
+    return value;
+  }
+
+  async getPresence(versionId, ttlMs = 70000) {
+    const prefix = `presence.version.${versionId}.`;
+    const rows = await this.exec(`
+SELECT STATE_KEY, STATE_JSON
+FROM ${this.table('SCHEDULER_APP_STATE')}
+WHERE STATE_KEY LIKE ${sqlString(`${prefix}%`)}
+`);
+    const now = Date.now();
+    const active = [];
+    for (const row of rows) {
+      const value = JSON.parse(row.STATE_JSON);
+      const age = now - new Date(value.updatedAt).getTime();
+      if (age <= ttlMs) {
+        active.push(value);
+      } else {
+        await this.exec(`DELETE FROM ${this.table('SCHEDULER_APP_STATE')} WHERE STATE_KEY = ${sqlString(row.STATE_KEY)}`);
+      }
+    }
+    return active.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async touchPresence(versionId, editor) {
+    const key = `presence.version.${versionId}.${editor.id}`;
+    const value = { versionId, editor, updatedAt: new Date().toISOString() };
+    this.appState.set(key, value);
+    return value;
+  }
+
+  async getPresence(versionId, ttlMs = 70000) {
+    const prefix = `presence.version.${versionId}.`;
+    const now = Date.now();
+    const active = [];
+    for (const [key, value] of this.appState.entries()) {
+      if (!key.startsWith(prefix)) continue;
+      const age = now - new Date(value.updatedAt).getTime();
+      if (age <= ttlMs) active.push(value);
+      else this.appState.delete(key);
+    }
+    return active.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
   async getProjects() {
     const projects = clone(runtimeStore.getProjects());
     const publicSource = await this.getPublicApiSource();
@@ -159,12 +211,16 @@ class MemoryFilePersistence {
     return clone(runtimeStore.getVersion(id));
   }
 
+  async getVersionMeta(id) {
+    return clone(runtimeStore.getVersion(id));
+  }
+
   async addVersion(version) {
     return clone(runtimeStore.addVersion(version));
   }
 
-  async updateVersion(id, snapshot) {
-    return clone(runtimeStore.updateVersion(id, snapshot));
+  async updateVersion(id, snapshot, options = {}) {
+    return clone(runtimeStore.updateVersion(id, snapshot, options.editor));
   }
 
   async deleteVersion(id) {
@@ -310,7 +366,7 @@ VALUES (source.STATE_KEY, source.STATE_JSON, source.UPDATED_AT)
 
   async getProjects() {
     const rows = await this.exec(`
-SELECT ID, NAME, CREATED_AT, UPDATED_AT, ACTIVE_VERSION_ID, REVISION
+SELECT ID, NAME, CREATED_AT, UPDATED_AT, ACTIVE_VERSION_ID, REVISION, UPDATED_BY
 FROM ${this.table('SCHEDULER_PROJECTS')}
 ORDER BY UPDATED_AT DESC
 `);
@@ -320,7 +376,7 @@ ORDER BY UPDATED_AT DESC
 
   async getProject(id) {
     const rows = await this.exec(`
-SELECT ID, NAME, CREATED_AT, UPDATED_AT, ACTIVE_VERSION_ID, REVISION
+SELECT ID, NAME, CREATED_AT, UPDATED_AT, ACTIVE_VERSION_ID, REVISION, UPDATED_BY
 FROM ${this.table('SCHEDULER_PROJECTS')}
 WHERE ID = ${sqlString(id)}
 `);
@@ -346,7 +402,8 @@ USING (
     ${sqlTimestamp(createdAt)} AS CREATED_AT,
     ${sqlTimestamp(updatedAt)} AS UPDATED_AT,
     ${sqlString(activeVersionId)} AS ACTIVE_VERSION_ID,
-    ${revision} AS REVISION
+    ${revision} AS REVISION,
+    ${sqlString(project.updatedBy ?? existing?.updatedBy ?? null)} AS UPDATED_BY
   FROM DUMMY
 ) source
 ON ${this.table('SCHEDULER_PROJECTS')}.ID = source.ID
@@ -354,9 +411,10 @@ WHEN MATCHED THEN UPDATE SET
   ${this.table('SCHEDULER_PROJECTS')}.NAME = source.NAME,
   ${this.table('SCHEDULER_PROJECTS')}.UPDATED_AT = source.UPDATED_AT,
   ${this.table('SCHEDULER_PROJECTS')}.ACTIVE_VERSION_ID = source.ACTIVE_VERSION_ID,
-  ${this.table('SCHEDULER_PROJECTS')}.REVISION = source.REVISION
-WHEN NOT MATCHED THEN INSERT (ID, NAME, CREATED_AT, UPDATED_AT, ACTIVE_VERSION_ID, REVISION)
-VALUES (source.ID, source.NAME, source.CREATED_AT, source.UPDATED_AT, source.ACTIVE_VERSION_ID, source.REVISION)
+  ${this.table('SCHEDULER_PROJECTS')}.REVISION = source.REVISION,
+  ${this.table('SCHEDULER_PROJECTS')}.UPDATED_BY = source.UPDATED_BY
+WHEN NOT MATCHED THEN INSERT (ID, NAME, CREATED_AT, UPDATED_AT, ACTIVE_VERSION_ID, REVISION, UPDATED_BY)
+VALUES (source.ID, source.NAME, source.CREATED_AT, source.UPDATED_AT, source.ACTIVE_VERSION_ID, source.REVISION, source.UPDATED_BY)
 `;
 
     await this.exec(sql);
@@ -383,7 +441,7 @@ VALUES (source.ID, source.NAME, source.CREATED_AT, source.UPDATED_AT, source.ACT
 
   async getVersions(projectId) {
     const rows = await this.exec(`
-SELECT ID, PROJECT_ID, VERSION_NUMBER, LABEL, PARENT_VERSION_ID, CREATED_AT, SNAPSHOT_JSON
+SELECT ID, PROJECT_ID, VERSION_NUMBER, LABEL, PARENT_VERSION_ID, CREATED_AT, CREATED_BY, SNAPSHOT_JSON
 FROM ${this.table('SCHEDULER_VERSIONS')}
 WHERE PROJECT_ID = ${sqlString(projectId)}
 ORDER BY VERSION_NUMBER DESC
@@ -393,11 +451,20 @@ ORDER BY VERSION_NUMBER DESC
 
   async getVersion(id) {
     const rows = await this.exec(`
-SELECT ID, PROJECT_ID, VERSION_NUMBER, LABEL, PARENT_VERSION_ID, CREATED_AT, SNAPSHOT_JSON
+SELECT ID, PROJECT_ID, VERSION_NUMBER, LABEL, PARENT_VERSION_ID, CREATED_AT, CREATED_BY, SNAPSHOT_JSON
 FROM ${this.table('SCHEDULER_VERSIONS')}
 WHERE ID = ${sqlString(id)}
 `);
     return rows.length ? this.mapVersion(rows[0]) : null;
+  }
+
+  async getVersionMeta(id) {
+    const rows = await this.exec(`
+SELECT ID, PROJECT_ID, VERSION_NUMBER, LABEL, PARENT_VERSION_ID, CREATED_AT, CREATED_BY
+FROM ${this.table('SCHEDULER_VERSIONS')}
+WHERE ID = ${sqlString(id)}
+`);
+    return rows.length ? this.mapVersion(rows[0], false) : null;
   }
 
   async addVersion(version) {
@@ -406,7 +473,7 @@ WHERE ID = ${sqlString(id)}
 
     const sql = `
 INSERT INTO ${this.table('SCHEDULER_VERSIONS')} (
-  ID, PROJECT_ID, VERSION_NUMBER, LABEL, PARENT_VERSION_ID, CREATED_AT, SNAPSHOT_JSON, SNAPSHOT_SCHEMA_VERSION
+  ID, PROJECT_ID, VERSION_NUMBER, LABEL, PARENT_VERSION_ID, CREATED_AT, SNAPSHOT_JSON, SNAPSHOT_SCHEMA_VERSION, CREATED_BY
 ) VALUES (
   ${sqlString(version.id)},
   ${sqlString(version.projectId)},
@@ -415,7 +482,8 @@ INSERT INTO ${this.table('SCHEDULER_VERSIONS')} (
   ${sqlString(version.parentVersionId ?? null)},
   ${sqlTimestamp(version.createdAt)},
   ${sqlJson(version.snapshot)},
-  3
+  3,
+  ${sqlString(version.savedBy ?? null)}
 )
 `;
     await this.exec(sql);
@@ -431,7 +499,7 @@ WHERE ID = ${sqlString(version.projectId)}
     return this.getVersion(version.id);
   }
 
-  async updateVersion(id, snapshot) {
+  async updateVersion(id, snapshot, options = {}) {
     const existing = await this.getVersion(id);
     if (!existing) return null;
 
@@ -439,7 +507,8 @@ WHERE ID = ${sqlString(version.projectId)}
     await this.exec(`
 UPDATE ${this.table('SCHEDULER_VERSIONS')}
 SET SNAPSHOT_JSON = ${sqlJson(snapshot)},
-    CREATED_AT = ${sqlTimestamp(updatedAt)}
+    CREATED_AT = ${sqlTimestamp(updatedAt)},
+    CREATED_BY = ${sqlString(options.editor?.name ?? existing.savedBy ?? null)}
 WHERE ID = ${sqlString(id)}
 `);
 
@@ -449,6 +518,7 @@ WHERE ID = ${sqlString(id)}
 UPDATE ${this.table('SCHEDULER_PROJECTS')}
 SET ACTIVE_VERSION_ID = ${sqlString(id)},
     UPDATED_AT = ${sqlTimestamp(updatedAt)},
+    UPDATED_BY = ${sqlString(options.editor?.name ?? project.updatedBy ?? null)},
     REVISION = ${Number(project.revision || 1) + 1}
 WHERE ID = ${sqlString(existing.projectId)}
 `);
@@ -578,11 +648,12 @@ WHERE ID = ${sqlString(project.id)}
       updatedAt: new Date(row.UPDATED_AT).toISOString(),
       activeVersionId: row.ACTIVE_VERSION_ID,
       revision: Number(row.REVISION || 1),
+      updatedBy: row.UPDATED_BY ?? null,
       publicApiVersionId: publicSource?.projectId === row.ID ? publicSource.versionId : null,
     };
   }
 
-  mapVersion(row) {
+  mapVersion(row, includeSnapshot = true) {
     return {
       id: row.ID,
       projectId: row.PROJECT_ID,
@@ -590,7 +661,8 @@ WHERE ID = ${sqlString(project.id)}
       label: row.LABEL ?? undefined,
       parentVersionId: row.PARENT_VERSION_ID,
       createdAt: new Date(row.CREATED_AT).toISOString(),
-      snapshot: JSON.parse(row.SNAPSHOT_JSON),
+      savedBy: row.CREATED_BY ?? null,
+      ...(includeSnapshot ? { snapshot: JSON.parse(row.SNAPSHOT_JSON) } : {}),
     };
   }
 }

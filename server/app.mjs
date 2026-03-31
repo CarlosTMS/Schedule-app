@@ -440,6 +440,11 @@ const server = http.createServer(async (req, res) => {
       const subRoute = parts[5];
 
       if (id && !subRoute) {
+        if (req.method === 'GET') {
+          const project = await persistence.getProject(id);
+          if (!project) return jsonResponse(res, 404, { ok: false, error: 'Project not found' });
+          return jsonResponse(res, 200, { ok: true, data: project });
+        }
         if (req.method === 'PATCH') {
           try {
             const body = await readBody(req);
@@ -504,16 +509,48 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname.startsWith('/api/runtime/versions/')) {
       const id = pathname.split('/')[4];
-      if (id && req.method === 'GET') {
+      const subRoute = pathname.split('/')[5];
+      if (id && subRoute === 'presence') {
+        if (req.method === 'GET') {
+          const data = await persistence.getPresence?.(id);
+          return jsonResponse(res, 200, { ok: true, data: data ?? [] });
+        }
+        if (req.method === 'POST') {
+          try {
+            const body = await readBody(req);
+            const { editor } = JSON.parse(body);
+            if (!editor?.id || !editor?.name) {
+              return jsonResponse(res, 400, { ok: false, error: 'editor.id and editor.name are required' });
+            }
+            const data = await persistence.touchPresence?.(id, editor);
+            return jsonResponse(res, 200, { ok: true, data });
+          } catch (e) {
+            return jsonResponse(res, 400, { ok: false, error: String(e) });
+          }
+        }
+      }
+      if (id && !subRoute && req.method === 'GET') {
         const v = await persistence.getVersion(id);
         return v ? jsonResponse(res, 200, { ok: true, data: v }) : jsonResponse(res, 404, { ok: false });
       }
-      if (id && req.method === 'PATCH') {
+      if (id && !subRoute && req.method === 'PATCH') {
         try {
           const body = await readBody(req);
-          const { snapshot } = JSON.parse(body);
+          const { snapshot, expectedRevision, editor } = JSON.parse(body);
           if (!snapshot) return jsonResponse(res, 400, { ok: false, error: 'Missing snapshot' });
-          const updated = await persistence.updateVersion(id, snapshot);
+          const existingVersion = await persistence.getVersionMeta?.(id) ?? await persistence.getVersion(id);
+          if (!existingVersion) return jsonResponse(res, 404, { ok: false, error: 'Version not found' });
+          const conflict = await persistence.getConflict(existingVersion.projectId, expectedRevision);
+          if (conflict) {
+            const currentVersion = await persistence.getVersion(id);
+            return jsonResponse(res, 409, {
+              ok: false,
+              error: 'conflict',
+              currentProject: conflict,
+              currentVersion,
+            });
+          }
+          const updated = await persistence.updateVersion(id, snapshot, { editor });
           if (!updated) return jsonResponse(res, 404, { ok: false, error: 'Version not found' });
           return jsonResponse(res, 200, { ok: true, data: updated });
         } catch (e) {
@@ -524,7 +561,7 @@ const server = http.createServer(async (req, res) => {
           return jsonResponse(res, 400, { ok: false, error: String(e) });
         }
       }
-      if (id && req.method === 'DELETE') {
+      if (id && !subRoute && req.method === 'DELETE') {
         const deleted = await persistence.deleteVersion(id);
         if (!deleted.ok) return jsonResponse(res, 404, { ok: false, error: deleted.error });
         return jsonResponse(res, 200, { ok: true, data: deleted });

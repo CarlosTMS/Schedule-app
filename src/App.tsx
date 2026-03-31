@@ -14,16 +14,17 @@ import { parseSummaryJson, parseEnrichedExcel } from './lib/jsonParser';
 import type { StudentRecord } from './lib/excelParser';
 import { runAllocation } from './lib/allocationEngine';
 import type { AllocationResult } from './lib/allocationEngine';
-import { repository, type PublicApiStatus, type SyncStatus } from './lib/runHistoryRepository';
+import { repository, type EditorIdentity, type PublicApiStatus, type SyncStatus, type VersionPresence } from './lib/runHistoryRepository';
 import { type RunProject, type RunVersion, type RunSnapshot } from './lib/runHistoryStorage';
 import type { SmeAssignments, SmeConfirmationState } from './components/SMESchedule';
 import type { FacultyAssignments } from './components/FacultySchedule';
 import type { EvaluationEngineOutput } from './lib/evaluationEngine';
 import { useI18n } from './i18n';
-import { Globe, Clock, Trash2, RotateCcw, Pencil, CheckCircle2, Plus, History, Save, Loader2, ShieldAlert, ChevronLeft, ChevronRight, Link2 } from 'lucide-react';
+import { Globe, Clock, Trash2, RotateCcw, Pencil, CheckCircle2, Plus, History, Save, Loader2, ShieldAlert, ChevronLeft, ChevronRight, Link2, RefreshCw, GitBranch } from 'lucide-react';
 import { forceFetchSMEData, loadSMEData, type SMECacheStatus } from './lib/smeDataLoader';
 import type { SME } from './lib/smeMatcher';
 import { buildSchedulesBySA, buildSummaryExport, buildVatsExport } from './lib/publicApiPayloads';
+import { applyConflictResolutions, formatRelativeTimestamp, getEditorIdentity, mergeSnapshots, setEditorIdentityName, type MergeConflict } from './lib/collaboration';
 
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -80,6 +81,17 @@ function App() {
   const [projectVersions, setProjectVersions] = useState<RunVersion[]>([]);
   const [loadedVersionId, setLoadedVersionId] = useState<string | null>(null);
   const [publicApiStatus, setPublicApiStatus] = useState<PublicApiStatus | null>(null);
+  const [editorIdentity, setEditorIdentity] = useState<EditorIdentity>(() => getEditorIdentity());
+  const [remoteChangesAvailable, setRemoteChangesAvailable] = useState(false);
+  const [presence, setPresence] = useState<VersionPresence[]>([]);
+  const [conflictState, setConflictState] = useState<{
+    remoteVersion: RunVersion | null;
+    expectedRevision: number | null;
+    mergedSnapshot: RunSnapshot;
+    conflicts: MergeConflict[];
+    resolutions: Record<string, 'local' | 'remote'>;
+    autoMergedCount: number;
+  } | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
@@ -93,6 +105,8 @@ function App() {
 
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectRevisionRef = useRef<Record<string, number>>({});
+  const loadedBaseSnapshotRef = useRef<RunSnapshot | null>(null);
+  const loadedBaseRevisionRef = useRef<number | null>(null);
 
   // Sync refs with state
   useEffect(() => {
@@ -117,11 +131,6 @@ function App() {
     sessionTimeOverrides, sessionInstanceTimeOverrides, manualSmeAssignments, smeConfirmationState, manualFacultyAssignments, evaluationsOutput
   }), [records, assumptions, rules, fsDistributions, aeDistributions, startHour, endHour, result, dashboardRecords, dashboardMetrics, sessionTimeOverrides, sessionInstanceTimeOverrides, manualSmeAssignments, smeConfirmationState, manualFacultyAssignments, evaluationsOutput]);
 
-  const workingRecords = useMemo(
-    () => ((result && dashboardRecords.length > 0) ? dashboardRecords : records),
-    [dashboardRecords, records, result]
-  );
-  const schedulesBySA = useMemo(() => buildSchedulesBySA(workingRecords), [workingRecords]);
   const publicSourceVersionId = useMemo(
     () => projects.find((project) => project.publicApiVersionId)?.publicApiVersionId ?? null,
     [projects]
@@ -149,11 +158,15 @@ function App() {
 
   const loadProjectSnapshot = useCallback(async (projectId: string, fallbackVersionId?: string | null) => {
     if (fallbackVersionId) {
-      const version = await repository.getVersion(fallbackVersionId);
+      const version = await repository.getVersion(fallbackVersionId, { forceRemote: true });
       if (version) {
         applySnapshot(version.snapshot);
         setActiveProjectId(projectId);
         setLoadedVersionId(version.id);
+        loadedBaseSnapshotRef.current = JSON.parse(JSON.stringify(version.snapshot));
+        const project = await repository.getProject(projectId);
+        loadedBaseRevisionRef.current = project?.revision ?? null;
+        setRemoteChangesAvailable(false);
         return;
       }
     }
@@ -173,8 +186,14 @@ function App() {
     setSmeStatus(status);
   }, []);
 
-  const publishVersionOutputs = useCallback(async (projectId: string, versionId: string) => {
-    if (!result) return;
+  const handleRenameEditor = () => {
+    const nextName = window.prompt(t('editorNamePrompt'), editorIdentity.name);
+    if (!nextName) return;
+    setEditorIdentity(setEditorIdentityName(nextName));
+  };
+
+  const publishVersionOutputs = useCallback(async (projectId: string, versionId: string, snapshot: RunSnapshot) => {
+    if (!snapshot.result) return;
 
     let effectiveSmeList = smeList;
     let effectiveSmeStatus = smeStatus;
@@ -186,20 +205,23 @@ function App() {
       setSmeStatus(loaded.status);
     }
 
+    const exportRecords = snapshot.result?.records?.length ? snapshot.result.records : snapshot.records;
+    const exportSchedulesBySA = buildSchedulesBySA(exportRecords);
+
     const summaryPayload = buildSummaryExport({
-      records: workingRecords,
-      schedulesBySA,
-      startHour,
-      endHour,
-      facultyStartHour: assumptions.facultyStartHour ?? 6,
-      sessionTimeOverrides,
-      sessionInstanceTimeOverrides,
-      manualSmeAssignments,
-      manualFacultyAssignments,
+      records: exportRecords,
+      schedulesBySA: exportSchedulesBySA,
+      startHour: snapshot.startHour,
+      endHour: snapshot.endHour,
+      facultyStartHour: snapshot.assumptions.facultyStartHour ?? 6,
+      sessionTimeOverrides: snapshot.sessionTimeOverrides,
+      sessionInstanceTimeOverrides: snapshot.sessionInstanceTimeOverrides,
+      manualSmeAssignments: snapshot.manualSmeAssignments,
+      manualFacultyAssignments: snapshot.manualFacultyAssignments,
       smeList: effectiveSmeList,
       smeStatus: effectiveSmeStatus,
     });
-    const vatsPayload = buildVatsExport(workingRecords);
+    const vatsPayload = buildVatsExport(exportRecords);
 
     const base = `/api/public/projects/${projectId}/versions/${versionId}`;
     const [summaryRes, vatsRes] = await Promise.all([
@@ -221,20 +243,105 @@ function App() {
 
     await refreshPublicApiStatus();
   }, [
-    result,
-    workingRecords,
-    schedulesBySA,
-    startHour,
-    endHour,
-    assumptions.facultyStartHour,
-    sessionTimeOverrides,
-    sessionInstanceTimeOverrides,
-    manualSmeAssignments,
-    manualFacultyAssignments,
     smeList,
     smeStatus,
     refreshPublicApiStatus,
   ]);
+
+  const openMergeConflict = useCallback((remoteVersion: RunVersion | null, expectedRevision: number | null) => {
+    if (!remoteVersion || !loadedBaseSnapshotRef.current) return;
+    const merge = mergeSnapshots(loadedBaseSnapshotRef.current, currentSnapshot, remoteVersion.snapshot);
+    const defaultResolutions = Object.fromEntries(merge.conflicts.map(conflict => [conflict.id, 'local'])) as Record<string, 'local' | 'remote'>;
+    setConflictState({
+      remoteVersion,
+      expectedRevision,
+      mergedSnapshot: merge.mergedSnapshot,
+      conflicts: merge.conflicts,
+      resolutions: defaultResolutions,
+      autoMergedCount: merge.autoMergedCount,
+    });
+  }, [currentSnapshot]);
+
+  const finalizeVersionSave = useCallback(async (versionId: string, snapshot: RunSnapshot, expectedRevision: number | undefined) => {
+    const { version, project, status, conflict } = await repository.updateVersion(versionId, snapshot, {
+      expectedRevision,
+      editor: editorIdentity,
+    });
+
+    if (status === 'conflict') {
+      setAutosaveStatus('conflict');
+      if (conflict?.version) {
+        openMergeConflict(conflict.version, conflict.project?.revision ?? null);
+      }
+      if (conflict?.project) {
+        setProjects(prev => prev.map(existing => existing.id === conflict.project.id ? conflict.project : existing));
+      }
+      return { saved: false, status };
+    }
+
+    setAutosaveStatus(status);
+    if (version) {
+      setProjectVersions(prev => prev.map(v => v.id === version.id ? version : v));
+      loadedBaseSnapshotRef.current = JSON.parse(JSON.stringify(version.snapshot));
+    }
+    if (project) {
+      if (project.revision !== undefined) {
+        projectRevisionRef.current[project.id] = project.revision;
+        loadedBaseRevisionRef.current = project.revision;
+      }
+      setProjects(prev => prev.map(p => p.id === project.id ? project : p));
+      setRemoteChangesAvailable(false);
+    }
+
+    if (version) {
+      await publishVersionOutputs(activeProjectId!, version.id, snapshot);
+    }
+
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setAutosaveStatus('idle'), 3000);
+    return { saved: true, status };
+  }, [activeProjectId, editorIdentity, openMergeConflict, publishVersionOutputs]);
+
+  const handleReviewRemoteChanges = async () => {
+    if (!loadedVersionId) return;
+    const remoteVersion = await repository.getVersion(loadedVersionId, { forceRemote: true });
+    const remoteProject = activeProjectId ? await repository.getProject(activeProjectId) : null;
+    if (remoteVersion) {
+      openMergeConflict(remoteVersion, remoteProject?.revision ?? null);
+    }
+  };
+
+  const handleReloadLatestVersion = async () => {
+    if (!loadedVersionId || !activeProjectId) return;
+    const remoteVersion = await repository.getVersion(loadedVersionId, { forceRemote: true });
+    if (!remoteVersion) return;
+    applySnapshot(remoteVersion.snapshot);
+    setProjectVersions(prev => prev.map(version => version.id === remoteVersion.id ? remoteVersion : version));
+    loadedBaseSnapshotRef.current = JSON.parse(JSON.stringify(remoteVersion.snapshot));
+    const project = await repository.getProject(activeProjectId);
+    loadedBaseRevisionRef.current = project?.revision ?? null;
+    setRemoteChangesAvailable(false);
+    setConflictState(null);
+  };
+
+  const handleSaveMergedConflict = async () => {
+    if (!loadedVersionId || !conflictState) return;
+    setLoading(true);
+    try {
+      const resolvedSnapshot = applyConflictResolutions(
+        conflictState.mergedSnapshot,
+        conflictState.conflicts,
+        conflictState.resolutions
+      );
+      applySnapshot(resolvedSnapshot);
+      await finalizeVersionSave(loadedVersionId, resolvedSnapshot, conflictState.expectedRevision ?? loadedBaseRevisionRef.current ?? undefined);
+      setConflictState(null);
+    } catch (err) {
+      setError(t('publicApiPublishFailed').replace('{err}', String(err)));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ── Initial load ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -266,6 +373,47 @@ function App() {
     }
   }, [activeProjectId]);
 
+  useEffect(() => {
+    if (!activeProjectId || !loadedVersionId) {
+      setPresence([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const refresh = async () => {
+      const [project, activePresence] = await Promise.all([
+        repository.getProject(activeProjectId),
+        repository.getPresence(loadedVersionId),
+      ]);
+      if (cancelled) return;
+      if (project?.revision !== undefined && loadedBaseRevisionRef.current !== null && project.revision !== loadedBaseRevisionRef.current) {
+        setRemoteChangesAvailable(true);
+      }
+      setPresence(activePresence);
+    };
+
+    const heartbeat = async () => {
+      await repository.touchPresence(loadedVersionId, editorIdentity);
+      if (!cancelled) {
+        const activePresence = await repository.getPresence(loadedVersionId);
+        if (!cancelled) setPresence(activePresence);
+      }
+    };
+
+    void refresh();
+    void heartbeat();
+
+    const refreshInterval = window.setInterval(() => { void refresh(); }, 20000);
+    const heartbeatInterval = window.setInterval(() => { void heartbeat(); }, 30000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshInterval);
+      window.clearInterval(heartbeatInterval);
+    };
+  }, [activeProjectId, loadedVersionId, editorIdentity]);
+
   // ── Autosave Draft (Local & Remote Sync) ───────────────────────────────────
   useEffect(() => {
     setAutosaveStatus('idle');
@@ -280,12 +428,12 @@ function App() {
 
     setLoading(true);
     try {
-      const { project, version } = await repository.createProject(name, currentSnapshot);
+      const { project, version } = await repository.createProject(name, { ...currentSnapshot }, editorIdentity);
       const publicSourceResult = await repository.setPublicApiSource(project.id, version.id);
       if (publicSourceResult.source) {
         project.publicApiVersionId = version.id;
       }
-      await publishVersionOutputs(project.id, version.id);
+      await publishVersionOutputs(project.id, version.id, version.snapshot);
       setProjects(prev => [
         project,
         ...prev.map(existing => ({ ...existing, publicApiVersionId: null })),
@@ -293,6 +441,8 @@ function App() {
       setActiveProjectId(project.id);
       setProjectVersions([version]);
       setLoadedVersionId(version.id);
+      loadedBaseSnapshotRef.current = JSON.parse(JSON.stringify(version.snapshot));
+      loadedBaseRevisionRef.current = project.revision ?? 1;
     } catch (err) {
       setError(t('publicApiProjectCreatePublishFailed').replace('{err}', String(err)));
     } finally {
@@ -306,13 +456,16 @@ function App() {
 
     setLoading(true);
     try {
-      const { version } = await repository.saveAsNewVersion(activeProjectId, currentSnapshot, label);
-      await publishVersionOutputs(activeProjectId, version.id);
+      const { version } = await repository.saveAsNewVersion(activeProjectId, currentSnapshot, label, editorIdentity);
+      await publishVersionOutputs(activeProjectId, version.id, version.snapshot);
       setProjectVersions(prev => [version, ...prev]);
       setLoadedVersionId(version.id);
 
       const { projects: updatedProjs } = await repository.getSyncData();
       setProjects(updatedProjs);
+      loadedBaseSnapshotRef.current = JSON.parse(JSON.stringify(version.snapshot));
+      loadedBaseRevisionRef.current = updatedProjs.find(project => project.id === activeProjectId)?.revision ?? null;
+      setRemoteChangesAvailable(false);
     } catch (err) {
       setError(t('publicApiPublishFailed').replace('{err}', String(err)));
     } finally {
@@ -327,23 +480,7 @@ function App() {
     setAutosaveStatus('saving');
 
     try {
-      const { version, project, status } = await repository.updateVersion(loadedVersionId, currentSnapshot);
-      if (version) {
-        await publishVersionOutputs(activeProjectId, version.id);
-      }
-      setAutosaveStatus(status);
-      if (version) {
-        setProjectVersions(prev => prev.map(v => v.id === version.id ? version : v));
-      }
-      if (project) {
-        if (project.revision !== undefined) {
-          projectRevisionRef.current[project.id] = project.revision;
-        }
-        setProjects(prev => prev.map(p => p.id === project.id ? project : p));
-      }
-
-      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-      savedTimerRef.current = setTimeout(() => setAutosaveStatus('idle'), 3000);
+      await finalizeVersionSave(loadedVersionId, currentSnapshot, loadedBaseRevisionRef.current ?? undefined);
     } catch (err) {
       setAutosaveStatus('error');
       setError(t('publicApiPublishFailed').replace('{err}', String(err)));
@@ -356,6 +493,10 @@ function App() {
     applySnapshot(v.snapshot);
     setActiveProjectId(v.projectId);
     setLoadedVersionId(v.id);
+    loadedBaseSnapshotRef.current = JSON.parse(JSON.stringify(v.snapshot));
+    const project = await repository.getProject(v.projectId);
+    loadedBaseRevisionRef.current = project?.revision ?? null;
+    setRemoteChangesAvailable(false);
   };
 
   const handleSetPublicApiSource = async (projectId: string, versionId: string) => {
@@ -376,7 +517,7 @@ function App() {
 
     if (loadedVersionId === versionId && result) {
       try {
-        await publishVersionOutputs(projectId, versionId);
+        await publishVersionOutputs(projectId, versionId, currentSnapshot);
       } catch (err) {
         setError(`Saved the public source selection, but failed to refresh APIs. ${String(err)}`);
       }
@@ -542,6 +683,12 @@ function App() {
     return map;
   }, [records]);
 
+  const loadedVersion = useMemo(
+    () => projectVersions.find(version => version.id === loadedVersionId) ?? null,
+    [projectVersions, loadedVersionId]
+  );
+  const otherEditors = presence.filter(item => item.editor.id !== editorIdentity.id);
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -654,6 +801,9 @@ function App() {
                 {t('publicApiCurrentSource')}: {projects.find(p => p.id === publicApiStatus.publicSource?.projectId)?.name ?? 'Project'} / v{projectVersions.find(v => v.id === publicApiStatus.publicSource?.versionId)?.versionNumber ?? '?'}
               </div>
             )}
+            <button onClick={handleRenameEditor} className="btn btn-secondary" style={{ gap: '0.4rem', padding: '0.45rem 0.75rem' }}>
+              <Pencil size={14} /> {editorIdentity.name}
+            </button>
             {autosaveStatus !== 'idle' && (
               <div className={`autosave-indicator status-${autosaveStatus}`}>
                 {autosaveStatus === 'saving' ? <Loader2 className="animate-spin" size={14} /> :
@@ -661,7 +811,7 @@ function App() {
                     <CheckCircle2 size={14} />}
 
                 {autosaveStatus === 'saving' ? t('autosaveSaving') :
-                  autosaveStatus === 'conflict' ? 'Conflict' :
+                  autosaveStatus === 'conflict' ? t('autosaveConflict') :
                     t('autosaveSaved')}
               </div>
             )}
@@ -685,6 +835,26 @@ function App() {
           <div className="error-banner" style={{ margin: '1rem 1.5rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>{error}</span>
             <button onClick={() => setError(null)} className="btn-subtle" style={{ color: 'inherit' }}><Plus size={16} style={{ transform: 'rotate(45deg)' }} /></button>
+          </div>
+        )}
+
+        {remoteChangesAvailable && loadedVersionId && (
+          <div className="warning-banner" style={{ margin: '1rem 1.5rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <RefreshCw size={16} />
+              <span>{t('remoteChangesAvailable')}</span>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button onClick={handleReviewRemoteChanges} className="btn btn-secondary" style={{ gap: '0.4rem' }}>
+                <GitBranch size={14} /> {t('reviewRemoteChanges')}
+              </button>
+              <button onClick={handleReloadLatestVersion} className="btn btn-secondary" style={{ gap: '0.4rem' }}>
+                <RotateCcw size={14} /> {t('conflictReload')}
+              </button>
+              <button onClick={handleSaveVersion} className="btn btn-primary" style={{ gap: '0.4rem' }}>
+                <Save size={14} /> {t('versionSave')}
+              </button>
+            </div>
           </div>
         )}
 
@@ -748,9 +918,20 @@ function App() {
             versionInfo={
               loadedVersionId ? (
                 <div className="version-status-box" style={{ padding: '0.5rem', marginTop: '0.5rem' }}>
-                  <div className="version-tag"><Clock size={14} /> v{projectVersions.find(v => v.id === loadedVersionId)?.versionNumber}</div>
+                  <div className="version-tag"><Clock size={14} /> v{loadedVersion?.versionNumber}</div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.45rem' }}>
+                    {t('lastSavedByLabel')}: <strong>{loadedVersion?.savedBy ?? t('unknownEditor')}</strong>
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.2rem' }}>
+                    {t('lastUpdatedLabel')}: <strong>{formatRelativeTimestamp(loadedVersion?.createdAt)}</strong>
+                  </div>
+                  {otherEditors.length > 0 && (
+                    <div style={{ fontSize: '0.72rem', color: '#2563eb', marginTop: '0.45rem' }}>
+                      {t('otherEditorsLabel')}: <strong>{otherEditors.map(item => item.editor.name).join(', ')}</strong>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.5rem' }}>
-                    <button onClick={() => { if (window.confirm('Reload this version and discard unsaved changes?')) applySnapshot(projectVersions.find(v => v.id === loadedVersionId)!.snapshot); }} className="btn btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}><RotateCcw size={12} /> {t('historyRestore')}</button>
+                    <button onClick={() => { if (window.confirm(t('reloadVersionConfirm'))) void handleReloadLatestVersion(); }} className="btn btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}><RotateCcw size={12} /> {t('historyRestore')}</button>
                   </div>
                 </div>
               ) : null
@@ -759,6 +940,117 @@ function App() {
         )}
 
       </main>
+
+      {conflictState && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '2rem',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            width: 'min(960px, 100%)',
+            maxHeight: '85vh',
+            overflow: 'auto',
+            background: '#fff',
+            borderRadius: '16px',
+            padding: '1.5rem',
+            boxShadow: '0 20px 50px rgba(15,23,42,0.25)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+          }}>
+            <div>
+              <h3 style={{ margin: 0 }}>{t('conflictTitle')}</h3>
+              <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>
+                {t('conflictMergeSummary')
+                  .replace('{merged}', String(conflictState.autoMergedCount))
+                  .replace('{conflicts}', String(conflictState.conflicts.length))}
+              </p>
+            </div>
+
+            {conflictState.conflicts.length === 0 ? (
+              <div style={{ padding: '1rem', borderRadius: '12px', background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>
+                {t('conflictNoManualChoices')}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                {conflictState.conflicts.map(conflict => (
+                  <div key={conflict.id} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1rem' }}>
+                    <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '0.65rem' }}>{conflict.label}</div>
+                    <div style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: '0.75rem' }}>{conflict.path.join(' / ')}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.75rem' }}>
+                      <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.75rem' }}>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', marginBottom: '0.35rem' }}>{t('conflictOriginal')}</div>
+                        <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.74rem' }}>{JSON.stringify(conflict.baseValue, null, 2)}</pre>
+                      </div>
+                      <button
+                        onClick={() => setConflictState(prev => prev ? ({
+                          ...prev,
+                          resolutions: { ...prev.resolutions, [conflict.id]: 'local' },
+                        }) : prev)}
+                        className="btn btn-secondary"
+                        style={{
+                          textAlign: 'left',
+                          justifyContent: 'flex-start',
+                          borderColor: conflictState.resolutions[conflict.id] === 'local' ? '#3b82f6' : undefined,
+                          background: conflictState.resolutions[conflict.id] === 'local' ? '#eff6ff' : undefined,
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', marginBottom: '0.35rem' }}>{t('conflictKeepMine')}</div>
+                          <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.74rem' }}>{JSON.stringify(conflict.localValue, null, 2)}</pre>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setConflictState(prev => prev ? ({
+                          ...prev,
+                          resolutions: { ...prev.resolutions, [conflict.id]: 'remote' },
+                        }) : prev)}
+                        className="btn btn-secondary"
+                        style={{
+                          textAlign: 'left',
+                          justifyContent: 'flex-start',
+                          borderColor: conflictState.resolutions[conflict.id] === 'remote' ? '#10b981' : undefined,
+                          background: conflictState.resolutions[conflict.id] === 'remote' ? '#ecfdf5' : undefined,
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', marginBottom: '0.35rem' }}>{t('conflictKeepRemote')}</div>
+                          <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.74rem' }}>{JSON.stringify(conflict.remoteValue, null, 2)}</pre>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button onClick={handleReloadLatestVersion} className="btn btn-secondary" style={{ gap: '0.4rem' }}>
+                  <RotateCcw size={14} /> {t('conflictReload')}
+                </button>
+                <button onClick={handleSaveVersion} className="btn btn-secondary" style={{ gap: '0.4rem' }}>
+                  <Save size={14} /> {t('versionSave')}
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button onClick={() => setConflictState(null)} className="btn btn-secondary">
+                  {t('cancel')}
+                </button>
+                <button onClick={handleSaveMergedConflict} className="btn btn-primary" style={{ gap: '0.4rem' }}>
+                  <Save size={14} /> {t('conflictSaveMerged')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .app-container { display: flex; height: 100vh; overflow: hidden; background: #f8fafc; }
