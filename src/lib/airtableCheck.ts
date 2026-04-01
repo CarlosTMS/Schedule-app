@@ -60,6 +60,28 @@ export interface AirtableCheckResult {
 
 const normalizeWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
 
+const PERSON_NAME_ALIASES: Record<string, string> = {
+  'hanna': 'hanna kielland aalen',
+  'hanna aalen': 'hanna kielland aalen',
+  'daron': 'daron smith',
+  'pau': 'pau pujol xicoy',
+  'pau pujol': 'pau pujol xicoy',
+  'fernando': 'fernando sanchez lara',
+  'fernando sanchez': 'fernando sanchez lara',
+  'juan': 'juan gonzalez',
+  'nelly': 'nelly rebollo',
+  'nick': 'nick goffi',
+  'carlos': 'carlos moreno',
+  'david': 'david uichanco',
+  'reese': 'rissa colayco',
+  'godfrey': 'godfrey leung',
+  'selene': 'selene hernandez',
+  'lilly': 'lilly schmidt',
+  'ivan': 'ivan aguilar duclaud',
+  'ivan aguilar': 'ivan aguilar duclaud',
+  'sandra': 'sandra bissels',
+};
+
 export const normalizeSessionName = (value: string): string =>
   normalizeWhitespace(
     value
@@ -70,7 +92,10 @@ export const normalizeSessionName = (value: string): string =>
       .replace(/[()/:,&]/g, ' ')
   );
 
-const normalizePersonName = (value: string): string => normalizeSessionName(value);
+const normalizePersonName = (value: string): string => {
+  const normalized = normalizeSessionName(value);
+  return PERSON_NAME_ALIASES[normalized] ?? normalized;
+};
 
 const toIsoAtUtcHour = (sessionDateLabel: string, utcHour: number): string => {
   const baseDate = parseSessionDate(sessionDateLabel);

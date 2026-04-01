@@ -19,6 +19,45 @@ const normalizeText = (value: string): string =>
         .trim()
         .toLowerCase();
 
+const FACULTY_CANONICAL_NAMES: Record<string, string> = {
+    'carlos': 'Carlos Moreno',
+    'carlos moreno': 'Carlos Moreno',
+    'daron': 'Daron Smith',
+    'daron smith': 'Daron Smith',
+    'david': 'David Uichanco',
+    'david uichanco': 'David Uichanco',
+    'fernando': 'Fernando Sanchez Lara',
+    'fernando sanchez': 'Fernando Sanchez Lara',
+    'fernando sanchez lara': 'Fernando Sanchez Lara',
+    'godfrey': 'Godfrey Leung',
+    'godfrey leung': 'Godfrey Leung',
+    'hanna': 'Hanna Kielland Aalen',
+    'hanna aalen': 'Hanna Kielland Aalen',
+    'hanna kielland aalen': 'Hanna Kielland Aalen',
+    'ivan': 'Ivan Aguilar Duclaud',
+    'ivan aguilar': 'Ivan Aguilar Duclaud',
+    'ivan aguilar duclaud': 'Ivan Aguilar Duclaud',
+    'juan': 'Juan Gonzalez',
+    'juan gonzalez': 'Juan Gonzalez',
+    'nelly': 'Nelly Rebollo',
+    'nelly rebollo': 'Nelly Rebollo',
+    'nick': 'Nick Goffi',
+    'nicholas goffi': 'Nick Goffi',
+    'nick goffi': 'Nick Goffi',
+    'pau': 'Pau Pujol-Xicoy',
+    'pau pujol': 'Pau Pujol-Xicoy',
+    'pau pujol xicoy': 'Pau Pujol-Xicoy',
+    'pau pujol-xicoy': 'Pau Pujol-Xicoy',
+    'reese': 'Rissa Colayco',
+    'rissa colayco': 'Rissa Colayco',
+    'sandra': 'Sandra Bissels',
+    'sandra bissels': 'Sandra Bissels',
+    'selene': 'Selene Hernandez',
+    'selene hernandez': 'Selene Hernandez',
+    'lilly': 'Lilly Schmidt',
+    'lilly schmidt': 'Lilly Schmidt',
+};
+
 const FACULTY_EMAIL_BY_ALIAS: Record<string, string> = {
     'amy': 'amy.hawkins@sap.com',
     'amy hawkins': 'amy.hawkins@sap.com',
@@ -78,6 +117,7 @@ export const enrichFaculty = <T extends Faculty | null | undefined>(faculty: T):
     if (!faculty) return faculty;
     return {
         ...faculty,
+        name: FACULTY_CANONICAL_NAMES[normalizeText(faculty.name)] || faculty.name,
         email: faculty.email || getFacultyEmail(faculty),
     } as T;
 };

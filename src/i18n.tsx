@@ -249,7 +249,13 @@ const translations = {
         airtableCheckAppValue: 'App',
         airtableCheckAirtableValue: 'Airtable',
         airtableCheckNoOnlyApp: 'No sessions exist only in this app.',
-        airtableCheckNoOnlyAirtable: 'No extra sessions were found only in Airtable.'
+        airtableCheckNoOnlyAirtable: 'No extra sessions were found only in Airtable.',
+        airtableCheckViewAll: 'All sessions',
+        airtableCheckViewName: 'By name',
+        airtableCheckViewTime: 'By time',
+        airtableCheckViewPeople: 'By Producer/Facilitator',
+        airtableCheckRunAgain: 'Run check again',
+        airtableCheckMatchScore: 'Match score'
     },
     es: {
         appTitle: 'Programador de Habilitación de SAP Associates',
@@ -496,7 +502,13 @@ const translations = {
         airtableCheckAppValue: 'App',
         airtableCheckAirtableValue: 'Airtable',
         airtableCheckNoOnlyApp: 'No hay sesiones que existan solo en esta app.',
-        airtableCheckNoOnlyAirtable: 'No se encontraron sesiones extra solo en Airtable.'
+        airtableCheckNoOnlyAirtable: 'No se encontraron sesiones extra solo en Airtable.',
+        airtableCheckViewAll: 'All sessions',
+        airtableCheckViewName: 'By name',
+        airtableCheckViewTime: 'By Time',
+        airtableCheckViewPeople: 'By Producer/Facilitator',
+        airtableCheckRunAgain: 'Run check again',
+        airtableCheckMatchScore: 'Match score'
     }
 
 };

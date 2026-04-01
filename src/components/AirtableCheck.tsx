@@ -34,6 +34,8 @@ interface AirtableCheckApiResponse {
   rows: AirtableRow[];
 }
 
+type AirtableCheckView = 'all' | 'name' | 'time' | 'people';
+
 export function AirtableCheck(props: AirtableCheckProps) {
   const { t } = useI18n();
   const [loading, setLoading] = useState(true);
@@ -41,6 +43,7 @@ export function AirtableCheck(props: AirtableCheckProps) {
   const [airtableRows, setAirtableRows] = useState<AirtableRow[]>([]);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<AirtableCheckView>('all');
 
   const appRows = useMemo(
     () => buildComparableAppRows(props),
@@ -51,6 +54,34 @@ export function AirtableCheck(props: AirtableCheckProps) {
     () => compareAgainstAirtable(appRows, airtableRows),
     [appRows, airtableRows]
   );
+
+  const matchedWithDifferences = useMemo(
+    () => comparison.matched.filter((row) => row.differences.length > 0),
+    [comparison]
+  );
+
+  const visibleDifferences = useMemo(() => {
+    if (activeView === 'all') return matchedWithDifferences;
+    const wantedFields = activeView === 'name'
+      ? new Set(['sessionName'])
+      : activeView === 'time'
+        ? new Set(['calendarStart', 'calendarEnd'])
+        : new Set(['facilitator', 'producer']);
+
+    return matchedWithDifferences
+      .map((row) => ({
+        ...row,
+        differences: row.differences.filter((difference) => wantedFields.has(difference.field)),
+      }))
+      .filter((row) => row.differences.length > 0);
+  }, [activeView, matchedWithDifferences]);
+
+  const viewTabs = [
+    { id: 'all' as const, label: t('airtableCheckViewAll'), count: matchedWithDifferences.length },
+    { id: 'name' as const, label: t('airtableCheckViewName'), count: matchedWithDifferences.filter((row) => row.differences.some((difference) => difference.field === 'sessionName')).length },
+    { id: 'time' as const, label: t('airtableCheckViewTime'), count: matchedWithDifferences.filter((row) => row.differences.some((difference) => difference.field === 'calendarStart' || difference.field === 'calendarEnd')).length },
+    { id: 'people' as const, label: t('airtableCheckViewPeople'), count: matchedWithDifferences.filter((row) => row.differences.some((difference) => difference.field === 'facilitator' || difference.field === 'producer')).length },
+  ];
 
   const runCheck = async () => {
     setLoading(true);
@@ -96,7 +127,7 @@ export function AirtableCheck(props: AirtableCheckProps) {
               </a>
             )}
             <button onClick={() => { void runCheck(); }} className="btn btn-primary" style={{ gap: '0.45rem' }} disabled={loading}>
-              <RefreshCw size={14} /> {loading ? t('processingData') : t('versionRefreshLatest')}
+              <RefreshCw size={14} /> {loading ? t('processingData') : t('airtableCheckRunAgain')}
             </button>
           </div>
         </div>
@@ -132,22 +163,40 @@ export function AirtableCheck(props: AirtableCheckProps) {
       )}
 
       <div className="glass-panel" style={{ padding: '1.25rem' }}>
+        <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+          {viewTabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveView(tab.id)}
+              className="btn"
+              style={{
+                background: activeView === tab.id ? 'var(--primary-color)' : '#eff6ff',
+                color: activeView === tab.id ? 'white' : '#1d4ed8',
+                border: activeView === tab.id ? '1px solid var(--primary-color)' : '1px solid #bfdbfe',
+                padding: '0.55rem 0.85rem',
+                borderRadius: '999px',
+                fontWeight: 700,
+                gap: '0.4rem',
+              }}
+            >
+              {tab.label} <span style={{ opacity: 0.85 }}>({tab.count})</span>
+            </button>
+          ))}
+        </div>
         <h4 style={{ margin: '0 0 0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <AlertTriangle size={16} /> {t('airtableCheckDifferences')}
         </h4>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-          {comparison.matched.filter((row) => row.differences.length > 0).length === 0 && !loading && (
+          {visibleDifferences.length === 0 && !loading && (
             <div style={{ color: '#166534', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <CheckCircle2 size={16} /> {t('airtableCheckNoDifferences')}
             </div>
           )}
-          {comparison.matched
-            .filter((row) => row.differences.length > 0)
-            .map((row) => (
+          {visibleDifferences.map((row) => (
               <div key={`${row.app.sessionName}-${row.airtable.id}`} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1rem' }}>
                 <div style={{ fontWeight: 700, color: '#0f172a' }}>{row.app.sessionName}</div>
                 <div style={{ marginTop: '0.25rem', fontSize: '0.78rem', color: '#64748b' }}>
-                  Match score: {Math.round(row.score)}
+                  {t('airtableCheckMatchScore')}: {Math.round(row.score)}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.8rem' }}>
                   {row.differences.map((difference) => (
