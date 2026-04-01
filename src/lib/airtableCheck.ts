@@ -67,6 +67,8 @@ export interface AirtablePublicComparisonSectionRow {
   calendarEnd: string;
   facilitator: string;
   producer: string;
+  numParticipants: number;
+  participants: string[];
   differenceLabels: string[];
 }
 
@@ -338,6 +340,8 @@ export const buildAirtablePublicComparisonPayload = (
     calendarEnd: formatUtcForExport(row.app.calendarEndIso),
     facilitator: row.app.facilitator,
     producer: row.app.producer,
+    numParticipants: row.app.numParticipants,
+    participants: row.app.participants,
     differenceLabels: row.differences.map((difference) => difference.label),
   });
 

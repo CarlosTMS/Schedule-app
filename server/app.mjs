@@ -14,6 +14,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import * as XLSX from 'xlsx';
 import { createPersistence } from './persistence.mjs';
 import { getSharedAirtableRows } from './airtable-share.mjs';
 
@@ -150,6 +151,45 @@ const renderAirtableCheckTable = (title, rows) => {
   `;
 };
 
+const flattenAirtableCheckRows = (payload) => [
+  ...(Array.isArray(payload?.tables?.time_only) ? payload.tables.time_only : []),
+  ...(Array.isArray(payload?.tables?.people_only) ? payload.tables.people_only : []),
+  ...(Array.isArray(payload?.tables?.both) ? payload.tables.both : []),
+];
+
+const buildAirtableCheckWorkbookBuffer = (payload) => {
+  const rows = flattenAirtableCheckRows(payload).map((row) => ({
+    'Airtable Row': row.airtableRowNumber ?? '',
+    'Airtable Record ID': row.airtableRecordId ?? '',
+    'Session Name': row.sessionName ?? '',
+    'Calendar Start': row.calendarStart ?? '',
+    'Calendar End': row.calendarEnd ?? '',
+    'Facilitator': row.facilitator ?? '',
+    'Producer': row.producer ?? '',
+    'Num of Participants': row.numParticipants ?? '',
+    'Participants': Array.isArray(row.participants) ? row.participants.join(', ') : '',
+    'Changes': Array.isArray(row.differenceLabels) ? row.differenceLabels.join(', ') : '',
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(rows, {
+    header: [
+      'Airtable Row',
+      'Airtable Record ID',
+      'Session Name',
+      'Calendar Start',
+      'Calendar End',
+      'Facilitator',
+      'Producer',
+      'Num of Participants',
+      'Participants',
+      'Changes',
+    ],
+  });
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Airtable Changes');
+  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+};
+
 const renderAirtableCheckHtml = (payload) => `<!doctype html>
 <html lang="en">
   <head>
@@ -162,6 +202,9 @@ const renderAirtableCheckHtml = (payload) => `<!doctype html>
       .hero { background: white; border: 1px solid #e2e8f0; border-radius: 18px; padding: 1.5rem; }
       .summary { display:grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 1rem; margin-top: 1rem; }
       .card { background:#eff6ff; border:1px solid #bfdbfe; border-radius:14px; padding:1rem; }
+      .actions { display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:1rem; }
+      .button { display:inline-flex; align-items:center; gap:0.45rem; background:#2563eb; color:white; padding:0.75rem 1rem; border-radius:12px; font-weight:600; }
+      .button.secondary { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
       td { padding: 0.75rem; border-top: 1px solid #e2e8f0; vertical-align: top; }
       a { color:#2563eb; text-decoration:none; }
     </style>
@@ -173,6 +216,10 @@ const renderAirtableCheckHtml = (payload) => `<!doctype html>
         <p style="margin:0.5rem 0 0; color:#475569;">Shared comparison snapshot for manual Airtable updates.</p>
         <p style="margin:0.75rem 0 0; color:#475569;"><strong>Generated at:</strong> ${escapeHtml(payload.generated_at)}</p>
         ${payload.source_url ? `<p style="margin:0.25rem 0 0; color:#475569;"><strong>Source:</strong> <a href="${escapeHtml(payload.source_url)}" target="_blank" rel="noreferrer">${escapeHtml(payload.source_url)}</a></p>` : ''}
+        <div class="actions">
+          <a class="button" href="/api/public/airtable-check.xlsx">Export to Excel</a>
+          <a class="button secondary" href="/api/public/airtable-check" target="_blank" rel="noreferrer">View JSON</a>
+        </div>
         <div class="summary">
           <div class="card"><div>Total changed sessions</div><div style="font-size:1.8rem; font-weight:700;">${escapeHtml(payload.summary.total_changed_sessions)}</div></div>
           <div class="card"><div>Time only</div><div style="font-size:1.8rem; font-weight:700;">${escapeHtml(payload.summary.time_only)}</div></div>
@@ -412,6 +459,25 @@ const server = http.createServer(async (req, res) => {
       }
 
       return jsonResponse(res, 405, { error: `Method not allowed: ${req.method}` });
+    }
+
+    if (pathname === '/api/public/airtable-check.xlsx' && req.method === 'GET') {
+      try {
+        const data = await persistence.getAppState?.('airtable-check.latest');
+        if (!data) {
+          return jsonResponse(res, 404, { error: 'No Airtable Check snapshot published yet.' });
+        }
+        const buffer = buildAirtableCheckWorkbookBuffer(data);
+        res.writeHead(200, {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': 'attachment; filename="airtable-check-changes.xlsx"',
+          ...corsHeaders,
+        });
+        res.end(buffer);
+        return;
+      } catch (err) {
+        return jsonResponse(res, 500, { error: `Failed to build Airtable Check workbook: ${err}` });
+      }
     }
 
     if (pathname === '/public/airtable-check' && req.method === 'GET') {
