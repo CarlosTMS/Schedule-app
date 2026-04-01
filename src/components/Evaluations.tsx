@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, type ChangeEvent } from 'react';
-import { Download, Upload, Users, AlertTriangle, Calendar as CalendarIcon } from 'lucide-react';
+import { Download, Upload, ExternalLink, Users, AlertTriangle, Calendar as CalendarIcon } from 'lucide-react';
 import type { StudentRecord } from '../lib/excelParser';
 import { assignEvaluators, type EvaluationEngineOutput, type VatGroup } from '../lib/evaluationEngine';
 import type { FacultyAssignments } from './FacultySchedule';
@@ -85,6 +85,7 @@ export function Evaluations({ records, facultyAssignments, output, onOutputChang
     const [includeRAD, setIncludeRAD] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
+    const [publicLink, setPublicLink] = useState<string | null>(null);
     const hasAutoRun = useRef(false);
     const uploadInputRef = useRef<HTMLInputElement | null>(null);
     const timingOutput = output as EvaluationOutputWithTiming | null;
@@ -191,6 +192,27 @@ export function Evaluations({ records, facultyAssignments, output, onOutputChang
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    };
+
+    const handleRefreshPublicLink = async () => {
+        try {
+            const exportData = buildFullExportPayload();
+            const res = await fetch('/api/public/evaluations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(exportData),
+            });
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
+            const data = await res.json() as { public_url?: string };
+            setPublicLink(data.public_url ?? `${window.location.origin}/public/evaluations`);
+            setNotice('Public evaluations link refreshed.');
+            setError(null);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            setError(`Failed to refresh public evaluations link: ${message}`);
+        }
     };
 
     const isEvaluationOutputLike = (value: unknown): value is EvaluationEngineOutput => {
@@ -394,11 +416,25 @@ export function Evaluations({ records, facultyAssignments, output, onOutputChang
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                         <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>Results</h3>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                            <button
+                                onClick={() => { void handleRefreshPublicLink(); }}
+                                className="btn btn-secondary"
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                            >
+                                <ExternalLink size={16} /> Refresh public evaluations link
+                            </button>
                             <button onClick={handleDownloadJson} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 <Download size={16} /> Download Full JSON
                             </button>
                         </div>
                     </div>
+
+                    {publicLink && (
+                        <div style={{ marginBottom: '1rem', fontSize: '0.85rem', color: '#475569' }}>
+                            <strong>Public URL:</strong>{' '}
+                            <a href={publicLink} target="_blank" rel="noreferrer">{publicLink}</a>
+                        </div>
+                    )}
 
                     {hasTimingMetadata(timingOutput) && timingOutput.schedulingWindow && (
                         <div className="glass-panel" style={{ padding: '1rem', marginBottom: '1.5rem', background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
