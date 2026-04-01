@@ -54,6 +54,31 @@ interface LegacyEvaluationExportPayload {
     }>;
 }
 
+interface EvaluationTimingWindow {
+    defaultDateUtc?: string;
+    middleEastExceptionDateUtc?: string;
+    meetingDurationMinutes?: number;
+    timezone?: string;
+    notes?: string[];
+}
+
+interface TimedVatGroup extends VatGroup {
+    suggestedDay?: string;
+    suggestedUtcSlot?: string;
+    evaluatorLocalSlot?: string;
+    vatAvgLocalStart?: string;
+    vatMemberLocalRange?: string;
+    timingQuality?: string;
+    suggestedDateUtc?: string;
+    suggestedMeetingStartUtc?: string;
+    suggestedMeetingEndUtc?: string;
+    suggestedMeetingUtcLabel?: string;
+}
+
+interface EvaluationOutputWithTiming extends EvaluationEngineOutput {
+    schedulingWindow?: EvaluationTimingWindow;
+}
+
 export function Evaluations({ records, facultyAssignments, output, onOutputChange }: EvaluationsProps) {
     const evaluators = evaluatorsData as EvaluatorRecord[];
     const [evalDate, setEvalDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -62,6 +87,7 @@ export function Evaluations({ records, facultyAssignments, output, onOutputChang
     const [notice, setNotice] = useState<string | null>(null);
     const hasAutoRun = useRef(false);
     const uploadInputRef = useRef<HTMLInputElement | null>(null);
+    const timingOutput = output as EvaluationOutputWithTiming | null;
 
     const handleRunAssignment = useCallback(() => {
         setNotice(null);
@@ -171,6 +197,10 @@ export function Evaluations({ records, facultyAssignments, output, onOutputChang
         if (!value || typeof value !== 'object') return false;
         const candidate = value as EvaluationEngineOutput;
         return Array.isArray(candidate.assignments) && Array.isArray(candidate.unassignedVats);
+    };
+
+    const hasTimingMetadata = (value: unknown): value is EvaluationOutputWithTiming => {
+        return isEvaluationOutputLike(value) && typeof (value as EvaluationOutputWithTiming).schedulingWindow === 'object';
     };
 
     const hydrateLegacyPayload = (payload: LegacyEvaluationExportPayload): EvaluationEngineOutput | null => {
@@ -370,6 +400,50 @@ export function Evaluations({ records, facultyAssignments, output, onOutputChang
                         </div>
                     </div>
 
+                    {hasTimingMetadata(timingOutput) && timingOutput.schedulingWindow && (
+                        <div className="glass-panel" style={{ padding: '1rem', marginBottom: '1.5rem', background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                            <h4 style={{ marginBottom: '0.75rem', fontSize: '1rem', fontWeight: 700, color: '#166534' }}>
+                                Suggested Evaluation Window
+                            </h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+                                {timingOutput.schedulingWindow.timezone && (
+                                    <div>
+                                        <div style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#15803d' }}>Timezone</div>
+                                        <div style={{ fontSize: '0.92rem', fontWeight: 600 }}>{timingOutput.schedulingWindow.timezone}</div>
+                                    </div>
+                                )}
+                                {timingOutput.schedulingWindow.defaultDateUtc && (
+                                    <div>
+                                        <div style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#15803d' }}>Default Date (UTC)</div>
+                                        <div style={{ fontSize: '0.92rem', fontWeight: 600 }}>{timingOutput.schedulingWindow.defaultDateUtc}</div>
+                                    </div>
+                                )}
+                                {timingOutput.schedulingWindow.middleEastExceptionDateUtc && (
+                                    <div>
+                                        <div style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#15803d' }}>Middle East Exception</div>
+                                        <div style={{ fontSize: '0.92rem', fontWeight: 600 }}>{timingOutput.schedulingWindow.middleEastExceptionDateUtc}</div>
+                                    </div>
+                                )}
+                                {timingOutput.schedulingWindow.meetingDurationMinutes && (
+                                    <div>
+                                        <div style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#15803d' }}>Duration</div>
+                                        <div style={{ fontSize: '0.92rem', fontWeight: 600 }}>{timingOutput.schedulingWindow.meetingDurationMinutes} minutes</div>
+                                    </div>
+                                )}
+                            </div>
+                            {Array.isArray(timingOutput.schedulingWindow.notes) && timingOutput.schedulingWindow.notes.length > 0 && (
+                                <div style={{ marginTop: '0.85rem' }}>
+                                    <div style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#15803d', marginBottom: '0.4rem' }}>Notes</div>
+                                    <ul style={{ margin: 0, paddingLeft: '1.2rem', color: '#166534' }}>
+                                        {timingOutput.schedulingWindow.notes.map((note, idx) => (
+                                            <li key={idx} style={{ marginBottom: '0.25rem' }}>{note}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {output.unassignedVats.length > 0 && (
                         <div className="alert-box" style={{ backgroundColor: '#fef2f2', border: '1px solid #fca5a5', padding: '1rem', borderRadius: '0.5rem', marginBottom: '2rem' }}>
                             <h4 style={{ color: '#b91c1c', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
@@ -426,6 +500,7 @@ export function Evaluations({ records, facultyAssignments, output, onOutputChang
                                          </div>
                                     ) : (
                                         evaluatorAssig.assignedVats.map(v => {
+                                            const timedVat = v as TimedVatGroup;
                                             const isSunThuVat = v.members?.some(m => SUN_THU_COUNTRIES.some(c => (m.Country || '').toLowerCase().includes(c)));
                                             return (
                                                 <div key={v.name} style={{ 
@@ -463,8 +538,47 @@ export function Evaluations({ records, facultyAssignments, output, onOutputChang
                                                                     to {a.evaluator['Faculty Name']}
                                                                 </option>
                                                             ))}
-                                                    </select>
+                                                        </select>
                                                 </div>
+                                                {(timedVat.suggestedMeetingUtcLabel || timedVat.evaluatorLocalSlot || timedVat.vatMemberLocalRange || timedVat.timingQuality) && (
+                                                    <div style={{ marginTop: '0.75rem', padding: '0.65rem', background: '#ecfdf5', border: '1px solid #bbf7d0', borderRadius: '0.5rem', display: 'grid', gap: '0.35rem' }}>
+                                                        {timedVat.suggestedMeetingUtcLabel && (
+                                                            <div style={{ fontSize: '0.75rem', color: '#166534' }}>
+                                                                <strong>Suggested session time:</strong> {timedVat.suggestedMeetingUtcLabel}
+                                                            </div>
+                                                        )}
+                                                        {!timedVat.suggestedMeetingUtcLabel && timedVat.suggestedUtcSlot && (
+                                                            <div style={{ fontSize: '0.75rem', color: '#166534' }}>
+                                                                <strong>Suggested UTC slot:</strong> {timedVat.suggestedUtcSlot}
+                                                            </div>
+                                                        )}
+                                                        {(timedVat.suggestedDay || timedVat.suggestedDateUtc) && (
+                                                            <div style={{ fontSize: '0.75rem', color: '#166534' }}>
+                                                                <strong>Suggested day:</strong> {[timedVat.suggestedDay, timedVat.suggestedDateUtc].filter(Boolean).join(' — ')}
+                                                            </div>
+                                                        )}
+                                                        {timedVat.evaluatorLocalSlot && (
+                                                            <div style={{ fontSize: '0.75rem', color: '#166534' }}>
+                                                                <strong>Evaluator local slot:</strong> {timedVat.evaluatorLocalSlot}
+                                                            </div>
+                                                        )}
+                                                        {timedVat.vatMemberLocalRange && (
+                                                            <div style={{ fontSize: '0.75rem', color: '#166534' }}>
+                                                                <strong>VAT member local range:</strong> {timedVat.vatMemberLocalRange}
+                                                            </div>
+                                                        )}
+                                                        {timedVat.vatAvgLocalStart && (
+                                                            <div style={{ fontSize: '0.75rem', color: '#166534' }}>
+                                                                <strong>VAT average local start:</strong> {timedVat.vatAvgLocalStart}
+                                                            </div>
+                                                        )}
+                                                        {timedVat.timingQuality && (
+                                                            <div style={{ fontSize: '0.75rem', color: '#166534' }}>
+                                                                <strong>Timing quality:</strong> {timedVat.timingQuality}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                                 {v.members && v.members.length > 0 && (
                                                     <div style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                                         {v.members.map((m, mIdx) => {
