@@ -236,8 +236,19 @@ const renderAirtableCheckHtml = (payload) => `<!doctype html>
         align-items: center;
         justify-content: center;
         padding: 0.45rem;
+        transition: transform 180ms ease, box-shadow 220ms ease, filter 220ms ease;
+        transform-origin: center;
       }
-      .brandmark img { width: 100%; height: 100%; display: block; }
+      .brandmark img { width: 100%; height: 100%; display: block; transition: transform 220ms ease, filter 220ms ease; }
+      .brandlockup:hover .brandmark {
+        transform: translateY(-1px) scale(1.04) rotate(-2deg);
+        box-shadow: 0 18px 34px rgba(15,23,42,0.16);
+        filter: drop-shadow(0 0 18px rgba(217,255,115,0.22));
+      }
+      .brandlockup:hover .brandmark img {
+        transform: scale(1.03);
+        filter: drop-shadow(0 0 14px rgba(217,255,115,0.18));
+      }
       .eyebrow { margin: 0 0 0.25rem; font-size: 0.76rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
       h1 { margin: 0; font-size: clamp(1.8rem, 3vw, 2.5rem); line-height: 1.05; }
       .subtitle { margin: 0.45rem 0 0; color: var(--muted); max-width: 780px; line-height: 1.6; }

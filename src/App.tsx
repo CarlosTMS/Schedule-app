@@ -1257,8 +1257,10 @@ function App() {
         .sidebar-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(45, 95, 75, 0.08); display: flex; justify-content: space-between; align-items: center; background: linear-gradient(180deg, rgba(250,252,250,0.98) 0%, rgba(242,247,243,0.96) 100%); min-height: 96px; }
         .sidebar.collapsed .sidebar-header { padding: 1rem 0.75rem; }
         .sidebar-header-actions { display: flex; align-items: center; gap: 0.5rem; }
-        .logo-mark { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; box-shadow: 0 10px 24px rgba(45, 95, 75, 0.1); }
-        .logo-lockup { width: 196px; max-width: 100%; height: auto; display: block; filter: drop-shadow(0 12px 24px rgba(45, 95, 75, 0.06)); }
+        .logo-mark { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; box-shadow: 0 10px 24px rgba(45, 95, 75, 0.1); transition: transform 180ms ease, box-shadow 220ms ease, filter 220ms ease; transform-origin: center; }
+        .logo-lockup { width: 196px; max-width: 100%; height: auto; display: block; filter: drop-shadow(0 12px 24px rgba(45, 95, 75, 0.06)); transition: transform 220ms ease, filter 220ms ease; transform-origin: center left; }
+        .sidebar-header:hover .logo-mark { transform: translateY(-1px) scale(1.04) rotate(-2deg); box-shadow: 0 14px 28px rgba(45, 95, 75, 0.16); filter: drop-shadow(0 0 14px rgba(217, 255, 115, 0.24)); }
+        .sidebar-header:hover .logo-lockup { transform: translateY(-1px) scale(1.015); filter: drop-shadow(0 14px 28px rgba(45, 95, 75, 0.1)) drop-shadow(0 0 18px rgba(217, 255, 115, 0.18)); }
         .sidebar-toggle-btn { border: 1px solid rgba(45, 95, 75, 0.14); color: #2d5f4b; background: rgba(255,255,255,0.86); }
         .sidebar-nav { flex: 1; overflow-y: auto; padding: 1.5rem; }
         .nav-group-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; color: #6b7d73; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
