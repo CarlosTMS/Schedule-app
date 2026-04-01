@@ -312,6 +312,10 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://localhost:${PORT}`);
     const { pathname } = url;
+    const forwardedProto = req.headers['x-forwarded-proto'];
+    const publicProtocol = typeof forwardedProto === 'string' && forwardedProto.length > 0 ? forwardedProto.split(',')[0] : 'https';
+    const publicHost = req.headers.host || `localhost:${PORT}`;
+    const publicOrigin = `${publicProtocol}://${publicHost}`;
 
     if (req.method === 'OPTIONS' && pathname.startsWith('/api/')) {
       res.writeHead(204, corsHeaders);
@@ -400,7 +404,7 @@ const server = http.createServer(async (req, res) => {
           return jsonResponse(res, 200, {
             ok: true,
             saved_at: new Date().toISOString(),
-            public_url: `${url.origin}/public/airtable-check`,
+            public_url: `${publicOrigin}/public/airtable-check`,
           });
         } catch (err) {
           return jsonResponse(res, 400, { error: `Invalid JSON body: ${err}` });
