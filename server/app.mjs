@@ -380,7 +380,7 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/public/airtable-check') {
       if (req.method === 'GET') {
         try {
-          const data = await persistence.getPublication('airtable-check.latest');
+          const data = await persistence.getAppState?.('airtable-check.latest');
           if (!data) {
             return jsonResponse(res, 404, { error: 'No Airtable Check snapshot published yet.' });
           }
@@ -396,10 +396,10 @@ const server = http.createServer(async (req, res) => {
           const parsed = JSON.parse(body);
           const validationError = validateAirtableCheckSnapshot(parsed);
           if (validationError) return jsonResponse(res, 400, { error: validationError });
-          const result = await persistence.savePublication('airtable-check.latest', parsed, { type: 'airtable_check' });
+          await persistence.setAppState?.('airtable-check.latest', parsed);
           return jsonResponse(res, 200, {
             ok: true,
-            saved_at: result.savedAt,
+            saved_at: new Date().toISOString(),
             public_url: `${url.origin}/public/airtable-check`,
           });
         } catch (err) {
@@ -412,7 +412,7 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/public/airtable-check' && req.method === 'GET') {
       try {
-        const data = await persistence.getPublication('airtable-check.latest');
+        const data = await persistence.getAppState?.('airtable-check.latest');
         if (!data) {
           res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
           res.end('<h1>No Airtable Check snapshot published yet.</h1>');
