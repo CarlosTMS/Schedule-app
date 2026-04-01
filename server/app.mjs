@@ -94,6 +94,99 @@ const validateVatsSnapshot = (payload) => {
   return null;
 };
 
+const validateAirtableCheckSnapshot = (payload) => {
+  if (!isObject(payload)) return 'Airtable Check payload must be an object';
+  if (!isObject(payload.summary)) return 'Airtable Check payload must include a summary object';
+  if (!isObject(payload.tables)) return 'Airtable Check payload must include tables';
+  if (!Array.isArray(payload.tables.time_only) || !Array.isArray(payload.tables.people_only) || !Array.isArray(payload.tables.both)) {
+    return 'Airtable Check payload must include time_only, people_only, and both arrays';
+  }
+  return null;
+};
+
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const renderAirtableCheckTable = (title, rows) => {
+  const body = rows.length
+    ? rows.map((row) => `
+      <tr>
+        <td>${escapeHtml(row.airtableRowNumber)}</td>
+        <td>${escapeHtml(row.sessionName)}</td>
+        <td>${escapeHtml(row.calendarStart)}</td>
+        <td>${escapeHtml(row.calendarEnd)}</td>
+        <td>${escapeHtml(row.facilitator)}</td>
+        <td>${escapeHtml(row.producer)}</td>
+        <td>${escapeHtml(row.differenceLabels.join(', '))}</td>
+      </tr>
+    `).join('')
+    : `<tr><td colspan="7">No sessions in this group.</td></tr>`;
+
+  return `
+    <section style="margin-top: 2rem;">
+      <h2 style="margin: 0 0 0.75rem; font-size: 1.2rem;">${escapeHtml(title)}</h2>
+      <div style="overflow:auto; border: 1px solid #e2e8f0; border-radius: 14px; background: white;">
+        <table style="width:100%; border-collapse: collapse; font-size: 14px;">
+          <thead style="background:#f8fafc;">
+            <tr>
+              <th style="text-align:left; padding: 0.75rem;">Airtable Row</th>
+              <th style="text-align:left; padding: 0.75rem;">Session Name</th>
+              <th style="text-align:left; padding: 0.75rem;">Calendar Start (UTC)</th>
+              <th style="text-align:left; padding: 0.75rem;">Calendar End (UTC)</th>
+              <th style="text-align:left; padding: 0.75rem;">Facilitator</th>
+              <th style="text-align:left; padding: 0.75rem;">Producer</th>
+              <th style="text-align:left; padding: 0.75rem;">Changes</th>
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    </section>
+  `;
+};
+
+const renderAirtableCheckHtml = (payload) => `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Airtable Check</title>
+    <style>
+      body { font-family: Inter, system-ui, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
+      .page { max-width: 1200px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+      .hero { background: white; border: 1px solid #e2e8f0; border-radius: 18px; padding: 1.5rem; }
+      .summary { display:grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 1rem; margin-top: 1rem; }
+      .card { background:#eff6ff; border:1px solid #bfdbfe; border-radius:14px; padding:1rem; }
+      td { padding: 0.75rem; border-top: 1px solid #e2e8f0; vertical-align: top; }
+      a { color:#2563eb; text-decoration:none; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="hero">
+        <h1 style="margin:0; font-size:1.8rem;">Airtable Check</h1>
+        <p style="margin:0.5rem 0 0; color:#475569;">Shared comparison snapshot for manual Airtable updates.</p>
+        <p style="margin:0.75rem 0 0; color:#475569;"><strong>Generated at:</strong> ${escapeHtml(payload.generated_at)}</p>
+        ${payload.source_url ? `<p style="margin:0.25rem 0 0; color:#475569;"><strong>Source:</strong> <a href="${escapeHtml(payload.source_url)}" target="_blank" rel="noreferrer">${escapeHtml(payload.source_url)}</a></p>` : ''}
+        <div class="summary">
+          <div class="card"><div>Total changed sessions</div><div style="font-size:1.8rem; font-weight:700;">${escapeHtml(payload.summary.total_changed_sessions)}</div></div>
+          <div class="card"><div>Time only</div><div style="font-size:1.8rem; font-weight:700;">${escapeHtml(payload.summary.time_only)}</div></div>
+          <div class="card"><div>SME / Faculty only</div><div style="font-size:1.8rem; font-weight:700;">${escapeHtml(payload.summary.people_only)}</div></div>
+          <div class="card"><div>Both / mixed changes</div><div style="font-size:1.8rem; font-weight:700;">${escapeHtml(payload.summary.both)}</div></div>
+        </div>
+      </div>
+      ${renderAirtableCheckTable('Time changes', payload.tables.time_only)}
+      ${renderAirtableCheckTable('SME / Faculty changes', payload.tables.people_only)}
+      ${renderAirtableCheckTable('Both / mixed changes', payload.tables.both)}
+    </div>
+  </body>
+</html>`;
+
 const versionedPublicationKey = (type, projectId, versionId) => `${type}.project.${projectId}.version.${versionId}`;
 
 const normalizeTypeFromPath = (segment) => {
@@ -282,6 +375,57 @@ const server = http.createServer(async (req, res) => {
       }
 
       return jsonResponse(res, 405, { error: `Method not allowed: ${req.method}` });
+    }
+
+    if (pathname === '/api/public/airtable-check') {
+      if (req.method === 'GET') {
+        try {
+          const data = await persistence.getPublication('airtable-check.latest');
+          if (!data) {
+            return jsonResponse(res, 404, { error: 'No Airtable Check snapshot published yet.' });
+          }
+          return jsonResponse(res, 200, data);
+        } catch (err) {
+          return jsonResponse(res, 500, { error: String(err) });
+        }
+      }
+
+      if (req.method === 'POST') {
+        try {
+          const body = await readBody(req);
+          const parsed = JSON.parse(body);
+          const validationError = validateAirtableCheckSnapshot(parsed);
+          if (validationError) return jsonResponse(res, 400, { error: validationError });
+          const result = await persistence.savePublication('airtable-check.latest', parsed, { type: 'airtable_check' });
+          return jsonResponse(res, 200, {
+            ok: true,
+            saved_at: result.savedAt,
+            public_url: `${url.origin}/public/airtable-check`,
+          });
+        } catch (err) {
+          return jsonResponse(res, 400, { error: `Invalid JSON body: ${err}` });
+        }
+      }
+
+      return jsonResponse(res, 405, { error: `Method not allowed: ${req.method}` });
+    }
+
+    if (pathname === '/public/airtable-check' && req.method === 'GET') {
+      try {
+        const data = await persistence.getPublication('airtable-check.latest');
+        if (!data) {
+          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end('<h1>No Airtable Check snapshot published yet.</h1>');
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(renderAirtableCheckHtml(data));
+        return;
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(`<h1>Failed to load Airtable Check report</h1><pre>${escapeHtml(String(err))}</pre>`);
+        return;
+      }
     }
 
     if (pathname === '/api/public/status' && req.method === 'GET') {

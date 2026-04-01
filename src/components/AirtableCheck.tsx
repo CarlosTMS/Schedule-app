@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ExternalLink, RefreshCw } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, RefreshCw } from 'lucide-react';
 import type { StudentRecord } from '../lib/excelParser';
 import type { SmeAssignments } from './SMESchedule';
 import type { FacultyAssignments } from './FacultySchedule';
@@ -8,7 +8,9 @@ import type { SMECacheStatus } from '../lib/smeDataLoader';
 import { useI18n } from '../i18n';
 import {
   buildComparableAppRows,
+  buildAirtablePublicComparisonPayload,
   compareAgainstAirtable,
+  type AirtablePublicComparisonPayload,
   type AirtableCheckResult,
   type AirtableRow,
 } from '../lib/airtableCheck';
@@ -25,6 +27,8 @@ interface AirtableCheckProps {
   manualFacultyAssignments: FacultyAssignments;
   smeList: SME[];
   smeStatus: SMECacheStatus | null;
+  projectId?: string | null;
+  versionId?: string | null;
 }
 
 interface AirtableCheckApiResponse {
@@ -32,6 +36,12 @@ interface AirtableCheckApiResponse {
   fetchedAt: string;
   sourceUrl: string;
   rows: AirtableRow[];
+}
+
+interface AirtablePublishedResponse {
+  ok: boolean;
+  saved_at?: string;
+  public_url?: string;
 }
 
 type AirtableCheckView = 'all' | 'time' | 'people';
@@ -45,6 +55,7 @@ export function AirtableCheck(props: AirtableCheckProps) {
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<AirtableCheckView>('all');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [publicLink, setPublicLink] = useState<string | null>(null);
 
   const appRows = useMemo(
     () => buildComparableAppRows(props),
@@ -111,6 +122,79 @@ export function AirtableCheck(props: AirtableCheckProps) {
     }, 1600);
   };
 
+  const formatUtcForExport = (isoString: string): string => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    const yyyy = date.getUTCFullYear();
+    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(date.getUTCDate()).padStart(2, '0');
+    const hh = String(date.getUTCHours()).padStart(2, '0');
+    const min = String(date.getUTCMinutes()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd} ${hh}:${min} UTC`;
+  };
+
+  const toCsvCell = (value: string | number): string => {
+    const text = String(value ?? '');
+    if (/[",\n]/.test(text)) {
+      return `"${text.replace(/"/g, '""')}"`;
+    }
+    return text;
+  };
+
+  const exportChangedRows = () => {
+    const headers = [
+      'Airtable Row',
+      'Airtable Record ID',
+      'Session Name',
+      'Calendar Start',
+      'Calendar End',
+      'Facilitator',
+      'Producer',
+      'Num of Participants',
+      'Participants',
+    ];
+
+    const rows = matchedWithDifferences.map((row) => [
+      String(row.airtable.rowNumber),
+      row.airtable.id,
+      row.app.sessionName,
+      formatUtcForExport(row.app.calendarStartIso),
+      formatUtcForExport(row.app.calendarEndIso),
+      row.app.facilitator,
+      row.app.producer,
+      String(row.app.numParticipants),
+      row.app.participants.join(', '),
+    ]);
+
+    const csv = [headers, ...rows]
+      .map((line) => line.map(toCsvCell).join(','))
+      .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'airtable-check-changes.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const refreshPublicLink = async () => {
+    const payload: AirtablePublicComparisonPayload = buildAirtablePublicComparisonPayload(comparison, sourceUrl);
+    const res = await fetch('/api/public/airtable-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const data = await res.json() as AirtablePublishedResponse;
+    setPublicLink(data.public_url ?? `${window.location.origin}/public/airtable-check`);
+  };
+
   return (
     <div className="animated-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       <div className="glass-panel" style={{ padding: '1.5rem' }}>
@@ -132,11 +216,33 @@ export function AirtableCheck(props: AirtableCheckProps) {
                 <ExternalLink size={14} /> Airtable
               </a>
             )}
+            <button
+              onClick={exportChangedRows}
+              className="btn btn-secondary"
+              style={{ gap: '0.45rem' }}
+              disabled={loading || matchedWithDifferences.length === 0}
+            >
+              <Download size={14} /> {t('airtableCheckExportCsv')}
+            </button>
+            <button
+              onClick={() => { void refreshPublicLink(); }}
+              className="btn btn-secondary"
+              style={{ gap: '0.45rem' }}
+              disabled={loading}
+            >
+              <ExternalLink size={14} /> {t('airtableCheckRefreshPublicLink')}
+            </button>
             <button onClick={() => { void runCheck(); }} className="btn btn-primary" style={{ gap: '0.45rem' }} disabled={loading}>
               <RefreshCw size={14} /> {loading ? t('processingData') : t('airtableCheckRunAgain')}
             </button>
           </div>
         </div>
+        {publicLink && (
+          <div style={{ marginTop: '0.9rem', fontSize: '0.85rem', color: '#475569' }}>
+            <strong>{t('publicURL')}:</strong>{' '}
+            <a href={publicLink} target="_blank" rel="noreferrer">{publicLink}</a>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '1rem' }}>

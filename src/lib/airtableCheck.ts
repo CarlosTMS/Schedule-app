@@ -59,6 +59,33 @@ export interface AirtableCheckResult {
   onlyInAirtable: AirtableRow[];
 }
 
+export interface AirtablePublicComparisonSectionRow {
+  airtableRowNumber: number;
+  airtableRecordId: string;
+  sessionName: string;
+  calendarStart: string;
+  calendarEnd: string;
+  facilitator: string;
+  producer: string;
+  differenceLabels: string[];
+}
+
+export interface AirtablePublicComparisonPayload {
+  generated_at: string;
+  source_url: string | null;
+  summary: {
+    total_changed_sessions: number;
+    time_only: number;
+    people_only: number;
+    both: number;
+  };
+  tables: {
+    time_only: AirtablePublicComparisonSectionRow[];
+    people_only: AirtablePublicComparisonSectionRow[];
+    both: AirtablePublicComparisonSectionRow[];
+  };
+}
+
 const normalizeWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
 
 const PERSON_NAME_ALIASES: Record<string, string> = {
@@ -283,5 +310,54 @@ export const compareAgainstAirtable = (
     matched,
     onlyInApp,
     onlyInAirtable: [...remainingAirtable.values()],
+  };
+};
+
+const formatUtcForExport = (isoString: string): string => {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  const yyyy = date.getUTCFullYear();
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(date.getUTCDate()).padStart(2, '0');
+  const hh = String(date.getUTCHours()).padStart(2, '0');
+  const min = String(date.getUTCMinutes()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${min} UTC`;
+};
+
+export const buildAirtablePublicComparisonPayload = (
+  result: AirtableCheckResult,
+  sourceUrl: string | null
+): AirtablePublicComparisonPayload => {
+  const changedRows = result.matched.filter((row) => row.differences.length > 0);
+
+  const toRow = (row: AirtableCheckMatchedRow): AirtablePublicComparisonSectionRow => ({
+    airtableRowNumber: row.airtable.rowNumber,
+    airtableRecordId: row.airtable.id,
+    sessionName: row.app.sessionName,
+    calendarStart: formatUtcForExport(row.app.calendarStartIso),
+    calendarEnd: formatUtcForExport(row.app.calendarEndIso),
+    facilitator: row.app.facilitator,
+    producer: row.app.producer,
+    differenceLabels: row.differences.map((difference) => difference.label),
+  });
+
+  const timeOnly = changedRows.filter((row) => row.differences.every((difference) => difference.field === 'calendarStart' || difference.field === 'calendarEnd'));
+  const peopleOnly = changedRows.filter((row) => row.differences.every((difference) => difference.field === 'facilitator' || difference.field === 'producer'));
+  const both = changedRows.filter((row) => !timeOnly.includes(row) && !peopleOnly.includes(row));
+
+  return {
+    generated_at: new Date().toISOString(),
+    source_url: sourceUrl,
+    summary: {
+      total_changed_sessions: changedRows.length,
+      time_only: timeOnly.length,
+      people_only: peopleOnly.length,
+      both: both.length,
+    },
+    tables: {
+      time_only: timeOnly.map(toRow),
+      people_only: peopleOnly.map(toRow),
+      both: both.map(toRow),
+    },
   };
 };

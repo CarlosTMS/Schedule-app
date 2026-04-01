@@ -812,6 +812,8 @@ export function Dashboard({
                             manualFacultyAssignments={manualFacultyAssignments}
                             smeList={smeList}
                             smeStatus={smeStatus}
+                            projectId={projectId}
+                            versionId={versionId}
                         />
                     </div>
                 )}
