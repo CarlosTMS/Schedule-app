@@ -337,9 +337,9 @@ export const buildAirtablePublicComparisonPayload = (
       both: both.length,
     },
     tables: {
+      both: both.map(toRow),
       time_only: timeOnly.map(toRow),
       people_only: peopleOnly.map(toRow),
-      both: both.map(toRow),
     },
   };
 };

@@ -152,9 +152,9 @@ const renderAirtableCheckTable = (title, rows) => {
 };
 
 const flattenAirtableCheckRows = (payload) => [
+  ...(Array.isArray(payload?.tables?.both) ? payload.tables.both : []),
   ...(Array.isArray(payload?.tables?.time_only) ? payload.tables.time_only : []),
   ...(Array.isArray(payload?.tables?.people_only) ? payload.tables.people_only : []),
-  ...(Array.isArray(payload?.tables?.both) ? payload.tables.both : []),
 ];
 
 const buildAirtableCheckWorkbookBuffer = (payload) => {
@@ -223,9 +223,9 @@ const renderAirtableCheckHtml = (payload) => `<!doctype html>
           <div class="card"><div>Both / mixed changes</div><div style="font-size:1.8rem; font-weight:700;">${escapeHtml(payload.summary.both)}</div></div>
         </div>
       </div>
+      ${renderAirtableCheckTable('Both / mixed changes', payload.tables.both)}
       ${renderAirtableCheckTable('Time changes', payload.tables.time_only)}
       ${renderAirtableCheckTable('SME / Faculty changes', payload.tables.people_only)}
-      ${renderAirtableCheckTable('Both / mixed changes', payload.tables.both)}
     </div>
   </body>
 </html>`;
