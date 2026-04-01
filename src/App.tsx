@@ -91,6 +91,7 @@ function App() {
   const [pendingEditorName, setPendingEditorName] = useState('');
   const [dismissedLatestVersionPromptFor, setDismissedLatestVersionPromptFor] = useState<string | null>(null);
   const [remoteChangesAvailable, setRemoteChangesAvailable] = useState(false);
+  const [remoteVersionUpdate, setRemoteVersionUpdate] = useState<RunVersion | null>(null);
   const [presence, setPresence] = useState<VersionPresence[]>([]);
   const [conflictState, setConflictState] = useState<{
     remoteVersion: RunVersion | null;
@@ -144,6 +145,10 @@ function App() {
     [projects]
   );
   const editorReady = useMemo(() => hasEditorIdentityName(editorIdentity), [editorIdentity]);
+  const loadedVersion = useMemo(
+    () => projectVersions.find(version => version.id === loadedVersionId) ?? null,
+    [projectVersions, loadedVersionId]
+  );
 
   const applySnapshot = useCallback((s: RunSnapshot) => {
     setRecords(s.records);
@@ -172,6 +177,7 @@ function App() {
         applySnapshot(version.snapshot);
         setActiveProjectId(projectId);
         setLoadedVersionId(version.id);
+        setRemoteVersionUpdate(version);
         loadedBaseSnapshotRef.current = JSON.parse(JSON.stringify(version.snapshot));
         const project = await repository.getProject(projectId);
         loadedBaseRevisionRef.current = project?.revision ?? null;
@@ -182,6 +188,7 @@ function App() {
 
     setActiveProjectId(projectId);
     setLoadedVersionId(null);
+    setRemoteVersionUpdate(null);
   }, [applySnapshot]);
 
   const refreshPublicApiStatus = useCallback(async () => {
@@ -325,6 +332,7 @@ function App() {
     if (version) {
       setProjectVersions(prev => prev.map(v => v.id === version.id ? version : v));
       loadedBaseSnapshotRef.current = JSON.parse(JSON.stringify(version.snapshot));
+      setRemoteVersionUpdate(version);
     }
     if (project) {
       if (project.revision !== undefined) {
@@ -363,6 +371,7 @@ function App() {
     const project = await repository.getProject(activeProjectId);
     loadedBaseRevisionRef.current = project?.revision ?? null;
     setRemoteChangesAvailable(false);
+    setRemoteVersionUpdate(remoteVersion);
     setConflictState(null);
   };
 
@@ -418,20 +427,25 @@ function App() {
   useEffect(() => {
     if (!activeProjectId || !loadedVersionId || !editorReady) {
       setPresence([]);
+      setRemoteVersionUpdate(null);
       return;
     }
 
     let cancelled = false;
 
     const refresh = async () => {
-      const [project, activePresence] = await Promise.all([
-        repository.getProject(activeProjectId),
+      const [activePresence, remoteVersion] = await Promise.all([
         repository.getPresence(loadedVersionId),
+        repository.getVersion(loadedVersionId, { forceRemote: true }),
       ]);
       if (cancelled) return;
-      if (project?.revision !== undefined && loadedBaseRevisionRef.current !== null && project.revision !== loadedBaseRevisionRef.current) {
-        setRemoteChangesAvailable(true);
-      }
+      const hasNewerSameVersion = Boolean(
+        remoteVersion &&
+        loadedVersion &&
+        new Date(remoteVersion.createdAt).getTime() > new Date(loadedVersion.createdAt).getTime()
+      );
+      setRemoteVersionUpdate(remoteVersion ?? null);
+      setRemoteChangesAvailable(hasNewerSameVersion);
       setPresence(activePresence);
     };
 
@@ -454,7 +468,7 @@ function App() {
       window.clearInterval(refreshInterval);
       window.clearInterval(heartbeatInterval);
     };
-  }, [activeProjectId, loadedVersionId, editorIdentity, editorReady]);
+  }, [activeProjectId, loadedVersionId, editorIdentity, editorReady, loadedVersion]);
 
   // ── Autosave Draft (Local & Remote Sync) ───────────────────────────────────
   useEffect(() => {
@@ -487,6 +501,7 @@ function App() {
       setActiveProjectId(project.id);
       setProjectVersions([version]);
       setLoadedVersionId(version.id);
+      setRemoteVersionUpdate(version);
       loadedBaseSnapshotRef.current = JSON.parse(JSON.stringify(version.snapshot));
       loadedBaseRevisionRef.current = project.revision ?? 1;
     } catch (err) {
@@ -510,6 +525,7 @@ function App() {
       await publishVersionOutputs(activeProjectId, version.id, version.snapshot);
       setProjectVersions(prev => [version, ...prev]);
       setLoadedVersionId(version.id);
+      setRemoteVersionUpdate(version);
 
       const { projects: updatedProjs } = await repository.getSyncData();
       setProjects(updatedProjs);
@@ -551,11 +567,7 @@ function App() {
     const project = await repository.getProject(v.projectId);
     loadedBaseRevisionRef.current = project?.revision ?? null;
     setRemoteChangesAvailable(false);
-  };
-
-  const handleLoadLatestProjectVersion = async () => {
-    if (!latestProjectVersion) return;
-    await handleLoadVersion(latestProjectVersion);
+    setRemoteVersionUpdate(v);
   };
 
   const handleSetPublicApiSource = async (projectId: string, versionId: string) => {
@@ -602,6 +614,7 @@ function App() {
 
     if (loadedVersionId === version.id) {
       setLoadedVersionId(null);
+      setRemoteVersionUpdate(null);
     }
 
     const { projects: updatedProjs } = await repository.getSyncData();
@@ -617,6 +630,7 @@ function App() {
         setActiveProjectId(null);
         setProjectVersions([]);
         setLoadedVersionId(null);
+        setRemoteVersionUpdate(null);
       }
     } else {
       setError("Failed to delete project on server. Keep in mind that deletion is only supported while online.");
@@ -742,25 +756,13 @@ function App() {
     return map;
   }, [records]);
 
-  const loadedVersion = useMemo(
-    () => projectVersions.find(version => version.id === loadedVersionId) ?? null,
-    [projectVersions, loadedVersionId]
+  const isViewingLatestVersion = Boolean(
+    loadedVersion &&
+    (!remoteVersionUpdate || new Date(remoteVersionUpdate.createdAt).getTime() <= new Date(loadedVersion.createdAt).getTime())
   );
-  const latestProjectVersion = useMemo(
-    () => projectVersions.reduce<RunVersion | null>((latest, version) => {
-      if (!latest) return version;
-      if (version.versionNumber > latest.versionNumber) return version;
-      if (version.versionNumber === latest.versionNumber && new Date(version.createdAt).getTime() > new Date(latest.createdAt).getTime()) {
-        return version;
-      }
-      return latest;
-    }, null),
-    [projectVersions]
-  );
-  const isViewingLatestVersion = Boolean(loadedVersionId && latestProjectVersion && loadedVersionId === latestProjectVersion.id);
   const showLatestVersionPrompt = Boolean(
     loadedVersionId &&
-    latestProjectVersion &&
+    remoteVersionUpdate &&
     !isViewingLatestVersion &&
     dismissedLatestVersionPromptFor !== loadedVersionId
   );
@@ -1042,7 +1044,7 @@ function App() {
                   )}
                   {!isViewingLatestVersion && (
                     <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.5rem' }}>
-                      <button onClick={() => { if (window.confirm(t('reloadVersionConfirm'))) void handleLoadLatestProjectVersion(); }} className="btn btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}><RotateCcw size={12} /> {t('versionRefreshLatest')}</button>
+                      <button onClick={() => { if (window.confirm(t('reloadVersionConfirm'))) void handleReloadLatestVersion(); }} className="btn btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}><RotateCcw size={12} /> {t('versionRefreshLatest')}</button>
                     </div>
                   )}
                 </div>
@@ -1164,7 +1166,7 @@ function App() {
         </div>
       )}
 
-      {showLatestVersionPrompt && latestProjectVersion && (
+      {showLatestVersionPrompt && loadedVersion && (
         <div style={{
           position: 'fixed',
           inset: 0,
@@ -1192,8 +1194,7 @@ function App() {
             </div>
             <p style={{ margin: 0, color: '#475569', lineHeight: 1.55, fontSize: '0.92rem' }}>
               {t('versionModalDescription')
-                .replace('{current}', `v${loadedVersion?.versionNumber ?? '?'}`)
-                .replace('{latest}', `v${latestProjectVersion.versionNumber}`)}
+                .replace('{current}', `v${loadedVersion.versionNumber}`)}
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
               <button
@@ -1203,7 +1204,7 @@ function App() {
                 {t('versionModalDismiss')}
               </button>
               <button
-                onClick={() => { void handleLoadLatestProjectVersion(); }}
+                onClick={() => { void handleReloadLatestVersion(); }}
                 className="btn btn-primary"
                 style={{ gap: '0.45rem' }}
               >
