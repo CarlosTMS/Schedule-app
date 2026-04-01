@@ -129,19 +129,19 @@ const renderAirtableCheckTable = (title, rows) => {
     : `<tr><td colspan="7">No sessions in this group.</td></tr>`;
 
   return `
-    <section style="margin-top: 2rem;">
-      <h2 style="margin: 0 0 0.75rem; font-size: 1.2rem;">${escapeHtml(title)}</h2>
-      <div style="overflow:auto; border: 1px solid #e2e8f0; border-radius: 14px; background: white;">
-        <table style="width:100%; border-collapse: collapse; font-size: 14px;">
-          <thead style="background:#f8fafc;">
+    <section class="section">
+      <h2><span class="section-badge">${rows.length}</span> ${escapeHtml(title)}</h2>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
             <tr>
-              <th style="text-align:left; padding: 0.75rem;">Airtable Row</th>
-              <th style="text-align:left; padding: 0.75rem;">Session Name</th>
-              <th style="text-align:left; padding: 0.75rem;">Calendar Start (UTC)</th>
-              <th style="text-align:left; padding: 0.75rem;">Calendar End (UTC)</th>
-              <th style="text-align:left; padding: 0.75rem;">Facilitator</th>
-              <th style="text-align:left; padding: 0.75rem;">Producer</th>
-              <th style="text-align:left; padding: 0.75rem;">Changes</th>
+              <th>Airtable Row</th>
+              <th>Session Name</th>
+              <th>Calendar Start (UTC)</th>
+              <th>Calendar End (UTC)</th>
+              <th>Facilitator</th>
+              <th>Producer</th>
+              <th>Changes</th>
             </tr>
           </thead>
           <tbody>${body}</tbody>
@@ -193,34 +193,113 @@ const renderAirtableCheckHtml = (payload) => `<!doctype html>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Airtable Check</title>
     <style>
-      body { font-family: Inter, system-ui, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
-      .page { max-width: 1200px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
-      .hero { background: white; border: 1px solid #e2e8f0; border-radius: 18px; padding: 1.5rem; }
+      :root {
+        --bg: #eef3ef;
+        --panel: rgba(255,255,255,0.94);
+        --panel-strong: #ffffff;
+        --border: rgba(45, 95, 75, 0.12);
+        --text: #17201b;
+        --muted: #5f7267;
+        --primary: #2d5f4b;
+        --primary-dark: #234a3a;
+        --accent-soft: #edf8cf;
+        --shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+      }
+      * { box-sizing: border-box; }
+      body {
+        font-family: Inter, system-ui, sans-serif;
+        margin: 0;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(217,255,115,0.18), transparent 22%),
+          radial-gradient(circle at top right, rgba(45,95,75,0.08), transparent 28%),
+          var(--bg);
+      }
+      .page { max-width: 1260px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+      .hero {
+        background: linear-gradient(180deg, rgba(255,255,255,0.97) 0%, rgba(243,248,244,0.97) 100%);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 1.5rem;
+        box-shadow: var(--shadow);
+      }
+      .brandbar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+      .brandlockup { display: flex; align-items: center; gap: 1rem; min-width: 0; }
+      .brandmark {
+        width: 56px;
+        height: 56px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #203029 0%, #111915 100%);
+        border: 1px solid rgba(217,255,115,0.2);
+        box-shadow: 0 14px 30px rgba(15,23,42,0.12);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.45rem;
+      }
+      .brandmark img { width: 100%; height: 100%; display: block; }
+      .eyebrow { margin: 0 0 0.25rem; font-size: 0.76rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+      h1 { margin: 0; font-size: clamp(1.8rem, 3vw, 2.5rem); line-height: 1.05; }
+      .subtitle { margin: 0.45rem 0 0; color: var(--muted); max-width: 780px; line-height: 1.6; }
+      .hero-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.75rem; margin-top: 1rem; }
+      .meta-card { background: rgba(255,255,255,0.9); border: 1px solid var(--border); border-radius: 16px; padding: 0.9rem 1rem; }
+      .meta-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.35rem; }
+      .meta-value { color: var(--text); font-weight: 600; word-break: break-word; }
       .summary { display:grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 1rem; margin-top: 1rem; }
-      .card { background:#eff6ff; border:1px solid #bfdbfe; border-radius:14px; padding:1rem; }
+      .card { background: linear-gradient(180deg, #ffffff 0%, #f4faec 100%); border:1px solid rgba(45, 95, 75, 0.12); border-radius:18px; padding:1rem; box-shadow: 0 10px 26px rgba(15,23,42,0.04); }
+      .card-title { font-size: 0.82rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+      .card-value { font-size: 2rem; font-weight: 800; margin-top: 0.35rem; color: var(--primary-dark); }
       .actions { display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:1rem; }
-      .button { display:inline-flex; align-items:center; gap:0.45rem; background:#2563eb; color:white; padding:0.75rem 1rem; border-radius:12px; font-weight:600; }
-      .button.secondary { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
-      td { padding: 0.75rem; border-top: 1px solid #e2e8f0; vertical-align: top; }
-      a { color:#2563eb; text-decoration:none; }
+      .button { display:inline-flex; align-items:center; gap:0.45rem; background: linear-gradient(135deg, #213d32 0%, var(--primary) 100%); color:white; padding:0.8rem 1rem; border-radius:14px; font-weight:700; border: 1px solid rgba(35, 74, 58, 0.22); box-shadow: 0 12px 28px rgba(33, 61, 50, 0.18); }
+      .button.secondary { background:#ffffff; color:var(--primary); border:1px solid rgba(45, 95, 75, 0.14); box-shadow: 0 8px 20px rgba(15,23,42,0.04); }
+      .section { margin-top: 1.25rem; background: var(--panel); border: 1px solid var(--border); border-radius: 24px; padding: 1.2rem; box-shadow: var(--shadow); }
+      .section h2 { margin: 0 0 0.85rem; font-size: 1.2rem; display: flex; align-items: center; gap: 0.65rem; }
+      .section-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 1.9rem; height: 1.9rem; padding: 0 0.55rem; border-radius: 999px; background: var(--accent-soft); color: var(--primary-dark); font-size: 0.82rem; font-weight: 800; }
+      .table-wrap { overflow-x: auto; border-radius: 18px; border: 1px solid rgba(45, 95, 75, 0.1); background: var(--panel-strong); }
+      .data-table { width:100%; border-collapse: collapse; font-size: 14px; }
+      .data-table thead { background:#f4faec; }
+      .data-table th { text-align:left; padding: 0.85rem 0.75rem; color: var(--muted); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
+      .data-table td { padding: 0.85rem 0.75rem; border-top: 1px solid rgba(45, 95, 75, 0.08); vertical-align: top; }
+      a { color:var(--primary); text-decoration:none; }
+      a:hover { text-decoration: underline; }
+      @media (max-width: 640px) {
+        .page { padding: 1rem 0.9rem 2rem; }
+        .hero, .section { padding: 1rem; border-radius: 20px; }
+        .brandmark { width: 48px; height: 48px; border-radius: 14px; }
+      }
     </style>
   </head>
   <body>
     <div class="page">
       <div class="hero">
-        <h1 style="margin:0; font-size:1.8rem;">Airtable Check</h1>
-        <p style="margin:0.5rem 0 0; color:#475569;">Shared comparison snapshot for manual Airtable updates.</p>
-        <p style="margin:0.75rem 0 0; color:#475569;"><strong>Generated at:</strong> ${escapeHtml(payload.generated_at)}</p>
-        ${payload.source_url ? `<p style="margin:0.25rem 0 0; color:#475569;"><strong>Source:</strong> <a href="${escapeHtml(payload.source_url)}" target="_blank" rel="noreferrer">${escapeHtml(payload.source_url)}</a></p>` : ''}
+        <div class="brandbar">
+          <div class="brandlockup">
+            <div class="brandmark">
+              <img src="/sessionzilla-mark.svg" alt="Sessionzilla" />
+            </div>
+            <div>
+              <p class="eyebrow">Sessionzilla Public Report</p>
+              <h1>Airtable Check</h1>
+              <p class="subtitle">Shared comparison snapshot for manual Airtable updates, now styled like the rest of the kaiju-powered Sessionzilla experience.</p>
+            </div>
+          </div>
+        </div>
+        <div class="hero-meta">
+          <div class="meta-card">
+            <div class="meta-label">Generated at</div>
+            <div class="meta-value">${escapeHtml(payload.generated_at)}</div>
+          </div>
+          ${payload.source_url ? `<div class="meta-card"><div class="meta-label">Source</div><div class="meta-value"><a href="${escapeHtml(payload.source_url)}" target="_blank" rel="noreferrer">${escapeHtml(payload.source_url)}</a></div></div>` : ''}
+        </div>
         <div class="actions">
           <a class="button" href="/api/public/airtable-check.xlsx">Export to Excel</a>
           <a class="button secondary" href="/api/public/airtable-check" target="_blank" rel="noreferrer">View JSON</a>
         </div>
         <div class="summary">
-          <div class="card"><div>Total changed sessions</div><div style="font-size:1.8rem; font-weight:700;">${escapeHtml(payload.summary.total_changed_sessions)}</div></div>
-          <div class="card"><div>Time only</div><div style="font-size:1.8rem; font-weight:700;">${escapeHtml(payload.summary.time_only)}</div></div>
-          <div class="card"><div>SME / Faculty only</div><div style="font-size:1.8rem; font-weight:700;">${escapeHtml(payload.summary.people_only)}</div></div>
-          <div class="card"><div>Both / mixed changes</div><div style="font-size:1.8rem; font-weight:700;">${escapeHtml(payload.summary.both)}</div></div>
+          <div class="card"><div class="card-title">Total changed sessions</div><div class="card-value">${escapeHtml(payload.summary.total_changed_sessions)}</div></div>
+          <div class="card"><div class="card-title">Time only</div><div class="card-value">${escapeHtml(payload.summary.time_only)}</div></div>
+          <div class="card"><div class="card-title">SME / Faculty only</div><div class="card-value">${escapeHtml(payload.summary.people_only)}</div></div>
+          <div class="card"><div class="card-title">Both / mixed changes</div><div class="card-value">${escapeHtml(payload.summary.both)}</div></div>
         </div>
       </div>
       ${renderAirtableCheckTable('Both / mixed changes', payload.tables.both)}
