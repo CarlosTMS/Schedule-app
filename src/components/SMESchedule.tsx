@@ -173,7 +173,7 @@ export function SMESchedule({
     const availableSchedules = Array.from(schedulesBySA[selectedSA] || []).sort((a, b) => a.localeCompare(b));
     const selectedLeads = SA_LEADS[selectedSA];
     const effectiveFacultyStartHour = facultyStartHour ?? startHour;
-    const visibleSessions = activePlanningSessions.filter(session => session.facilitatorType !== 'faculty_only');
+    const visibleSessions = activePlanningSessions;
     const leadEntries = selectedLeads
         ? [
             { label: 'saLead', name: selectedLeads.saLead },
@@ -570,6 +570,8 @@ export function SMESchedule({
 
                             return availableSchedules.map((schedule, sIndex) => {
                                 const assignedSME = currentAssignments[schedule]?.[session.id];
+                                const assignedFaculty = enrichFaculty(currentFacultyAssignments[schedule]?.[session.id] ?? null);
+                                const isFacultyOnly = session.facilitatorType === 'faculty_only';
                                 const isConfirmed = currentConfirmations[schedule]?.[session.id] ?? false;
                                 const scheduleIsLast = sIndex === availableSchedules.length - 1;
                                 const showBorder = scheduleIsLast && !topicIsLast;
@@ -647,10 +649,12 @@ export function SMESchedule({
                                                     <Plus size={12} />
                                                 </button>
                                             </div>
-                                            {assignedSME && (
+                                            {(assignedSME || assignedFaculty) && (
                                                 <div style={{ fontSize: '0.8rem', marginTop: '0.2rem', color: isOutOfHours ? 'var(--danger-color)' : 'var(--primary-color)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                                     {isOutOfHours && <AlertCircle size={12} />}
-                                                    {getLocalTimeForUtcHour(utcHour, assignedSME.office_location, session.date)}
+                                                    {assignedSME
+                                                        ? getLocalTimeForUtcHour(utcHour, assignedSME.office_location, session.date)
+                                                        : getLocalTimeForUtcHour(utcHour, assignedFaculty?.office, session.date)}
                                                 </div>
                                             )}
                                         </td>
@@ -658,7 +662,7 @@ export function SMESchedule({
                                             <button
                                                 type="button"
                                                 onClick={() => handleConfirmationToggle(schedule, session.id)}
-                                                disabled={!assignedSME}
+                                                disabled={!assignedSME || isFacultyOnly}
                                                 className="btn btn-secondary"
                                                 style={{
                                                     minWidth: '102px',
@@ -668,16 +672,31 @@ export function SMESchedule({
                                                     borderColor: isConfirmed ? 'rgba(5, 150, 105, 0.35)' : '#cbd5e1',
                                                     background: isConfirmed ? 'rgba(16, 185, 129, 0.12)' : '#fff',
                                                     color: isConfirmed ? '#047857' : 'var(--text-primary)',
-                                                    opacity: assignedSME ? 1 : 0.55,
-                                                    cursor: assignedSME ? 'pointer' : 'not-allowed',
+                                                    opacity: assignedSME && !isFacultyOnly ? 1 : 0.55,
+                                                    cursor: assignedSME && !isFacultyOnly ? 'pointer' : 'not-allowed',
                                                 }}
-                                                title={!assignedSME ? t('confirmRequiresSme') : (isConfirmed ? t('unconfirm') : t('confirm'))}
+                                                title={isFacultyOnly ? FACULTY_LED_SME_LABEL : (!assignedSME ? t('confirmRequiresSme') : (isConfirmed ? t('unconfirm') : t('confirm')))}
                                             >
                                                 {isConfirmed ? t('unconfirm') : t('confirm')}
                                             </button>
                                         </td>
                                         <td style={{ padding: '0.75rem' }}>
-                                            {eligibleSMEs.length > 0 ? (
+                                            {isFacultyOnly ? (
+                                                <div
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '0.6rem 0.75rem',
+                                                        borderRadius: '6px',
+                                                        border: '1px solid #cbd5e1',
+                                                        background: '#f8fafc',
+                                                        fontSize: '0.9rem',
+                                                        color: 'var(--text-secondary)',
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    {FACULTY_LED_SME_LABEL}
+                                                </div>
+                                            ) : eligibleSMEs.length > 0 ? (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                                                         <UserCircle2 size={16} style={{ position: 'absolute', left: '0.75rem', color: 'var(--text-secondary)', pointerEvents: 'none' }} />
@@ -726,6 +745,11 @@ export function SMESchedule({
                                                     <Building2 size={14} color="var(--text-secondary)" />
                                                     {assignedSME.lob}
                                                 </div>
+                                            ) : assignedFaculty ? (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+                                                    <Building2 size={14} color="var(--text-secondary)" />
+                                                    Faculty
+                                                </div>
                                             ) : (
                                                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>-</span>
                                             )}
@@ -735,6 +759,11 @@ export function SMESchedule({
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
                                                     <MapPin size={14} color="var(--text-secondary)" />
                                                     {assignedSME.office_location}
+                                                </div>
+                                            ) : assignedFaculty ? (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+                                                    <MapPin size={14} color="var(--text-secondary)" />
+                                                    {assignedFaculty.office}
                                                 </div>
                                             ) : (
                                                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>-</span>

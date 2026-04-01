@@ -371,7 +371,7 @@ export function SessionBreakdown({
 
     const renderDetailSA = (sa: string) => {
         const availableSchedules = Array.from(schedulesBySA[sa] || []).sort((a, b) => a.localeCompare(b));
-        const visibleSessions = activePlanningSessions.filter(session => session.facilitatorType !== 'faculty_only');
+        const visibleSessions = activePlanningSessions;
         
         return (
             <div style={{ background: 'rgba(255,255,255,0.6)', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--glass-border)', marginTop: '1.5rem' }}>
