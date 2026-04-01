@@ -150,8 +150,6 @@ export function AirtableCheck(props: AirtableCheckProps) {
       'Calendar End',
       'Facilitator',
       'Producer',
-      'Num of Participants',
-      'Participants',
     ];
 
     const rows = matchedWithDifferences.map((row) => [
@@ -162,8 +160,6 @@ export function AirtableCheck(props: AirtableCheckProps) {
       formatUtcForExport(row.app.calendarEndIso),
       row.app.facilitator,
       row.app.producer,
-      String(row.app.numParticipants),
-      row.app.participants.join(', '),
     ]);
 
     const csv = [headers, ...rows]

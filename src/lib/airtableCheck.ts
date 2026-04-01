@@ -40,7 +40,7 @@ export interface AirtableRow extends ComparableSessionRow {
 }
 
 export interface AirtableCheckDifference {
-  field: 'calendarStart' | 'calendarEnd' | 'facilitator' | 'producer' | 'numParticipants' | 'participants';
+  field: 'calendarStart' | 'calendarEnd' | 'facilitator' | 'producer';
   label: string;
   appValue: string;
   airtableValue: string;
@@ -67,8 +67,6 @@ export interface AirtablePublicComparisonSectionRow {
   calendarEnd: string;
   facilitator: string;
   producer: string;
-  numParticipants: number;
-  participants: string[];
   differenceLabels: string[];
 }
 
@@ -219,13 +217,6 @@ const jaccardSimilarity = (left: string, right: string): number => {
   return union ? intersection / union : 0;
 };
 
-const compareParticipantLists = (appParticipants: string[], airtableParticipants: string[]): boolean => {
-  const left = [...appParticipants].map(normalizePersonName).sort();
-  const right = [...airtableParticipants].map(normalizePersonName).sort();
-  if (left.length !== right.length) return false;
-  return left.every((value, index) => value === right[index]);
-};
-
 const diffMinutes = (leftIso: string, rightIso: string): number =>
   Math.abs(new Date(leftIso).getTime() - new Date(rightIso).getTime()) / 60000;
 
@@ -243,17 +234,6 @@ const buildDifferences = (appRow: ComparableSessionRow, airtableRow: AirtableRow
   }
   if (normalizePersonName(appRow.producer) !== normalizePersonName(airtableRow.producer)) {
     diffs.push({ field: 'producer', label: 'Producer', appValue: appRow.producer, airtableValue: airtableRow.producer });
-  }
-  if (appRow.numParticipants !== airtableRow.numParticipants) {
-    diffs.push({ field: 'numParticipants', label: 'Num of Participants', appValue: String(appRow.numParticipants), airtableValue: String(airtableRow.numParticipants) });
-  }
-  if (!compareParticipantLists(appRow.participants, airtableRow.participants)) {
-    diffs.push({
-      field: 'participants',
-      label: 'Participants',
-      appValue: appRow.participants.join(', '),
-      airtableValue: airtableRow.participants.join(', '),
-    });
   }
 
   return diffs;
@@ -340,8 +320,6 @@ export const buildAirtablePublicComparisonPayload = (
     calendarEnd: formatUtcForExport(row.app.calendarEndIso),
     facilitator: row.app.facilitator,
     producer: row.app.producer,
-    numParticipants: row.app.numParticipants,
-    participants: row.app.participants,
     differenceLabels: row.differences.map((difference) => difference.label),
   });
 

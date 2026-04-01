@@ -166,8 +166,6 @@ const buildAirtableCheckWorkbookBuffer = (payload) => {
     'Calendar End': row.calendarEnd ?? '',
     'Facilitator': row.facilitator ?? '',
     'Producer': row.producer ?? '',
-    'Num of Participants': row.numParticipants ?? '',
-    'Participants': Array.isArray(row.participants) ? row.participants.join(', ') : '',
     'Changes': Array.isArray(row.differenceLabels) ? row.differenceLabels.join(', ') : '',
   }));
 
@@ -180,8 +178,6 @@ const buildAirtableCheckWorkbookBuffer = (payload) => {
       'Calendar End',
       'Facilitator',
       'Producer',
-      'Num of Participants',
-      'Participants',
       'Changes',
     ],
   });
