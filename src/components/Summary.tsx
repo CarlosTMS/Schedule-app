@@ -19,8 +19,8 @@ import { useI18n } from '../i18n';
 import { buildSummaryExport, type SummaryExport } from '../lib/publicApiPayloads';
 
 interface ApiSnapshotEndpoints {
-    publicSummaryUrl: string;
-    publicVatsUrl: string;
+    publicSummaryUrl: string | null;
+    publicVatsUrl: string | null;
     versionSummaryUrl: string | null;
     versionVatsUrl: string | null;
 }
@@ -554,8 +554,8 @@ export function Summary({
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             setPublishedEndpoints({
-                publicSummaryUrl: `${API_BASE}/api/public/summary`,
-                publicVatsUrl: `${API_BASE}/api/public/vats`,
+                publicSummaryUrl: null,
+                publicVatsUrl: null,
                 versionSummaryUrl: projectId && versionId ? publishUrl : null,
                 versionVatsUrl: projectId && versionId ? `${API_BASE}/api/public/projects/${projectId}/versions/${versionId}/vats` : null,
             });
@@ -663,8 +663,12 @@ export function Summary({
                                 {t('apiEndpointsTitle')}
                             </div>
                             <div style={{ display: 'grid', gap: '0.35rem', fontSize: '0.78rem' }}>
-                                <div><strong>{t('apiSummaryPublic')}:</strong> <a href={publishedEndpoints.publicSummaryUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedEndpoints.publicSummaryUrl}</a></div>
-                                <div><strong>{t('apiVatsPublic')}:</strong> <a href={publishedEndpoints.publicVatsUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedEndpoints.publicVatsUrl}</a></div>
+                                {publishedEndpoints.publicSummaryUrl && (
+                                    <div><strong>{t('apiSummaryPublic')}:</strong> <a href={publishedEndpoints.publicSummaryUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedEndpoints.publicSummaryUrl}</a></div>
+                                )}
+                                {publishedEndpoints.publicVatsUrl && (
+                                    <div><strong>{t('apiVatsPublic')}:</strong> <a href={publishedEndpoints.publicVatsUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedEndpoints.publicVatsUrl}</a></div>
+                                )}
                                 {publishedEndpoints.versionSummaryUrl && (
                                     <div><strong>{t('apiSummaryVersion')}:</strong> <a href={publishedEndpoints.versionSummaryUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedEndpoints.versionSummaryUrl}</a></div>
                                 )}

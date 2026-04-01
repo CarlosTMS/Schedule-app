@@ -27,8 +27,8 @@ import { buildSchedulesBySA, buildSummaryExport, buildVatsExport } from './lib/p
 import { applyConflictResolutions, formatRelativeTimestamp, getEditorIdentity, hasEditorIdentityName, mergeSnapshots, setEditorIdentityName, type MergeConflict } from './lib/collaboration';
 
 export interface ApiSnapshotEndpoints {
-  publicSummaryUrl: string;
-  publicVatsUrl: string;
+  publicSummaryUrl: string | null;
+  publicVatsUrl: string | null;
   versionSummaryUrl: string | null;
   versionVatsUrl: string | null;
 }
@@ -270,12 +270,15 @@ function App() {
     refreshPublicApiStatus,
   ]);
 
-  const getApiSnapshotEndpoints = useCallback((projectId?: string | null, versionId?: string | null): ApiSnapshotEndpoints => ({
-    publicSummaryUrl: `${window.location.origin}/api/public/summary`,
-    publicVatsUrl: `${window.location.origin}/api/public/vats`,
-    versionSummaryUrl: projectId && versionId ? `${window.location.origin}/api/public/projects/${projectId}/versions/${versionId}/summary` : null,
-    versionVatsUrl: projectId && versionId ? `${window.location.origin}/api/public/projects/${projectId}/versions/${versionId}/vats` : null,
-  }), []);
+  const getApiSnapshotEndpoints = useCallback((projectId?: string | null, versionId?: string | null): ApiSnapshotEndpoints => {
+    const isPublicSource = Boolean(versionId && versionId === publicSourceVersionId);
+    return {
+      publicSummaryUrl: isPublicSource ? `${window.location.origin}/api/public/summary` : null,
+      publicVatsUrl: isPublicSource ? `${window.location.origin}/api/public/vats` : null,
+      versionSummaryUrl: projectId && versionId ? `${window.location.origin}/api/public/projects/${projectId}/versions/${versionId}/summary` : null,
+      versionVatsUrl: projectId && versionId ? `${window.location.origin}/api/public/projects/${projectId}/versions/${versionId}/vats` : null,
+    };
+  }, [publicSourceVersionId]);
 
   const handleRefreshApiSnapshots = useCallback(async (): Promise<ApiSnapshotEndpoints | null> => {
     if (!activeProjectId || !loadedVersionId || !currentSnapshot.result) {

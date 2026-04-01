@@ -23,8 +23,8 @@ import type { SMECacheStatus } from '../lib/smeDataLoader';
 import type { SME } from '../lib/smeMatcher';
 
 interface ApiSnapshotEndpoints {
-    publicSummaryUrl: string;
-    publicVatsUrl: string;
+    publicSummaryUrl: string | null;
+    publicVatsUrl: string | null;
     versionSummaryUrl: string | null;
     versionVatsUrl: string | null;
 }
