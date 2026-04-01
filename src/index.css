@@ -1,14 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --bg-color: #e7ece8;
+  --bg-color: #edf2ee;
   --surface-color: rgba(255, 255, 255, 0.78);
   --border-color: rgba(255, 255, 255, 0.55);
   --text-primary: #17201b;
-  --text-secondary: #52635a;
-  --primary-color: #2f6f57;
-  --primary-hover: #245744;
-  --accent-color: #97e659;
+  --text-secondary: #4d6056;
+  --primary-color: #2d5f4b;
+  --primary-hover: #234a3a;
+  --accent-color: #8ed15b;
   --danger-color: #ef4444;
   --success-color: #10b981;
 
@@ -32,8 +32,8 @@ body {
   font-family: 'Inter', sans-serif;
   background-color: var(--bg-color);
   background-image:
-    radial-gradient(circle at 12% 0%, rgba(151, 230, 89, 0.18) 0, transparent 26%),
-    radial-gradient(circle at 100% 0%, rgba(47, 111, 87, 0.16) 0, transparent 34%),
+    radial-gradient(circle at 12% 0%, rgba(142, 209, 91, 0.14) 0, transparent 26%),
+    radial-gradient(circle at 100% 0%, rgba(45, 95, 75, 0.14) 0, transparent 34%),
     radial-gradient(circle at 50% 100%, rgba(24, 34, 28, 0.08) 0, transparent 38%);
   color: var(--text-primary);
   line-height: 1.5;
@@ -69,15 +69,15 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #204537 0%, var(--primary-color) 64%, color-mix(in srgb, var(--primary-color) 76%, var(--accent-color) 24%) 100%);
+  background: linear-gradient(135deg, #213d32 0%, var(--primary-color) 68%, color-mix(in srgb, var(--primary-color) 82%, var(--accent-color) 18%) 100%);
   color: white;
-  box-shadow: 0 10px 24px rgba(32, 69, 55, 0.26);
+  box-shadow: 0 10px 24px rgba(33, 61, 50, 0.24);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #17352a 0%, var(--primary-hover) 64%, color-mix(in srgb, var(--primary-hover) 72%, var(--accent-color) 28%) 100%);
+  background: linear-gradient(135deg, #183127 0%, var(--primary-hover) 68%, color-mix(in srgb, var(--primary-hover) 78%, var(--accent-color) 22%) 100%);
   transform: translateY(-1px);
-  box-shadow: 0 14px 28px rgba(32, 69, 55, 0.24);
+  box-shadow: 0 14px 28px rgba(33, 61, 50, 0.2);
 }
 
 .btn-primary:disabled {
@@ -89,13 +89,13 @@ body {
 .btn-secondary {
   background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(248,250,252,0.92) 100%);
   color: var(--text-primary);
-  border: 1px solid #e7ddff;
+  border: 1px solid #d8e4dd;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
 }
 
 .btn-secondary:hover:not(:disabled) {
   background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
-  border-color: #86efac;
+  border-color: #9bd08a;
 }
 
 /* Inputs */
@@ -142,7 +142,7 @@ h4 {
 h1 {
   font-size: 2.5rem;
   letter-spacing: -0.025em;
-  background: linear-gradient(135deg, #17201b 0%, var(--primary-color) 62%, var(--accent-color) 100%);
+  background: linear-gradient(135deg, #17201b 0%, var(--primary-color) 72%, color-mix(in srgb, var(--primary-color) 84%, var(--accent-color) 16%) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
