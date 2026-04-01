@@ -122,6 +122,12 @@ export const persistDraft = (draft: RunDraft | null): void => {
     else localStorage.removeItem(KEY_DRAFT);
 };
 
+export const clearRuntimeMirrorStorage = (): void => {
+    localStorage.removeItem(KEY_PROJECTS);
+    localStorage.removeItem(KEY_VERSIONS);
+    localStorage.removeItem(KEY_DRAFT);
+};
+
 // ─── Migration ────────────────────────────────────────────────────────────────
 
 interface StoredRunV2 {
