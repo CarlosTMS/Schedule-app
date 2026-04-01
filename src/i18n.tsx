@@ -36,6 +36,7 @@ const translations = {
         navBlockers: 'Calendar Blockers',
         navVATs: 'VAT Explorer',
         navData: 'Data Explorer',
+        navAirtableCheck: 'Airtable Check',
         sessionTopic: 'Session Topic',
         scheduleLabel: 'Schedule',
         locationLabel: 'Location',
@@ -236,7 +237,19 @@ const translations = {
         smeLeadSales: 'Sales Lead',
         smeLeadCsm: 'CSM Lead',
         openTeamsChat: 'Open Teams Chat',
-        missingLeadEmails: 'Missing lead emails'
+        missingLeadEmails: 'Missing lead emails',
+        airtableCheckTitle: 'Airtable Check',
+        airtableCheckDesc: 'Compare the sessions in this app against the Airtable shared view and flag any mismatches automatically.',
+        airtableCheckMatched: 'Matched sessions',
+        airtableCheckDifferences: 'Differences found',
+        airtableCheckOnlyApp: 'Only in this app',
+        airtableCheckOnlyAirtable: 'Only in Airtable',
+        airtableCheckError: 'We could not load the Airtable shared view.',
+        airtableCheckNoDifferences: 'No differences found for the matched sessions.',
+        airtableCheckAppValue: 'App',
+        airtableCheckAirtableValue: 'Airtable',
+        airtableCheckNoOnlyApp: 'No sessions exist only in this app.',
+        airtableCheckNoOnlyAirtable: 'No extra sessions were found only in Airtable.'
     },
     es: {
         appTitle: 'Programador de Habilitación de SAP Associates',
@@ -271,6 +284,7 @@ const translations = {
         navBlockers: 'Bloqueadores de Calendario',
         navVATs: 'Explorador de VATs',
         navData: 'Explorador de Datos',
+        navAirtableCheck: 'Airtable Check',
         sessionTopic: 'Tema de la Sesión',
         scheduleLabel: 'Horario',
         locationLabel: 'Ubicación',
@@ -470,7 +484,19 @@ const translations = {
         smeLeadSales: 'Sales Lead',
         smeLeadCsm: 'CSM Lead',
         openTeamsChat: 'Abrir chat de Teams',
-        missingLeadEmails: 'Faltan emails de leads'
+        missingLeadEmails: 'Faltan emails de leads',
+        airtableCheckTitle: 'Airtable Check',
+        airtableCheckDesc: 'Compara automáticamente las sesiones de esta app contra la vista compartida de Airtable y muestra cualquier diferencia.',
+        airtableCheckMatched: 'Sesiones encontradas',
+        airtableCheckDifferences: 'Diferencias encontradas',
+        airtableCheckOnlyApp: 'Solo en esta app',
+        airtableCheckOnlyAirtable: 'Solo en Airtable',
+        airtableCheckError: 'No se pudo cargar la vista compartida de Airtable.',
+        airtableCheckNoDifferences: 'No se encontraron diferencias en las sesiones que hicieron match.',
+        airtableCheckAppValue: 'App',
+        airtableCheckAirtableValue: 'Airtable',
+        airtableCheckNoOnlyApp: 'No hay sesiones que existan solo en esta app.',
+        airtableCheckNoOnlyAirtable: 'No se encontraron sesiones extra solo en Airtable.'
     }
 
 };

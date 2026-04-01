@@ -16,6 +16,7 @@ import { FacultyDebriefSchedule } from './FacultyDebriefSchedule';
 import { Summary } from './Summary';
 import { CalendarBlockers } from './CalendarBlockers';
 import { Evaluations } from './Evaluations';
+import { AirtableCheck } from './AirtableCheck';
 import type { EvaluationEngineOutput } from '../lib/evaluationEngine';
 import { useI18n } from '../i18n';
 import { loadSMEData, forceFetchSMEData } from '../lib/smeDataLoader';
@@ -66,7 +67,7 @@ interface DashboardProps {
     onRefreshApiSnapshots?: () => Promise<ApiSnapshotEndpoints | null>;
 }
 
-type TabType = 'overview' | 'sessions' | 'smes' | 'faculty' | 'summary' | 'blockers' | 'debrief' | 'vats' | 'data' | 'evaluations';
+type TabType = 'overview' | 'sessions' | 'smes' | 'faculty' | 'summary' | 'blockers' | 'debrief' | 'vats' | 'data' | 'evaluations' | 'airtableCheck';
 
 export function Dashboard({
     result, onReset, previousMetrics, sessionLength = 90,
@@ -359,6 +360,7 @@ export function Dashboard({
         { id: 'vats', icon: Users, label: t('navVATs') },
         { id: 'data', icon: Database, label: t('navData') },
         { id: 'evaluations', icon: Users, label: 'Evaluations' },
+        { id: 'airtableCheck', icon: CheckCircle2, label: t('navAirtableCheck') },
     ] as const;
 
     return (
@@ -792,6 +794,24 @@ export function Dashboard({
                             facultyAssignments={manualFacultyAssignments}
                             output={evaluationsOutput}
                             onOutputChange={setEvaluationsOutput}
+                        />
+                    </div>
+                )}
+
+                {activeTab === 'airtableCheck' && (
+                    <div className="animated-fade-in">
+                        <AirtableCheck
+                            records={localRecords}
+                            schedulesBySA={schedulesBySA}
+                            startHour={result.config.startHour}
+                            endHour={result.config.endHour}
+                            facultyStartHour={facultyStartHour}
+                            sessionTimeOverrides={sessionTimeOverrides}
+                            sessionInstanceTimeOverrides={sessionInstanceTimeOverrides}
+                            manualSmeAssignments={manualSmeAssignments}
+                            manualFacultyAssignments={manualFacultyAssignments}
+                            smeList={smeList}
+                            smeStatus={smeStatus}
                         />
                     </div>
                 )}

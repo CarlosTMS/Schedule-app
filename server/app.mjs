@@ -15,6 +15,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createPersistence } from './persistence.mjs';
+import { getSharedAirtableRows } from './airtable-share.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '..');
@@ -375,6 +376,18 @@ const server = http.createServer(async (req, res) => {
         return jsonResponse(res, 200, data);
       } catch (err) {
         return jsonResponse(res, 502, { error: `SME proxy failed: ${String(err)}` });
+      }
+    }
+
+    if (pathname === '/api/integrations/airtable-check' && req.method === 'GET') {
+      try {
+        const data = await getSharedAirtableRows();
+        return jsonResponse(res, 200, { ok: true, ...data });
+      } catch (err) {
+        return jsonResponse(res, 502, {
+          ok: false,
+          error: `Airtable check failed: ${String(err)}`,
+        });
       }
     }
 
