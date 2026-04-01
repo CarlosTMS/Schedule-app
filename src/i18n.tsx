@@ -255,7 +255,9 @@ const translations = {
         airtableCheckViewTime: 'By time',
         airtableCheckViewPeople: 'By Producer/Facilitator',
         airtableCheckRunAgain: 'Run check again',
-        airtableCheckMatchScore: 'Match score'
+        airtableCheckMatchScore: 'Match score',
+        airtableCheckCopyAppValue: 'Copy App Value',
+        airtableCheckRowRef: 'Airtable row'
     },
     es: {
         appTitle: 'Programador de Habilitación de SAP Associates',
@@ -508,7 +510,9 @@ const translations = {
         airtableCheckViewTime: 'By Time',
         airtableCheckViewPeople: 'By Producer/Facilitator',
         airtableCheckRunAgain: 'Run check again',
-        airtableCheckMatchScore: 'Match score'
+        airtableCheckMatchScore: 'Match score',
+        airtableCheckCopyAppValue: 'Copy App Value',
+        airtableCheckRowRef: 'Fila Airtable'
     }
 
 };

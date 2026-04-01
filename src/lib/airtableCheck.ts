@@ -35,6 +35,7 @@ export interface ComparableSessionRow {
 
 export interface AirtableRow extends ComparableSessionRow {
   id: string;
+  rowNumber: number;
   raw: Record<string, unknown>;
 }
 

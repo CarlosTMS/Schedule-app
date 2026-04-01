@@ -44,6 +44,7 @@ export function AirtableCheck(props: AirtableCheckProps) {
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<AirtableCheckView>('all');
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const appRows = useMemo(
     () => buildComparableAppRows(props),
@@ -104,6 +105,14 @@ export function AirtableCheck(props: AirtableCheckProps) {
   useEffect(() => {
     void runCheck();
   }, []);
+
+  const copyAppValue = async (value: string, key: string) => {
+    await navigator.clipboard.writeText(value);
+    setCopiedKey(key);
+    window.setTimeout(() => {
+      setCopiedKey((current) => (current === key ? null : current));
+    }, 1600);
+  };
 
   return (
     <div className="animated-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -198,10 +207,22 @@ export function AirtableCheck(props: AirtableCheckProps) {
                 <div style={{ marginTop: '0.25rem', fontSize: '0.78rem', color: '#64748b' }}>
                   {t('airtableCheckMatchScore')}: {Math.round(row.score)}
                 </div>
+                <div style={{ marginTop: '0.25rem', fontSize: '0.78rem', color: '#64748b' }}>
+                  {t('airtableCheckRowRef')}: <strong>#{row.airtable.rowNumber}</strong> · ID <strong>{row.airtable.id}</strong>
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.8rem' }}>
                   {row.differences.map((difference) => (
                     <div key={`${row.airtable.id}-${difference.field}`} style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.75rem' }}>
-                      <div style={{ fontWeight: 700, marginBottom: '0.35rem' }}>{difference.label}</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                        <div style={{ fontWeight: 700 }}>{difference.label}</div>
+                        <button
+                          onClick={() => { void copyAppValue(difference.appValue || '', `${row.airtable.id}-${difference.field}`); }}
+                          className="btn btn-secondary"
+                          style={{ padding: '0.45rem 0.7rem', fontSize: '0.78rem' }}
+                        >
+                          {copiedKey === `${row.airtable.id}-${difference.field}` ? t('copiedLabel') : t('airtableCheckCopyAppValue')}
+                        </button>
+                      </div>
                       <div style={{ fontSize: '0.8rem', color: '#334155' }}>
                         <strong>{t('airtableCheckAppValue')}:</strong> {difference.appValue || '—'}
                       </div>
@@ -238,6 +259,9 @@ export function AirtableCheck(props: AirtableCheckProps) {
               <div key={row.id} style={{ padding: '0.7rem 0.85rem', borderRadius: '10px', background: '#f8fafc' }}>
                 <div style={{ fontWeight: 600 }}>{row.sessionName}</div>
                 <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.2rem' }}>{row.calendarStartIso}</div>
+                <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: '0.2rem' }}>
+                  {t('airtableCheckRowRef')}: #{row.rowNumber} · ID {row.id}
+                </div>
               </div>
             ))}
           </div>

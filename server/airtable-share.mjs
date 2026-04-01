@@ -36,7 +36,7 @@ const normalizeAirtableRows = (payload) => {
   const columns = Object.fromEntries((payload?.data?.table?.columns ?? []).map((column) => [column.id, column.name]));
   const rows = payload?.data?.table?.rows ?? [];
 
-  return rows.map((row) => {
+  return rows.map((row, index) => {
     const mapped = {};
     for (const [columnId, value] of Object.entries(row.cellValuesByColumnId ?? {})) {
       mapped[columns[columnId] ?? columnId] = value;
@@ -48,6 +48,7 @@ const normalizeAirtableRows = (payload) => {
 
     return {
       id: row.id,
+      rowNumber: index + 1,
       sessionName: String(mapped['Session Name'] ?? ''),
       calendarStartIso: mapped['Calendar Start'] ? new Date(mapped['Calendar Start']).toISOString() : '',
       calendarEndIso: mapped['Calendar End'] ? new Date(mapped['Calendar End']).toISOString() : '',
