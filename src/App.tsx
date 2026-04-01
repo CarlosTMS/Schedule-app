@@ -824,42 +824,44 @@ function App() {
           </div>
           <div className="top-bar-right">
             {publicApiStatus?.publicSource && (
-              <div className="autosave-indicator" style={{ marginRight: '0.5rem' }}>
+              <div className="autosave-indicator top-bar-status">
                 <Link2 size={14} />
                 {t('publicApiCurrentSource')}: {projects.find(p => p.id === publicApiStatus.publicSource?.projectId)?.name ?? 'Project'} / v{projectVersions.find(v => v.id === publicApiStatus.publicSource?.versionId)?.versionNumber ?? '?'}
               </div>
             )}
-            <button onClick={handleRenameEditor} className="editor-chip" title={t('editorChipTitle')}>
-              <span className="editor-chip-icon"><Pencil size={13} /></span>
-              <span className="editor-chip-copy">
-                <span className="editor-chip-label">{t('editorChipLabel')}</span>
-                <span className="editor-chip-name">{editorIdentity.name || t('editorChipUnset')}</span>
-              </span>
-            </button>
-            {autosaveStatus !== 'idle' && (
-              <div className={`autosave-indicator status-${autosaveStatus}`}>
-                {autosaveStatus === 'saving' ? <Loader2 className="animate-spin" size={14} /> :
-                  autosaveStatus === 'conflict' ? <ShieldAlert size={14} /> :
-                    <CheckCircle2 size={14} />}
+            <div className="top-bar-actions">
+              <button onClick={handleRenameEditor} className="editor-chip" title={t('editorChipTitle')}>
+                <span className="editor-chip-icon"><Pencil size={13} /></span>
+                <span className="editor-chip-copy">
+                  <span className="editor-chip-label">{t('editorChipLabel')}</span>
+                  <span className="editor-chip-name">{editorIdentity.name || t('editorChipUnset')}</span>
+                </span>
+              </button>
+              {autosaveStatus !== 'idle' && (
+                <div className={`autosave-indicator top-bar-status-pill status-${autosaveStatus}`}>
+                  {autosaveStatus === 'saving' ? <Loader2 className="animate-spin" size={14} /> :
+                    autosaveStatus === 'conflict' ? <ShieldAlert size={14} /> :
+                      <CheckCircle2 size={14} />}
 
-                {autosaveStatus === 'saving' ? t('autosaveSaving') :
-                  autosaveStatus === 'conflict' ? t('autosaveConflict') :
-                    t('autosaveSaved')}
-              </div>
-            )}
+                  {autosaveStatus === 'saving' ? t('autosaveSaving') :
+                    autosaveStatus === 'conflict' ? t('autosaveConflict') :
+                      t('autosaveSaved')}
+                </div>
+              )}
 
-            {result && (
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {result && (
+                <div className="top-bar-cta-group">
                 {!activeProjectId ? (
-                  <button onClick={handleCreateProject} className="btn btn-primary" style={{ gap: '0.5rem' }}><Save size={16} /> {t('projectNew')}</button>
+                  <button onClick={handleCreateProject} className="btn btn-primary top-bar-cta" style={{ gap: '0.5rem' }}><Save size={16} /> {t('projectNew')}</button>
                 ) : (
                   <>
-                    <button onClick={handleSaveCurrentVersion} className="btn btn-secondary" style={{ gap: '0.5rem' }} disabled={!loadedVersionId || !editorReady}><Save size={16} /> {t('versionSaveCurrent')}</button>
-                    <button onClick={handleSaveVersion} className="btn btn-primary" style={{ gap: '0.5rem' }} disabled={!editorReady}><Save size={16} /> {t('versionSave')}</button>
+                    <button onClick={handleSaveCurrentVersion} className="btn btn-secondary top-bar-cta" style={{ gap: '0.5rem' }} disabled={!loadedVersionId || !editorReady}><Save size={16} /> {t('versionSaveCurrent')}</button>
+                    <button onClick={handleSaveVersion} className="btn btn-primary top-bar-cta" style={{ gap: '0.5rem' }} disabled={!editorReady}><Save size={16} /> {t('versionSave')}</button>
                   </>
                 )}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -1143,13 +1145,20 @@ function App() {
         .btn-subtle.public-source { background: #eff6ff; color: #2563eb; }
         .btn-subtle.danger:hover { background: #fee2e2; color: #dc2626; }
         .main-content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
-        .top-bar { height: 64px; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; padding: 0 1.5rem; flex-shrink: 0; }
+        .top-bar { min-height: 72px; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.75rem 1.5rem; flex-shrink: 0; }
+        .top-bar-left { min-width: 0; }
+        .top-bar-right { display: flex; align-items: center; justify-content: flex-end; gap: 0.85rem; flex: 1; min-width: 0; flex-wrap: wrap; }
+        .top-bar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; flex-wrap: wrap; flex: 1; min-width: 0; }
+        .top-bar-cta-group { display: flex; align-items: stretch; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end; }
+        .top-bar-cta { min-height: 52px; padding: 0 1.25rem; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06); }
         .active-project-tag { display: flex; align-items: center; gap: 0.5rem; background: #f8fafc; padding: 0.35rem 0.75rem; border-radius: 9999px; border: 1px solid #e2e8f0; }
         .tag-label { font-size: 0.65rem; font-weight: 800; color: #64748b; }
         .tag-value { font-size: 0.85rem; font-weight: 600; color: #1e293b; }
         .tag-version { background: #3b82f6; color: #fff; font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px; }
         .tag-public-source { display: inline-flex; align-items: center; gap: 0.25rem; background: #eff6ff; color: #1d4ed8; font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 9999px; }
         .autosave-indicator { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: #64748b; margin-right: 1rem; }
+        .top-bar-status { flex-shrink: 0; margin-right: 0; }
+        .top-bar-status-pill { margin-right: 0; padding: 0.65rem 0.9rem; border-radius: 9999px; background: #f8fafc; border: 1px solid #e2e8f0; }
         .editor-chip { display: inline-flex; align-items: center; gap: 0.55rem; min-width: 0; max-width: 260px; border: 1px solid #dbe3f0; background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%); color: #0f172a; border-radius: 9999px; padding: 0.45rem 0.8rem 0.45rem 0.55rem; cursor: pointer; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06); transition: all 0.18s ease; }
         .editor-chip:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(15, 23, 42, 0.10); border-color: #bfdbfe; }
         .editor-chip-icon { display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; border-radius: 9999px; background: #eff6ff; color: #2563eb; flex-shrink: 0; }
@@ -1174,7 +1183,15 @@ function App() {
         .sidebar-footer { padding: 1rem; border-top: 1px solid #f1f5f9; text-align: center; }
         .version-status-box { display: flex; flex-direction: column; background: #f1f5f9; padding: 0.5rem; border-radius: 6px; }
         .version-tag { font-size: 0.75rem; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 0.25rem; }
+        @media (max-width: 1080px) {
+          .top-bar { align-items: flex-start; }
+          .top-bar-right { justify-content: flex-start; }
+          .top-bar-actions { justify-content: flex-start; }
+        }
         @media (max-width: 640px) {
+          .top-bar { padding: 0.75rem 1rem; }
+          .top-bar-cta-group { width: 100%; }
+          .top-bar-cta { width: 100%; }
           .editor-gate-card { padding: 1.25rem; border-radius: 20px; }
           .editor-gate-title { font-size: 1.25rem; }
           .editor-chip { max-width: 180px; }
