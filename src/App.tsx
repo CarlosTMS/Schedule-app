@@ -26,6 +26,12 @@ import type { SME } from './lib/smeMatcher';
 import { buildSchedulesBySA, buildSummaryExport, buildVatsExport } from './lib/publicApiPayloads';
 import { applyConflictResolutions, formatRelativeTimestamp, getEditorIdentity, hasEditorIdentityName, mergeSnapshots, setEditorIdentityName, type MergeConflict } from './lib/collaboration';
 
+export interface ApiSnapshotEndpoints {
+  publicSummaryUrl: string;
+  publicVatsUrl: string;
+  versionSummaryUrl: string | null;
+  versionVatsUrl: string | null;
+}
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
@@ -263,6 +269,22 @@ function App() {
     smeStatus,
     refreshPublicApiStatus,
   ]);
+
+  const getApiSnapshotEndpoints = useCallback((projectId?: string | null, versionId?: string | null): ApiSnapshotEndpoints => ({
+    publicSummaryUrl: `${window.location.origin}/api/public/summary`,
+    publicVatsUrl: `${window.location.origin}/api/public/vats`,
+    versionSummaryUrl: projectId && versionId ? `${window.location.origin}/api/public/projects/${projectId}/versions/${versionId}/summary` : null,
+    versionVatsUrl: projectId && versionId ? `${window.location.origin}/api/public/projects/${projectId}/versions/${versionId}/vats` : null,
+  }), []);
+
+  const handleRefreshApiSnapshots = useCallback(async (): Promise<ApiSnapshotEndpoints | null> => {
+    if (!activeProjectId || !loadedVersionId || !currentSnapshot.result) {
+      setError('Save or load a version before refreshing API snapshots.');
+      return null;
+    }
+    await publishVersionOutputs(activeProjectId, loadedVersionId, currentSnapshot);
+    return getApiSnapshotEndpoints(activeProjectId, loadedVersionId);
+  }, [activeProjectId, loadedVersionId, currentSnapshot, publishVersionOutputs, getApiSnapshotEndpoints]);
 
   const openMergeConflict = useCallback((remoteVersion: RunVersion | null, expectedRevision: number | null) => {
     if (!remoteVersion || !loadedBaseSnapshotRef.current) return;
@@ -949,6 +971,7 @@ function App() {
             smeList={smeList}
             smeStatus={smeStatus}
             onRefreshSMEs={() => { void refreshSmes(); }}
+            onRefreshApiSnapshots={handleRefreshApiSnapshots}
             versionInfo={
               loadedVersionId ? (
                 <div className="version-status-box" style={{ padding: '0.5rem', marginTop: '0.5rem' }}>

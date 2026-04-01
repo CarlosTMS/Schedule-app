@@ -10,6 +10,12 @@ interface VATVisualizerProps {
     records: StudentRecord[];
     projectId?: string | null;
     versionId?: string | null;
+    onRefreshApiSnapshots?: () => Promise<{
+        publicSummaryUrl: string;
+        publicVatsUrl: string;
+        versionSummaryUrl: string | null;
+        versionVatsUrl: string | null;
+    } | null>;
     onMoveDelegate?: (originalIndex: number, targetVat: string) => void;
     onMoveMultipleDelegates?: (originalIndices: number[], targetVat: string) => void;
     onSyncVatsToSessions?: () => void;
@@ -54,6 +60,7 @@ export function VATVisualizer({
     records,
     projectId,
     versionId,
+    onRefreshApiSnapshots,
     onMoveDelegate, 
     onMoveMultipleDelegates, 
     onSyncVatsToSessions, 
@@ -67,7 +74,12 @@ export function VATVisualizer({
     const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [publishingVats, setPublishingVats] = useState(false);
-    const [publishedVatsUrl, setPublishedVatsUrl] = useState<string | null>(null);
+    const [publishedEndpoints, setPublishedEndpoints] = useState<{
+        publicSummaryUrl: string;
+        publicVatsUrl: string;
+        versionSummaryUrl: string | null;
+        versionVatsUrl: string | null;
+    } | null>(null);
 
     const data = useMemo(() => {
         const formedVats: Record<string, StudentRecord[]> = {};
@@ -134,6 +146,20 @@ export function VATVisualizer({
     const buildVatsPayload = (): VatsExport => buildVatsExport(records);
 
     const handlePublishVatsAPI = async () => {
+        if (onRefreshApiSnapshots) {
+            setPublishingVats(true);
+            try {
+                const endpoints = await onRefreshApiSnapshots();
+                setPublishedEndpoints(endpoints);
+            } catch (err) {
+                setPublishedEndpoints(null);
+                alert(t('publishFailed').replace('{err}', String(err)));
+            } finally {
+                setPublishingVats(false);
+            }
+            return;
+        }
+
         setPublishingVats(true);
         try {
             const payload = buildVatsPayload();
@@ -146,9 +172,14 @@ export function VATVisualizer({
                 body: JSON.stringify(payload),
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            setPublishedVatsUrl(publishUrl);
+            setPublishedEndpoints({
+                publicSummaryUrl: `${API_BASE}/api/public/summary`,
+                publicVatsUrl: `${API_BASE}/api/public/vats`,
+                versionSummaryUrl: projectId && versionId ? `${API_BASE}/api/public/projects/${projectId}/versions/${versionId}/summary` : null,
+                versionVatsUrl: projectId && versionId ? publishUrl : null,
+            });
         } catch (err) {
-            setPublishedVatsUrl(null);
+            setPublishedEndpoints(null);
             alert(t('publishFailed').replace('{err}', String(err)));
         } finally {
             setPublishingVats(false);
@@ -467,13 +498,22 @@ export function VATVisualizer({
                         className="btn"
                         style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', background: '#0ea5e9', color: 'white', border: 'none', opacity: publishingVats ? 0.7 : 1 }}
                     >
-                        <Send size={15} /> {publishingVats ? '...' : t('publishVatsAPI')}
+                        <Send size={15} /> {publishingVats ? '...' : t('refreshApiSnapshot')}
                     </button>
-                    {publishedVatsUrl && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.8rem', padding: '0.35rem 0.75rem', borderRadius: '9999px', background: 'rgba(14,165,233,0.1)', border: '1px solid rgba(14,165,233,0.3)', color: '#0369a1' }}>
-                            <CheckCircle size={13} />
-                            {t('vatsPublicURL')}:&nbsp;
-                            <a href={publishedVatsUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedVatsUrl}</a>
+                    {publishedEndpoints && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.8rem', padding: '0.75rem 0.95rem', borderRadius: '14px', background: 'rgba(14,165,233,0.1)', border: '1px solid rgba(14,165,233,0.3)', color: '#0369a1' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700 }}>
+                                <CheckCircle size={13} />
+                                {t('apiEndpointsTitle')}
+                            </div>
+                            <div><strong>{t('apiSummaryPublic')}:</strong> <a href={publishedEndpoints.publicSummaryUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedEndpoints.publicSummaryUrl}</a></div>
+                            <div><strong>{t('apiVatsPublic')}:</strong> <a href={publishedEndpoints.publicVatsUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedEndpoints.publicVatsUrl}</a></div>
+                            {publishedEndpoints.versionSummaryUrl && (
+                                <div><strong>{t('apiSummaryVersion')}:</strong> <a href={publishedEndpoints.versionSummaryUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedEndpoints.versionSummaryUrl}</a></div>
+                            )}
+                            {publishedEndpoints.versionVatsUrl && (
+                                <div><strong>{t('apiVatsVersion')}:</strong> <a href={publishedEndpoints.versionVatsUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedEndpoints.versionVatsUrl}</a></div>
+                            )}
                         </div>
                     )}
                 </div>

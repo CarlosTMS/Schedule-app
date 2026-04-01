@@ -22,6 +22,13 @@ import { loadSMEData, forceFetchSMEData } from '../lib/smeDataLoader';
 import type { SMECacheStatus } from '../lib/smeDataLoader';
 import type { SME } from '../lib/smeMatcher';
 
+interface ApiSnapshotEndpoints {
+    publicSummaryUrl: string;
+    publicVatsUrl: string;
+    versionSummaryUrl: string | null;
+    versionVatsUrl: string | null;
+}
+
 interface DashboardProps {
     result: AllocationResult;
     onReset: () => void;
@@ -56,6 +63,7 @@ interface DashboardProps {
     smeList?: SME[];
     smeStatus?: SMECacheStatus | null;
     onRefreshSMEs?: () => void;
+    onRefreshApiSnapshots?: () => Promise<ApiSnapshotEndpoints | null>;
 }
 
 type TabType = 'overview' | 'sessions' | 'smes' | 'faculty' | 'summary' | 'blockers' | 'debrief' | 'vats' | 'data' | 'evaluations';
@@ -86,6 +94,7 @@ export function Dashboard({
     smeList: controlledSmeList,
     smeStatus: controlledSmeStatus,
     onRefreshSMEs,
+    onRefreshApiSnapshots,
 }: DashboardProps) {
 
     const { t } = useI18n();
@@ -614,6 +623,7 @@ export function Dashboard({
                             smeStatus={smeStatus}
                             projectId={projectId}
                             versionId={versionId}
+                            onRefreshApiSnapshots={onRefreshApiSnapshots}
                         />
                     </div>
                 )}
@@ -655,6 +665,7 @@ export function Dashboard({
                             records={localRecords}
                             projectId={projectId}
                             versionId={versionId}
+                            onRefreshApiSnapshots={onRefreshApiSnapshots}
                             onMoveDelegate={(idx, targetVat) => handleMoveToVAT([idx], targetVat)}
                             onMoveMultipleDelegates={(indices, targetVat) => handleMoveToVAT(indices, targetVat)}
                             onSyncVatsToSessions={handleSyncVatsToSessions}

@@ -18,6 +18,13 @@ import type { FacultyAssignments } from './FacultySchedule';
 import { useI18n } from '../i18n';
 import { buildSummaryExport, type SummaryExport } from '../lib/publicApiPayloads';
 
+interface ApiSnapshotEndpoints {
+    publicSummaryUrl: string;
+    publicVatsUrl: string;
+    versionSummaryUrl: string | null;
+    versionVatsUrl: string | null;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface SummaryProps {
@@ -36,6 +43,7 @@ interface SummaryProps {
     smeStatus: SMECacheStatus | null;
     projectId?: string | null;
     versionId?: string | null;
+    onRefreshApiSnapshots?: () => Promise<ApiSnapshotEndpoints | null>;
 }
 
 interface SessionWarning {
@@ -142,6 +150,7 @@ export function Summary({
     smeStatus,
     projectId,
     versionId,
+    onRefreshApiSnapshots,
 }: SummaryProps) {
     const { t } = useI18n();
     const effectiveFacultyStartHour = facultyStartHour ?? startHour;
@@ -151,7 +160,7 @@ export function Summary({
     };
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [showOnlyWarnings, setShowOnlyWarnings] = useState(false);
-    const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
+    const [publishedEndpoints, setPublishedEndpoints] = useState<ApiSnapshotEndpoints | null>(null);
     const [publishing, setPublishing] = useState(false);
     const getSmeDisplayName = (row: SessionRow): string =>
         row.sessionDef.facilitatorType === 'faculty_only' ? FACULTY_LED_SME_LABEL : (row.assignedSME?.name ?? '');
@@ -518,6 +527,20 @@ export function Summary({
     // ── Publish to local API ────────────────────────────────────────────────
 
     const handlePublishAPI = async () => {
+        if (onRefreshApiSnapshots) {
+            setPublishing(true);
+            try {
+                const endpoints = await onRefreshApiSnapshots();
+                setPublishedEndpoints(endpoints);
+            } catch (err) {
+                setPublishedEndpoints(null);
+                alert(t('publishFailed').replace('{err}', String(err)));
+            } finally {
+                setPublishing(false);
+            }
+            return;
+        }
+
         setPublishing(true);
         try {
             const payload = buildExportPayload();
@@ -530,9 +553,14 @@ export function Summary({
                 body: JSON.stringify(payload),
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            setPublishedUrl(publishUrl);
+            setPublishedEndpoints({
+                publicSummaryUrl: `${API_BASE}/api/public/summary`,
+                publicVatsUrl: `${API_BASE}/api/public/vats`,
+                versionSummaryUrl: projectId && versionId ? publishUrl : null,
+                versionVatsUrl: projectId && versionId ? `${API_BASE}/api/public/projects/${projectId}/versions/${versionId}/vats` : null,
+            });
         } catch (err) {
-            setPublishedUrl(null);
+            setPublishedEndpoints(null);
             alert(t('publishFailed').replace('{err}', String(err)));
         } finally {
             setPublishing(false);
@@ -626,13 +654,24 @@ export function Summary({
                         className="btn"
                         style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', background: 'var(--primary-color)', color: 'white', border: 'none', opacity: publishing ? 0.7 : 1 }}
                     >
-                        <Send size={16} /> {publishing ? '...' : t('publishAPI')}
+                        <Send size={16} /> {publishing ? '...' : t('refreshApiSnapshot')}
                     </button>
-                    {publishedUrl && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', padding: '0.4rem 0.9rem', borderRadius: '9999px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', color: '#059669' }}>
-                            <CheckCircle size={13} />
-                            {t('publicURL')}:&nbsp;
-                            <a href={publishedUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedUrl}</a>
+                    {publishedEndpoints && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', minWidth: '320px', padding: '0.8rem 1rem', borderRadius: '14px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', color: '#065f46' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem', fontWeight: 700 }}>
+                                <CheckCircle size={13} />
+                                {t('apiEndpointsTitle')}
+                            </div>
+                            <div style={{ display: 'grid', gap: '0.35rem', fontSize: '0.78rem' }}>
+                                <div><strong>{t('apiSummaryPublic')}:</strong> <a href={publishedEndpoints.publicSummaryUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedEndpoints.publicSummaryUrl}</a></div>
+                                <div><strong>{t('apiVatsPublic')}:</strong> <a href={publishedEndpoints.publicVatsUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedEndpoints.publicVatsUrl}</a></div>
+                                {publishedEndpoints.versionSummaryUrl && (
+                                    <div><strong>{t('apiSummaryVersion')}:</strong> <a href={publishedEndpoints.versionSummaryUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedEndpoints.versionSummaryUrl}</a></div>
+                                )}
+                                {publishedEndpoints.versionVatsUrl && (
+                                    <div><strong>{t('apiVatsVersion')}:</strong> <a href={publishedEndpoints.versionVatsUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedEndpoints.versionVatsUrl}</a></div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
