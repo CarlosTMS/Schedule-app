@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Download, Users, AlertTriangle, Calendar as CalendarIcon } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, type ChangeEvent } from 'react';
+import { Download, Upload, Users, AlertTriangle, Calendar as CalendarIcon } from 'lucide-react';
 import type { StudentRecord } from '../lib/excelParser';
 import { assignEvaluators, type EvaluationEngineOutput, type VatGroup } from '../lib/evaluationEngine';
 import type { FacultyAssignments } from './FacultySchedule';
@@ -14,14 +14,57 @@ interface EvaluationsProps {
     onOutputChange: (v: EvaluationEngineOutput | null | ((p: EvaluationEngineOutput | null) => EvaluationEngineOutput | null)) => void;
 }
 
+interface EvaluationExportPayloadV2 {
+    schemaVersion: 'sessionzilla-evaluations-v2';
+    exportedAt: string;
+    app: string;
+    inputs: {
+        evaluationDate: string;
+        includeRAD: boolean;
+        recordsCount: number;
+        evaluatorsCount: number;
+        facultyAssignments: FacultyAssignments;
+    };
+    records: StudentRecord[];
+    evaluators: EvaluatorRecord[];
+    output: EvaluationEngineOutput | null;
+}
+
+interface LegacyEvaluationAssignment {
+    evaluatorName: string;
+    sa: string;
+    utcOffset: number;
+    vatsAssigned: Array<{
+        vatName: string;
+        vatSa: string;
+        vatAverageUtcOffset: number;
+        membersCount?: number;
+    }>;
+}
+
+interface LegacyEvaluationExportPayload {
+    evaluationDate?: string;
+    includeRAD?: boolean;
+    assignments?: LegacyEvaluationAssignment[];
+    unassignedVats?: Array<{
+        vatName: string;
+        sa: string;
+        averageUtcOffset: number;
+        membersCount?: number;
+    }>;
+}
+
 export function Evaluations({ records, facultyAssignments, output, onOutputChange }: EvaluationsProps) {
     const evaluators = evaluatorsData as EvaluatorRecord[];
     const [evalDate, setEvalDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [includeRAD, setIncludeRAD] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const [notice, setNotice] = useState<string | null>(null);
     const hasAutoRun = useRef(false);
+    const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
     const handleRunAssignment = useCallback(() => {
+        setNotice(null);
         const dateObj = new Date(evalDate);
         if (isNaN(dateObj.getTime())) {
             setError("Invalid date selected.");
@@ -45,6 +88,7 @@ export function Evaluations({ records, facultyAssignments, output, onOutputChang
 
     const handleMoveVat = (vatName: string, targetEvaluatorName: string) => {
         if (!output) return;
+        setNotice(null);
 
         onOutputChange(prev => {
             if (!prev) return prev;
@@ -94,32 +138,24 @@ export function Evaluations({ records, facultyAssignments, output, onOutputChang
         });
     };
 
-    const handleDownloadJson = () => {
-        if (!output) return;
-        
-        // Format for export
-        const exportData = {
+    const buildFullExportPayload = (): EvaluationExportPayloadV2 => ({
+        schemaVersion: 'sessionzilla-evaluations-v2',
+        exportedAt: new Date().toISOString(),
+        app: 'Sessionzilla',
+        inputs: {
             evaluationDate: evalDate,
-            includeRAD: includeRAD,
-            assignments: output.assignments.map(a => ({
-                evaluatorName: a.evaluator['Faculty Name'],
-                sa: a.sa,
-                utcOffset: a.utcOffset,
-                vatsAssigned: a.assignedVats.map(v => ({
-                    vatName: v.name,
-                    vatSa: v.sa,
-                    vatAverageUtcOffset: v.utcOffset,
-                    membersCount: v.members.length
-                }))
-            })),
-            unassignedVats: output.unassignedVats.map(v => ({
-                vatName: v.name,
-                sa: v.sa,
-                averageUtcOffset: v.utcOffset,
-                membersCount: v.members.length
-            }))
-        };
+            includeRAD,
+            recordsCount: records.length,
+            evaluatorsCount: evaluators.length,
+            facultyAssignments,
+        },
+        records,
+        evaluators,
+        output,
+    });
 
+    const handleDownloadJson = () => {
+        const exportData = buildFullExportPayload();
         const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -129,6 +165,112 @@ export function Evaluations({ records, facultyAssignments, output, onOutputChang
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    };
+
+    const isEvaluationOutputLike = (value: unknown): value is EvaluationEngineOutput => {
+        if (!value || typeof value !== 'object') return false;
+        const candidate = value as EvaluationEngineOutput;
+        return Array.isArray(candidate.assignments) && Array.isArray(candidate.unassignedVats);
+    };
+
+    const hydrateLegacyPayload = (payload: LegacyEvaluationExportPayload): EvaluationEngineOutput | null => {
+        if (!Array.isArray(payload.assignments) || !Array.isArray(payload.unassignedVats)) {
+            return null;
+        }
+
+        const assignments = payload.assignments.map((assignment) => {
+            const evaluatorRecord = evaluators.find((e) => e['Faculty Name'] === assignment.evaluatorName);
+            return {
+                evaluator: {
+                    ...(evaluatorRecord ?? {
+                        'Faculty Name': assignment.evaluatorName,
+                        Role: 'Unknown',
+                        'Country Location': '',
+                        'City Location': '',
+                    }),
+                    sas: [],
+                    utcOffset: assignment.utcOffset,
+                },
+                sa: assignment.sa,
+                utcOffset: assignment.utcOffset,
+                assignedVats: assignment.vatsAssigned.map((vat) => ({
+                    name: vat.vatName,
+                    sa: vat.vatSa,
+                    utcOffset: vat.vatAverageUtcOffset,
+                    members: [],
+                })),
+            };
+        });
+
+        const unassignedVats = payload.unassignedVats.map((vat) => ({
+            name: vat.vatName,
+            sa: vat.sa,
+            utcOffset: vat.averageUtcOffset,
+            members: [],
+        }));
+
+        return { assignments, unassignedVats };
+    };
+
+    const applyImportedPayload = (parsed: unknown) => {
+        if (!parsed || typeof parsed !== 'object') {
+            throw new Error('JSON structure is not valid.');
+        }
+
+        const packagePayload = parsed as Partial<EvaluationExportPayloadV2> & LegacyEvaluationExportPayload & { output?: unknown };
+
+        if (packagePayload.inputs?.evaluationDate) {
+            setEvalDate(packagePayload.inputs.evaluationDate);
+        } else if (packagePayload.evaluationDate) {
+            setEvalDate(packagePayload.evaluationDate);
+        }
+
+        if (typeof packagePayload.inputs?.includeRAD === 'boolean') {
+            setIncludeRAD(packagePayload.inputs.includeRAD);
+        } else if (typeof packagePayload.includeRAD === 'boolean') {
+            setIncludeRAD(packagePayload.includeRAD);
+        }
+
+        if (isEvaluationOutputLike(packagePayload.output)) {
+            onOutputChange(packagePayload.output);
+            setNotice('Evaluation results loaded from JSON.');
+            setError(null);
+            return;
+        }
+
+        if (isEvaluationOutputLike(parsed)) {
+            onOutputChange(parsed);
+            setNotice('Evaluation results loaded from JSON.');
+            setError(null);
+            return;
+        }
+
+        const legacyHydrated = hydrateLegacyPayload(packagePayload);
+        if (legacyHydrated) {
+            onOutputChange(legacyHydrated);
+            setNotice('Legacy evaluation results loaded from JSON.');
+            setError(null);
+            return;
+        }
+
+        throw new Error('JSON does not contain recognizable evaluation results.');
+    };
+
+    const handleUploadJson = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            const parsed = JSON.parse(text);
+            applyImportedPayload(parsed);
+        } catch (uploadError) {
+            const message = uploadError instanceof Error ? uploadError.message : String(uploadError);
+            setError(`Failed to load evaluation JSON: ${message}`);
+            setNotice(null);
+        } finally {
+            event.target.value = '';
+        }
     };
 
     return (
@@ -145,6 +287,12 @@ export function Evaluations({ records, facultyAssignments, output, onOutputChang
             {error && (
                 <div className="error-banner" style={{ marginBottom: '1.5rem', padding: '1rem', background: '#fee2e2', border: '1px solid #ef4444', color: '#991b1b', borderRadius: '0.5rem' }}>
                     {error}
+                </div>
+            )}
+
+            {notice && (
+                <div className="notice-banner" style={{ marginBottom: '1.5rem', padding: '1rem', background: '#ecfdf5', border: '1px solid #86efac', color: '#166534', borderRadius: '0.5rem' }}>
+                    {notice}
                 </div>
             )}
 
@@ -184,6 +332,23 @@ export function Evaluations({ records, facultyAssignments, output, onOutputChang
                 </div>
 
                 <div className="form-group">
+                    <input
+                        ref={uploadInputRef}
+                        type="file"
+                        accept=".json,application/json"
+                        onChange={handleUploadJson}
+                        style={{ display: 'none' }}
+                    />
+                    <button
+                        onClick={() => uploadInputRef.current?.click()}
+                        className="btn btn-secondary w-full"
+                        style={{ justifyContent: 'center' }}
+                    >
+                        <Upload size={16} /> Upload JSON
+                    </button>
+                </div>
+
+                <div className="form-group">
                     <button 
                         onClick={handleRunAssignment} 
                         className="btn btn-primary w-full" 
@@ -198,9 +363,11 @@ export function Evaluations({ records, facultyAssignments, output, onOutputChang
                 <div className="output-section animated-fade-in">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                         <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>Results</h3>
-                        <button onClick={handleDownloadJson} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <Download size={16} /> Download JSON
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                            <button onClick={handleDownloadJson} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <Download size={16} /> Download Full JSON
+                            </button>
+                        </div>
                     </div>
 
                     {output.unassignedVats.length > 0 && (
