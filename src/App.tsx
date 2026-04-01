@@ -785,8 +785,8 @@ function App() {
       <aside className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Globe className="logo-icon" size={24} />
-            {!isSidebarCollapsed && <h1 className="logo-text">Antigravity</h1>}
+            <img src="/sessionzilla-mark.svg" alt="Sessionzilla" className="logo-mark" />
+            {!isSidebarCollapsed && <h1 className="logo-text">Sessionzilla</h1>}
           </div>
           <div className="sidebar-header-actions">
             {!isSidebarCollapsed && (
@@ -1254,8 +1254,8 @@ function App() {
         .sidebar-header { padding: 1.5rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
         .sidebar.collapsed .sidebar-header { padding: 1rem 0.75rem; }
         .sidebar-header-actions { display: flex; align-items: center; gap: 0.5rem; }
-        .logo-text { font-size: 1.25rem; font-weight: 800; color: #1e293b; letter-spacing: -0.025em; }
-        .logo-icon { color: #3b82f6; }
+        .logo-text { font-size: 1.25rem; font-weight: 900; color: #1e293b; letter-spacing: -0.035em; }
+        .logo-mark { width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0; box-shadow: 0 6px 16px rgba(37, 99, 235, 0.18); }
         .sidebar-toggle-btn { border: 1px solid #cbd5e1; color: #64748b; }
         .sidebar-nav { flex: 1; overflow-y: auto; padding: 1.5rem; }
         .nav-group-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; color: #64748b; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }

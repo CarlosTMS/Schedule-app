@@ -1,0 +1,29 @@
+<svg width="220" height="220" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="mark_bg" x1="18" y1="18" x2="202" y2="202" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="mark_face" x1="44" y1="42" x2="178" y2="176" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F97316"/>
+      <stop offset="1" stop-color="#EF4444"/>
+    </linearGradient>
+  </defs>
+  <rect x="18" y="18" width="184" height="184" rx="40" fill="url(#mark_bg)"/>
+  <rect x="34" y="34" width="152" height="152" rx="34" fill="#F8FAFC"/>
+  <rect x="34" y="34" width="152" height="40" rx="20" fill="#DBEAFE"/>
+  <circle cx="68" cy="54" r="7" fill="#2563EB"/>
+  <circle cx="100" cy="54" r="7" fill="#7C3AED"/>
+  <path d="M69 103C69 79.2518 88.2518 60 112 60C135.748 60 155 79.2518 155 103V124C155 149.405 134.405 170 109 170H95C80.6406 170 69 158.359 69 144V103Z" fill="url(#mark_face)"/>
+  <path d="M77 88L95 64L108 86H77Z" fill="#F97316"/>
+  <path d="M117 82L136 57L145 83L117 82Z" fill="#FB7185"/>
+  <circle cx="97" cy="108" r="8" fill="#0F172A"/>
+  <circle cx="129" cy="108" r="8" fill="#0F172A"/>
+  <circle cx="94" cy="105" r="2.5" fill="#F8FAFC"/>
+  <circle cx="126" cy="105" r="2.5" fill="#F8FAFC"/>
+  <path d="M89 134C96.5 144.667 106 150 117.5 150C129 150 138.5 144.667 146 134" stroke="#7F1D1D" stroke-width="8" stroke-linecap="round"/>
+  <path d="M82 142L95 154" stroke="#FFF7ED" stroke-width="6" stroke-linecap="round"/>
+  <path d="M143 142L156 154" stroke="#FFF7ED" stroke-width="6" stroke-linecap="round"/>
+  <path d="M70 116H54" stroke="#F97316" stroke-width="10" stroke-linecap="round"/>
+  <path d="M168 116H152" stroke="#F97316" stroke-width="10" stroke-linecap="round"/>
+</svg>
