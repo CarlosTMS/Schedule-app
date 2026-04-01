@@ -785,8 +785,11 @@ function App() {
       <aside className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <img src="/sessionzilla-mark.svg" alt="Sessionzilla" className="logo-mark" />
-            {!isSidebarCollapsed && <h1 className="logo-text">Sessionzilla</h1>}
+            {isSidebarCollapsed ? (
+              <img src="/sessionzilla-mark.svg" alt="Sessionzilla" className="logo-mark" />
+            ) : (
+              <img src="/sessionzilla-logo.svg" alt="Sessionzilla" className="logo-lockup" />
+            )}
           </div>
           <div className="sidebar-header-actions">
             {!isSidebarCollapsed && (
@@ -1251,11 +1254,11 @@ function App() {
         .app-container { display: flex; height: 100vh; overflow: hidden; background: #f8fafc; }
         .sidebar { width: 280px; background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(250,245,255,0.98) 100%); border-right: 1px solid #eadcff; display: flex; flex-direction: column; transition: width 0.2s ease; box-shadow: inset -1px 0 0 rgba(255,255,255,0.7); }
         .sidebar.collapsed { width: 78px; }
-        .sidebar-header { padding: 1.5rem; border-bottom: 1px solid #f3e8ff; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(255,247,237,0.82) 100%); }
+        .sidebar-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid #f3e8ff; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(255,247,237,0.82) 100%); min-height: 96px; }
         .sidebar.collapsed .sidebar-header { padding: 1rem 0.75rem; }
         .sidebar-header-actions { display: flex; align-items: center; gap: 0.5rem; }
-        .logo-text { font-size: 1.25rem; font-weight: 900; color: #1e293b; letter-spacing: -0.035em; text-shadow: 0 1px 0 rgba(255,255,255,0.7); }
         .logo-mark { width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0; box-shadow: 0 10px 24px rgba(91, 71, 244, 0.18); }
+        .logo-lockup { width: 188px; max-width: 100%; height: auto; display: block; filter: drop-shadow(0 10px 20px rgba(91, 71, 244, 0.12)); }
         .sidebar-toggle-btn { border: 1px solid #d8b4fe; color: #7c3aed; background: rgba(255,255,255,0.75); }
         .sidebar-nav { flex: 1; overflow-y: auto; padding: 1.5rem; }
         .nav-group-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; color: #64748b; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
