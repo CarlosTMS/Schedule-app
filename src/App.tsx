@@ -89,6 +89,7 @@ function App() {
   const [publicApiStatus, setPublicApiStatus] = useState<PublicApiStatus | null>(null);
   const [editorIdentity, setEditorIdentity] = useState<EditorIdentity>(() => getEditorIdentity());
   const [pendingEditorName, setPendingEditorName] = useState('');
+  const [dismissedLatestVersionPromptFor, setDismissedLatestVersionPromptFor] = useState<string | null>(null);
   const [remoteChangesAvailable, setRemoteChangesAvailable] = useState(false);
   const [presence, setPresence] = useState<VersionPresence[]>([]);
   const [conflictState, setConflictState] = useState<{
@@ -757,7 +758,23 @@ function App() {
     [projectVersions]
   );
   const isViewingLatestVersion = Boolean(loadedVersionId && latestProjectVersion && loadedVersionId === latestProjectVersion.id);
+  const showLatestVersionPrompt = Boolean(
+    loadedVersionId &&
+    latestProjectVersion &&
+    !isViewingLatestVersion &&
+    dismissedLatestVersionPromptFor !== loadedVersionId
+  );
   const otherEditors = presence.filter(item => item.editor.id !== editorIdentity.id);
+
+  useEffect(() => {
+    if (!loadedVersionId || isViewingLatestVersion) {
+      setDismissedLatestVersionPromptFor(null);
+      return;
+    }
+    if (dismissedLatestVersionPromptFor && dismissedLatestVersionPromptFor !== loadedVersionId) {
+      setDismissedLatestVersionPromptFor(null);
+    }
+  }, [loadedVersionId, isViewingLatestVersion, dismissedLatestVersionPromptFor]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1142,6 +1159,56 @@ function App() {
                   <Save size={14} /> {t('conflictSaveMerged')}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLatestVersionPrompt && latestProjectVersion && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.42)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1.5rem',
+          zIndex: 1050,
+        }}>
+          <div style={{
+            width: 'min(440px, 100%)',
+            background: '#fff',
+            borderRadius: '18px',
+            padding: '1.35rem',
+            boxShadow: '0 24px 70px rgba(15, 23, 42, 0.28)',
+            border: '1px solid #e2e8f0',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.85rem',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', color: '#b45309' }}>
+              <RefreshCw size={18} />
+              <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#0f172a' }}>{t('versionModalTitle')}</h3>
+            </div>
+            <p style={{ margin: 0, color: '#475569', lineHeight: 1.55, fontSize: '0.92rem' }}>
+              {t('versionModalDescription')
+                .replace('{current}', `v${loadedVersion?.versionNumber ?? '?'}`)
+                .replace('{latest}', `v${latestProjectVersion.versionNumber}`)}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
+              <button
+                onClick={() => setDismissedLatestVersionPromptFor(loadedVersionId)}
+                className="btn btn-secondary"
+              >
+                {t('versionModalDismiss')}
+              </button>
+              <button
+                onClick={() => { void handleLoadLatestProjectVersion(); }}
+                className="btn btn-primary"
+                style={{ gap: '0.45rem' }}
+              >
+                <RotateCcw size={14} /> {t('versionRefreshLatest')}
+              </button>
             </div>
           </div>
         </div>
