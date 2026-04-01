@@ -552,6 +552,11 @@ function App() {
     setRemoteChangesAvailable(false);
   };
 
+  const handleLoadLatestProjectVersion = async () => {
+    if (!latestProjectVersion) return;
+    await handleLoadVersion(latestProjectVersion);
+  };
+
   const handleSetPublicApiSource = async (projectId: string, versionId: string) => {
     setLoading(true);
     const { source, status } = await repository.setPublicApiSource(projectId, versionId);
@@ -740,6 +745,18 @@ function App() {
     () => projectVersions.find(version => version.id === loadedVersionId) ?? null,
     [projectVersions, loadedVersionId]
   );
+  const latestProjectVersion = useMemo(
+    () => projectVersions.reduce<RunVersion | null>((latest, version) => {
+      if (!latest) return version;
+      if (version.versionNumber > latest.versionNumber) return version;
+      if (version.versionNumber === latest.versionNumber && new Date(version.createdAt).getTime() > new Date(latest.createdAt).getTime()) {
+        return version;
+      }
+      return latest;
+    }, null),
+    [projectVersions]
+  );
+  const isViewingLatestVersion = Boolean(loadedVersionId && latestProjectVersion && loadedVersionId === latestProjectVersion.id);
   const otherEditors = presence.filter(item => item.editor.id !== editorIdentity.id);
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -985,14 +1002,32 @@ function App() {
                   <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.2rem' }}>
                     {t('lastUpdatedLabel')}: <strong>{formatRelativeTimestamp(loadedVersion?.createdAt)}</strong>
                   </div>
+                  <div style={{
+                    fontSize: '0.72rem',
+                    marginTop: '0.45rem',
+                    color: isViewingLatestVersion ? '#15803d' : '#b45309',
+                    background: isViewingLatestVersion ? '#f0fdf4' : '#fff7ed',
+                    border: `1px solid ${isViewingLatestVersion ? '#bbf7d0' : '#fed7aa'}`,
+                    borderRadius: '9999px',
+                    padding: '0.28rem 0.55rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    fontWeight: 700,
+                  }}>
+                    <CheckCircle2 size={12} />
+                    {isViewingLatestVersion ? t('versionLatestStatus') : t('versionOutdatedStatus')}
+                  </div>
                   {otherEditors.length > 0 && (
                     <div style={{ fontSize: '0.72rem', color: '#2563eb', marginTop: '0.45rem' }}>
                       {t('otherEditorsLabel')}: <strong>{otherEditors.map(item => item.editor.name).join(', ')}</strong>
                     </div>
                   )}
-                  <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.5rem' }}>
-                    <button onClick={() => { if (window.confirm(t('reloadVersionConfirm'))) void handleReloadLatestVersion(); }} className="btn btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}><RotateCcw size={12} /> {t('historyRestore')}</button>
-                  </div>
+                  {!isViewingLatestVersion && (
+                    <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.5rem' }}>
+                      <button onClick={() => { if (window.confirm(t('reloadVersionConfirm'))) void handleLoadLatestProjectVersion(); }} className="btn btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}><RotateCcw size={12} /> {t('versionRefreshLatest')}</button>
+                    </div>
+                  )}
                 </div>
               ) : null
             }
