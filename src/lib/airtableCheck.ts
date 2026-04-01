@@ -40,7 +40,7 @@ export interface AirtableRow extends ComparableSessionRow {
 }
 
 export interface AirtableCheckDifference {
-  field: 'sessionName' | 'calendarStart' | 'calendarEnd' | 'facilitator' | 'producer' | 'numParticipants' | 'participants';
+  field: 'calendarStart' | 'calendarEnd' | 'facilitator' | 'producer' | 'numParticipants' | 'participants';
   label: string;
   appValue: string;
   airtableValue: string;
@@ -203,9 +203,6 @@ const diffMinutes = (leftIso: string, rightIso: string): number =>
 const buildDifferences = (appRow: ComparableSessionRow, airtableRow: AirtableRow): AirtableCheckDifference[] => {
   const diffs: AirtableCheckDifference[] = [];
 
-  if (normalizeSessionName(appRow.sessionName) !== normalizeSessionName(airtableRow.sessionName)) {
-    diffs.push({ field: 'sessionName', label: 'Session Name', appValue: appRow.sessionName, airtableValue: airtableRow.sessionName });
-  }
   if (appRow.calendarStartIso !== airtableRow.calendarStartIso) {
     diffs.push({ field: 'calendarStart', label: 'Calendar Start', appValue: appRow.calendarStartIso, airtableValue: airtableRow.calendarStartIso });
   }

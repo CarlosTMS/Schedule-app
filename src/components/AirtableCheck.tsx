@@ -34,7 +34,7 @@ interface AirtableCheckApiResponse {
   rows: AirtableRow[];
 }
 
-type AirtableCheckView = 'all' | 'name' | 'time' | 'people';
+type AirtableCheckView = 'all' | 'time' | 'people';
 
 export function AirtableCheck(props: AirtableCheckProps) {
   const { t } = useI18n();
@@ -63,11 +63,9 @@ export function AirtableCheck(props: AirtableCheckProps) {
 
   const visibleDifferences = useMemo(() => {
     if (activeView === 'all') return matchedWithDifferences;
-    const wantedFields = activeView === 'name'
-      ? new Set(['sessionName'])
-      : activeView === 'time'
-        ? new Set(['calendarStart', 'calendarEnd'])
-        : new Set(['facilitator', 'producer']);
+    const wantedFields = activeView === 'time'
+      ? new Set(['calendarStart', 'calendarEnd'])
+      : new Set(['facilitator', 'producer']);
 
     return matchedWithDifferences
       .map((row) => ({
@@ -79,7 +77,6 @@ export function AirtableCheck(props: AirtableCheckProps) {
 
   const viewTabs = [
     { id: 'all' as const, label: t('airtableCheckViewAll'), count: matchedWithDifferences.length },
-    { id: 'name' as const, label: t('airtableCheckViewName'), count: matchedWithDifferences.filter((row) => row.differences.some((difference) => difference.field === 'sessionName')).length },
     { id: 'time' as const, label: t('airtableCheckViewTime'), count: matchedWithDifferences.filter((row) => row.differences.some((difference) => difference.field === 'calendarStart' || difference.field === 'calendarEnd')).length },
     { id: 'people' as const, label: t('airtableCheckViewPeople'), count: matchedWithDifferences.filter((row) => row.differences.some((difference) => difference.field === 'facilitator' || difference.field === 'producer')).length },
   ];
