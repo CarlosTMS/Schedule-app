@@ -1150,12 +1150,12 @@ function App() {
         .tag-version { background: #3b82f6; color: #fff; font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px; }
         .tag-public-source { display: inline-flex; align-items: center; gap: 0.25rem; background: #eff6ff; color: #1d4ed8; font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 9999px; }
         .autosave-indicator { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: #64748b; margin-right: 1rem; }
-        .editor-chip { display: inline-flex; align-items: center; gap: 0.65rem; border: 1px solid #dbe3f0; background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%); color: #0f172a; border-radius: 9999px; padding: 0.45rem 0.8rem 0.45rem 0.55rem; cursor: pointer; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06); transition: all 0.18s ease; }
+        .editor-chip { display: inline-flex; align-items: center; gap: 0.55rem; min-width: 0; max-width: 260px; border: 1px solid #dbe3f0; background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%); color: #0f172a; border-radius: 9999px; padding: 0.45rem 0.8rem 0.45rem 0.55rem; cursor: pointer; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06); transition: all 0.18s ease; }
         .editor-chip:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(15, 23, 42, 0.10); border-color: #bfdbfe; }
         .editor-chip-icon { display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; border-radius: 9999px; background: #eff6ff; color: #2563eb; flex-shrink: 0; }
-        .editor-chip-copy { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.05; }
-        .editor-chip-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; font-weight: 700; }
-        .editor-chip-name { font-size: 0.82rem; font-weight: 700; color: #0f172a; max-width: 9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .editor-chip-copy { display: inline-flex; align-items: baseline; gap: 0.4rem; min-width: 0; white-space: nowrap; }
+        .editor-chip-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; font-weight: 700; flex-shrink: 0; }
+        .editor-chip-name { font-size: 0.86rem; font-weight: 700; color: #0f172a; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
         .editor-gate { position: fixed; inset: 0; z-index: 1100; display: flex; align-items: center; justify-content: center; padding: 1.5rem; background:
           radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 28%),
           radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.16), transparent 26%),
@@ -1177,6 +1177,8 @@ function App() {
         @media (max-width: 640px) {
           .editor-gate-card { padding: 1.25rem; border-radius: 20px; }
           .editor-gate-title { font-size: 1.25rem; }
+          .editor-chip { max-width: 180px; }
+          .editor-chip-label { display: none; }
         }
       `}</style>
     </div>

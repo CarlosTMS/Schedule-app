@@ -6,6 +6,7 @@ import type { RunSnapshot } from './runHistoryStorage';
 
 const EDITOR_ID_KEY = 'scheduler_editor_id_v1';
 const EDITOR_NAME_KEY = 'scheduler_editor_name_v1';
+const LEGACY_EDITOR_NAME_PATTERN = /^Editor(?:\s+[A-Z0-9]{3,8})?$/i;
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 const isEqual = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
@@ -30,16 +31,23 @@ export interface MergeResult {
 export const getEditorIdentity = (): EditorIdentity => {
   const existingId = localStorage.getItem(EDITOR_ID_KEY);
   const existingName = localStorage.getItem(EDITOR_NAME_KEY);
+  const normalizedName =
+    existingName && !LEGACY_EDITOR_NAME_PATTERN.test(existingName.trim())
+      ? existingName.trim()
+      : '';
   if (existingId) {
-    return { id: existingId, name: existingName?.trim() ?? '' };
+    if (!normalizedName && existingName) {
+      localStorage.removeItem(EDITOR_NAME_KEY);
+    }
+    return { id: existingId, name: normalizedName };
   }
 
   const id = Math.random().toString(36).slice(2, 10);
   localStorage.setItem(EDITOR_ID_KEY, id);
-  if (existingName !== null) {
-    localStorage.setItem(EDITOR_NAME_KEY, existingName);
+  if (normalizedName) {
+    localStorage.setItem(EDITOR_NAME_KEY, normalizedName);
   }
-  return { id, name: existingName?.trim() ?? '' };
+  return { id, name: normalizedName };
 };
 
 export const setEditorIdentityName = (name: string): EditorIdentity => {
