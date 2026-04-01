@@ -1,19 +1,20 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --bg-color: #f0f4f8;
-  --surface-color: rgba(255, 255, 255, 0.7);
-  --border-color: rgba(255, 255, 255, 0.4);
+  --bg-color: #f8f6fb;
+  --surface-color: rgba(255, 255, 255, 0.78);
+  --border-color: rgba(255, 255, 255, 0.55);
   --text-primary: #1e293b;
   --text-secondary: #64748b;
-  --primary-color: #3b82f6;
-  --primary-hover: #2563eb;
+  --primary-color: #5b47f4;
+  --primary-hover: #4b34eb;
+  --accent-color: #f97316;
   --danger-color: #ef4444;
   --success-color: #10b981;
 
-  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
-  --glass-border: 1px solid rgba(255, 255, 255, 0.4);
-  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-shadow: 0 12px 36px 0 rgba(51, 29, 108, 0.08);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.52);
+  --glass-bg: rgba(255, 255, 255, 0.8);
   --glass-blur: blur(12px);
 
   --border-radius-sm: 6px;
@@ -31,9 +32,9 @@ body {
   font-family: 'Inter', sans-serif;
   background-color: var(--bg-color);
   background-image:
-    radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 0) 0, transparent 50%),
-    radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 0.05) 0, transparent 50%),
-    radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 0.05) 0, transparent 50%);
+    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.11) 0, transparent 28%),
+    radial-gradient(circle at 100% 0%, rgba(91, 71, 244, 0.11) 0, transparent 34%),
+    radial-gradient(circle at 50% 100%, rgba(236, 72, 153, 0.08) 0, transparent 32%);
   color: var(--text-primary);
   line-height: 1.5;
   min-height: 100vh;
@@ -68,15 +69,15 @@ body {
 }
 
 .btn-primary {
-  background-color: var(--primary-color);
+  background: linear-gradient(135deg, var(--primary-color) 0%, color-mix(in srgb, var(--primary-color) 78%, var(--accent-color) 22%) 100%);
   color: white;
-  box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.39);
+  box-shadow: 0 10px 24px rgba(91, 71, 244, 0.28);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--primary-hover);
+  background: linear-gradient(135deg, var(--primary-hover) 0%, color-mix(in srgb, var(--primary-hover) 75%, var(--accent-color) 25%) 100%);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.23);
+  box-shadow: 0 14px 28px rgba(91, 71, 244, 0.24);
 }
 
 .btn-primary:disabled {
@@ -86,14 +87,15 @@ body {
 }
 
 .btn-secondary {
-  background-color: white;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(248,250,252,0.92) 100%);
   color: var(--text-primary);
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e7ddff;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: #f8fafc;
-  border-color: #cbd5e1;
+  background: linear-gradient(180deg, #ffffff 0%, #fff7ed 100%);
+  border-color: #fdba74;
 }
 
 /* Inputs */
@@ -140,7 +142,7 @@ h4 {
 h1 {
   font-size: 2.5rem;
   letter-spacing: -0.025em;
-  background: linear-gradient(135deg, #1e293b 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, #1e293b 0%, var(--primary-color) 60%, var(--accent-color) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
