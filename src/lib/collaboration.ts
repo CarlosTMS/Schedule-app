@@ -30,24 +30,28 @@ export interface MergeResult {
 export const getEditorIdentity = (): EditorIdentity => {
   const existingId = localStorage.getItem(EDITOR_ID_KEY);
   const existingName = localStorage.getItem(EDITOR_NAME_KEY);
-  if (existingId && existingName) {
-    return { id: existingId, name: existingName };
+  if (existingId) {
+    return { id: existingId, name: existingName?.trim() ?? '' };
   }
 
   const id = Math.random().toString(36).slice(2, 10);
-  const name = existingName || `Editor ${id.slice(0, 4).toUpperCase()}`;
   localStorage.setItem(EDITOR_ID_KEY, id);
-  localStorage.setItem(EDITOR_NAME_KEY, name);
-  return { id, name };
+  if (existingName !== null) {
+    localStorage.setItem(EDITOR_NAME_KEY, existingName);
+  }
+  return { id, name: existingName?.trim() ?? '' };
 };
 
 export const setEditorIdentityName = (name: string): EditorIdentity => {
   const identity = getEditorIdentity();
   const trimmed = name.trim();
-  const next = { ...identity, name: trimmed || identity.name };
+  const next = { ...identity, name: trimmed };
   localStorage.setItem(EDITOR_NAME_KEY, next.name);
   return next;
 };
+
+export const hasEditorIdentityName = (identity: EditorIdentity | null | undefined): boolean =>
+  Boolean(identity?.name?.trim());
 
 export const formatRelativeTimestamp = (iso: string | null | undefined): string => {
   if (!iso) return 'Never';

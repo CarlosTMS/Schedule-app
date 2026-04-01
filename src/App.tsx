@@ -24,7 +24,7 @@ import { Globe, Clock, Trash2, RotateCcw, Pencil, CheckCircle2, Plus, History, S
 import { forceFetchSMEData, loadSMEData, type SMECacheStatus } from './lib/smeDataLoader';
 import type { SME } from './lib/smeMatcher';
 import { buildSchedulesBySA, buildSummaryExport, buildVatsExport } from './lib/publicApiPayloads';
-import { applyConflictResolutions, formatRelativeTimestamp, getEditorIdentity, mergeSnapshots, setEditorIdentityName, type MergeConflict } from './lib/collaboration';
+import { applyConflictResolutions, formatRelativeTimestamp, getEditorIdentity, hasEditorIdentityName, mergeSnapshots, setEditorIdentityName, type MergeConflict } from './lib/collaboration';
 
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -82,6 +82,7 @@ function App() {
   const [loadedVersionId, setLoadedVersionId] = useState<string | null>(null);
   const [publicApiStatus, setPublicApiStatus] = useState<PublicApiStatus | null>(null);
   const [editorIdentity, setEditorIdentity] = useState<EditorIdentity>(() => getEditorIdentity());
+  const [pendingEditorName, setPendingEditorName] = useState('');
   const [remoteChangesAvailable, setRemoteChangesAvailable] = useState(false);
   const [presence, setPresence] = useState<VersionPresence[]>([]);
   const [conflictState, setConflictState] = useState<{
@@ -135,6 +136,7 @@ function App() {
     () => projects.find((project) => project.publicApiVersionId)?.publicApiVersionId ?? null,
     [projects]
   );
+  const editorReady = useMemo(() => hasEditorIdentityName(editorIdentity), [editorIdentity]);
 
   const applySnapshot = useCallback((s: RunSnapshot) => {
     setRecords(s.records);
@@ -188,8 +190,22 @@ function App() {
 
   const handleRenameEditor = () => {
     const nextName = window.prompt(t('editorNamePrompt'), editorIdentity.name);
-    if (!nextName) return;
+    if (nextName === null) return;
+    if (!nextName.trim()) {
+      setError(t('editorNameRequired'));
+      return;
+    }
     setEditorIdentity(setEditorIdentityName(nextName));
+  };
+
+  const handleCompleteEditorSetup = () => {
+    if (!pendingEditorName.trim()) {
+      setError(t('editorNameRequired'));
+      return;
+    }
+    setEditorIdentity(setEditorIdentityName(pendingEditorName));
+    setPendingEditorName('');
+    setError(null);
   };
 
   const publishVersionOutputs = useCallback(async (projectId: string, versionId: string, snapshot: RunSnapshot) => {
@@ -374,7 +390,7 @@ function App() {
   }, [activeProjectId]);
 
   useEffect(() => {
-    if (!activeProjectId || !loadedVersionId) {
+    if (!activeProjectId || !loadedVersionId || !editorReady) {
       setPresence([]);
       return;
     }
@@ -412,7 +428,7 @@ function App() {
       window.clearInterval(refreshInterval);
       window.clearInterval(heartbeatInterval);
     };
-  }, [activeProjectId, loadedVersionId, editorIdentity]);
+  }, [activeProjectId, loadedVersionId, editorIdentity, editorReady]);
 
   // ── Autosave Draft (Local & Remote Sync) ───────────────────────────────────
   useEffect(() => {
@@ -422,6 +438,10 @@ function App() {
 
 
   const handleCreateProject = async () => {
+    if (!editorReady) {
+      setError(t('editorNameRequired'));
+      return;
+    }
     if (!result) return;
     const name = window.prompt(t('projectName'), `Project ${new Date().toLocaleDateString()}`);
     if (!name) return;
@@ -451,6 +471,10 @@ function App() {
   };
 
   const handleSaveVersion = async () => {
+    if (!editorReady) {
+      setError(t('editorNameRequired'));
+      return;
+    }
     if (!activeProjectId || !result) return;
     const label = window.prompt(t('versionLabel')) || undefined;
 
@@ -474,6 +498,10 @@ function App() {
   };
 
   const handleSaveCurrentVersion = async () => {
+    if (!editorReady) {
+      setError(t('editorNameRequired'));
+      return;
+    }
     if (!activeProjectId || !result || !loadedVersionId) return;
 
     setLoading(true);
@@ -801,8 +829,12 @@ function App() {
                 {t('publicApiCurrentSource')}: {projects.find(p => p.id === publicApiStatus.publicSource?.projectId)?.name ?? 'Project'} / v{projectVersions.find(v => v.id === publicApiStatus.publicSource?.versionId)?.versionNumber ?? '?'}
               </div>
             )}
-            <button onClick={handleRenameEditor} className="btn btn-secondary" style={{ gap: '0.4rem', padding: '0.45rem 0.75rem' }}>
-              <Pencil size={14} /> {editorIdentity.name}
+            <button onClick={handleRenameEditor} className="editor-chip" title={t('editorChipTitle')}>
+              <span className="editor-chip-icon"><Pencil size={13} /></span>
+              <span className="editor-chip-copy">
+                <span className="editor-chip-label">{t('editorChipLabel')}</span>
+                <span className="editor-chip-name">{editorIdentity.name || t('editorChipUnset')}</span>
+              </span>
             </button>
             {autosaveStatus !== 'idle' && (
               <div className={`autosave-indicator status-${autosaveStatus}`}>
@@ -822,8 +854,8 @@ function App() {
                   <button onClick={handleCreateProject} className="btn btn-primary" style={{ gap: '0.5rem' }}><Save size={16} /> {t('projectNew')}</button>
                 ) : (
                   <>
-                    <button onClick={handleSaveCurrentVersion} className="btn btn-secondary" style={{ gap: '0.5rem' }} disabled={!loadedVersionId}><Save size={16} /> {t('versionSaveCurrent')}</button>
-                    <button onClick={handleSaveVersion} className="btn btn-primary" style={{ gap: '0.5rem' }}><Save size={16} /> {t('versionSave')}</button>
+                    <button onClick={handleSaveCurrentVersion} className="btn btn-secondary" style={{ gap: '0.5rem' }} disabled={!loadedVersionId || !editorReady}><Save size={16} /> {t('versionSaveCurrent')}</button>
+                    <button onClick={handleSaveVersion} className="btn btn-primary" style={{ gap: '0.5rem' }} disabled={!editorReady}><Save size={16} /> {t('versionSave')}</button>
                   </>
                 )}
               </div>
@@ -1052,6 +1084,38 @@ function App() {
         </div>
       )}
 
+      {!editorReady && (
+        <div className="editor-gate">
+          <div className="editor-gate-card">
+            <div className="editor-gate-badge">
+              <Pencil size={14} />
+              {t('editorChipLabel')}
+            </div>
+            <h2 className="editor-gate-title">{t('editorGateTitle')}</h2>
+            <p className="editor-gate-description">{t('editorGateDescription')}</p>
+            <div className="editor-gate-form">
+              <input
+                type="text"
+                value={pendingEditorName}
+                onChange={(event) => setPendingEditorName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    handleCompleteEditorSetup();
+                  }
+                }}
+                className="editor-gate-input"
+                placeholder={t('editorGatePlaceholder')}
+                autoFocus
+              />
+              <button onClick={handleCompleteEditorSetup} className="btn btn-primary editor-gate-button">
+                {t('editorGateContinue')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         .app-container { display: flex; height: 100vh; overflow: hidden; background: #f8fafc; }
         .sidebar { width: 280px; background: #fff; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; transition: width 0.2s ease; }
@@ -1086,12 +1150,34 @@ function App() {
         .tag-version { background: #3b82f6; color: #fff; font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px; }
         .tag-public-source { display: inline-flex; align-items: center; gap: 0.25rem; background: #eff6ff; color: #1d4ed8; font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 9999px; }
         .autosave-indicator { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: #64748b; margin-right: 1rem; }
+        .editor-chip { display: inline-flex; align-items: center; gap: 0.65rem; border: 1px solid #dbe3f0; background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%); color: #0f172a; border-radius: 9999px; padding: 0.45rem 0.8rem 0.45rem 0.55rem; cursor: pointer; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06); transition: all 0.18s ease; }
+        .editor-chip:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(15, 23, 42, 0.10); border-color: #bfdbfe; }
+        .editor-chip-icon { display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; border-radius: 9999px; background: #eff6ff; color: #2563eb; flex-shrink: 0; }
+        .editor-chip-copy { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.05; }
+        .editor-chip-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; font-weight: 700; }
+        .editor-chip-name { font-size: 0.82rem; font-weight: 700; color: #0f172a; max-width: 9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .editor-gate { position: fixed; inset: 0; z-index: 1100; display: flex; align-items: center; justify-content: center; padding: 1.5rem; background:
+          radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 28%),
+          radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.16), transparent 26%),
+          rgba(15, 23, 42, 0.82); backdrop-filter: blur(6px); }
+        .editor-gate-card { width: min(520px, 100%); background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%); border: 1px solid rgba(191, 219, 254, 0.9); border-radius: 24px; box-shadow: 0 30px 80px rgba(15, 23, 42, 0.35); padding: 1.75rem; display: flex; flex-direction: column; gap: 1rem; }
+        .editor-gate-badge { display: inline-flex; align-items: center; gap: 0.45rem; align-self: flex-start; padding: 0.35rem 0.65rem; border-radius: 9999px; background: #eff6ff; color: #2563eb; font-size: 0.76rem; font-weight: 700; }
+        .editor-gate-title { margin: 0; font-size: 1.5rem; line-height: 1.1; color: #0f172a; }
+        .editor-gate-description { margin: 0; color: #475569; line-height: 1.6; font-size: 0.96rem; }
+        .editor-gate-form { display: flex; flex-direction: column; gap: 0.85rem; }
+        .editor-gate-input { width: 100%; border: 1px solid #cbd5e1; border-radius: 14px; background: #fff; padding: 0.9rem 1rem; font-size: 0.98rem; color: #0f172a; outline: none; box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03); transition: border-color 0.16s ease, box-shadow 0.16s ease; }
+        .editor-gate-input:focus { border-color: #60a5fa; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12); }
+        .editor-gate-button { width: 100%; justify-content: center; }
         .sync-badge { padding: 0.25rem 0.5rem; font-size: 0.65rem; font-weight: 700; border-radius: 4px; text-transform: uppercase; }
         .sync-badge.online { background: #dcfce7; color: #166534; }
         .sync-badge.offline { background: #fee2e2; color: #991b1b; }
         .sidebar-footer { padding: 1rem; border-top: 1px solid #f1f5f9; text-align: center; }
         .version-status-box { display: flex; flex-direction: column; background: #f1f5f9; padding: 0.5rem; border-radius: 6px; }
         .version-tag { font-size: 0.75rem; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 0.25rem; }
+        @media (max-width: 640px) {
+          .editor-gate-card { padding: 1.25rem; border-radius: 20px; }
+          .editor-gate-title { font-size: 1.25rem; }
+        }
       `}</style>
     </div>
   );
