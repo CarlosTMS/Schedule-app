@@ -33,9 +33,9 @@ interface SMEScheduleProps {
 }
 
 const SA_LEADS: Record<string, { saLead: string; salesLead: string; csmLead: string }> = {
-    'Cloud ERP': { saLead: 'Jessica', salesLead: 'Sandra', csmLead: 'Amy' },
-    'oCFO': { saLead: 'Jessica', salesLead: 'Sandra', csmLead: 'Amy' },
-    'Procurement': { saLead: 'Jessica', salesLead: 'Sandra', csmLead: 'Amy' },
+    'Cloud ERP': { saLead: 'Jessica Zhang', salesLead: 'Sandra', csmLead: 'Amy' },
+    'oCFO': { saLead: 'Jessica Zhang', salesLead: 'Sandra', csmLead: 'Amy' },
+    'Procurement': { saLead: 'Jessica Zhang', salesLead: 'Sandra', csmLead: 'Amy' },
     'BTP': { saLead: 'Fernando', salesLead: 'Pau', csmLead: 'Carlos' },
     'Data & AI': { saLead: 'Fernando', salesLead: 'Pau', csmLead: 'Carlos' },
     'BTM': { saLead: 'David', salesLead: 'Daron', csmLead: 'Nelly / Hanna' },

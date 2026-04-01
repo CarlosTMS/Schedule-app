@@ -37,6 +37,8 @@ const FACULTY_CANONICAL_NAMES: Record<string, string> = {
     'ivan': 'Ivan Aguilar Duclaud',
     'ivan aguilar': 'Ivan Aguilar Duclaud',
     'ivan aguilar duclaud': 'Ivan Aguilar Duclaud',
+    'jessica': 'Jessica Zhang',
+    'jessica zhang': 'Jessica Zhang',
     'juan': 'Juan Gonzalez',
     'juan gonzalez': 'Juan Gonzalez',
     'nelly': 'Nelly Rebollo',
