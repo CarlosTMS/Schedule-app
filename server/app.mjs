@@ -206,6 +206,44 @@ const buildAirtableCheckWorkbookBuffer = (payload) => {
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 };
 
+const getEvaluationMemberEmail = (member) =>
+  member?.Email ??
+  member?.email ??
+  member?.['E-mail'] ??
+  member?.['Email Address'] ??
+  member?.['Associate Email'] ??
+  '';
+
+const formatEvaluationMemberMeta = (member) => {
+  const parts = [
+    member?.Country,
+    member?.Office,
+    getEvaluationMemberEmail(member),
+  ].filter(Boolean);
+  return parts.length ? ` (${parts.join(' | ')})` : '';
+};
+
+const formatEvaluationTeamMembersText = (members) => {
+  if (!Array.isArray(members) || members.length === 0) return '';
+  return members
+    .map((member) => `${member?.['Full Name'] ?? 'Unknown'}${formatEvaluationMemberMeta(member)}`)
+    .join('; ');
+};
+
+const renderEvaluationTeamMembersHtml = (members) => {
+  if (!Array.isArray(members) || members.length === 0) return '<span class="muted">No team details</span>';
+  return `
+    <ul class="team-list">
+      ${members.map((member) => `
+        <li>
+          <strong>${escapeHtml(member?.['Full Name'] ?? 'Unknown')}</strong>
+          <span>${escapeHtml(formatEvaluationMemberMeta(member).replace(/^\s*/, ''))}</span>
+        </li>
+      `).join('')}
+    </ul>
+  `;
+};
+
 const flattenEvaluationRows = (payload) => {
   const assignedRows = Array.isArray(payload?.output?.assignments)
     ? payload.output.assignments.flatMap((assignment) =>
@@ -225,6 +263,8 @@ const flattenEvaluationRows = (payload) => {
           vatMemberLocalRange: vat.vatMemberLocalRange ?? '',
           vatAverageLocalStart: vat.vatAvgLocalStart ?? '',
           timingQuality: vat.timingQuality ?? '',
+          members: Array.isArray(vat.members) ? vat.members : [],
+          teamDetails: formatEvaluationTeamMembersText(vat.members),
         }))
       )
     : [];
@@ -246,6 +286,8 @@ const flattenEvaluationRows = (payload) => {
         vatMemberLocalRange: vat.vatMemberLocalRange ?? '',
         vatAverageLocalStart: vat.vatAvgLocalStart ?? '',
         timingQuality: vat.timingQuality ?? '',
+        members: Array.isArray(vat.members) ? vat.members : [],
+        teamDetails: formatEvaluationTeamMembersText(vat.members),
       }))
     : [];
 
@@ -269,6 +311,7 @@ const buildEvaluationsCsv = (payload) => {
     'VAT Member Local Range',
     'VAT Average Local Start',
     'Timing Quality',
+    'VAT Team',
   ];
 
   const rows = flattenEvaluationRows(payload).map((row) => ([
@@ -287,9 +330,55 @@ const buildEvaluationsCsv = (payload) => {
     row.vatMemberLocalRange,
     row.vatAverageLocalStart,
     row.timingQuality,
+    row.teamDetails,
   ]));
 
   return [headers, ...rows].map((line) => line.map(escapeCsvCell).join(',')).join('\n');
+};
+
+const buildEvaluationsWorkbookBuffer = (payload) => {
+  const rows = flattenEvaluationRows(payload).map((row) => ({
+    Status: row.status,
+    'Evaluator Name': row.evaluatorName,
+    'Evaluator Role': row.evaluatorRole,
+    'Evaluator UTC Offset': row.evaluatorUtcOffset,
+    'VAT Name': row.vatName,
+    'Solution Area': row.solutionArea,
+    'VAT UTC Offset': row.vatUtcOffset,
+    'Members Count': row.membersCount,
+    'Suggested Meeting UTC': row.suggestedMeetingUtc,
+    'Suggested Date UTC': row.suggestedDateUtc,
+    'Suggested Day': row.suggestedDay,
+    'Evaluator Local Slot': row.evaluatorLocalSlot,
+    'VAT Member Local Range': row.vatMemberLocalRange,
+    'VAT Average Local Start': row.vatAverageLocalStart,
+    'Timing Quality': row.timingQuality,
+    'VAT Team': row.teamDetails,
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(rows, {
+    header: [
+      'Status',
+      'Evaluator Name',
+      'Evaluator Role',
+      'Evaluator UTC Offset',
+      'VAT Name',
+      'Solution Area',
+      'VAT UTC Offset',
+      'Members Count',
+      'Suggested Meeting UTC',
+      'Suggested Date UTC',
+      'Suggested Day',
+      'Evaluator Local Slot',
+      'VAT Member Local Range',
+      'VAT Average Local Start',
+      'Timing Quality',
+      'VAT Team',
+    ],
+  });
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Evaluations');
+  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 };
 
 const renderEvaluationsTable = (title, rows) => {
@@ -306,9 +395,10 @@ const renderEvaluationsTable = (title, rows) => {
         <td>${escapeHtml(row.evaluatorLocalSlot)}</td>
         <td>${escapeHtml(row.vatMemberLocalRange)}</td>
         <td>${escapeHtml(row.timingQuality)}</td>
+        <td>${renderEvaluationTeamMembersHtml(row.members)}</td>
       </tr>
     `).join('')
-    : `<tr><td colspan="9">No rows in this group.</td></tr>`;
+    : `<tr><td colspan="10">No rows in this group.</td></tr>`;
 
   return `
     <section class="section">
@@ -326,6 +416,7 @@ const renderEvaluationsTable = (title, rows) => {
               <th>Evaluator Local Slot</th>
               <th>VAT Member Range</th>
               <th>Timing Quality</th>
+              <th>VAT Team</th>
             </tr>
           </thead>
           <tbody>${body}</tbody>
@@ -543,6 +634,10 @@ const renderEvaluationsHtml = (payload) => {
       .data-table thead { background:#f4faec; }
       .data-table th { text-align:left; padding:0.85rem 0.75rem; color:var(--muted); font-size:0.75rem; font-weight:800; letter-spacing:0.05em; text-transform:uppercase; }
       .data-table td { padding:0.85rem 0.75rem; border-top:1px solid rgba(45,95,75,0.08); vertical-align:top; }
+      .team-list { margin: 0; padding-left: 1rem; }
+      .team-list li + li { margin-top: 0.35rem; }
+      .team-list strong { display: block; color: var(--text); }
+      .team-list span, .muted { color: var(--muted); font-size: 0.92em; }
       ul { margin:0; padding-left:1.2rem; color:var(--text); }
       a { color:var(--primary); text-decoration:none; }
       a:hover { text-decoration:underline; }
@@ -560,6 +655,7 @@ const renderEvaluationsHtml = (payload) => {
           </div>
         </div>
         <div class="actions">
+          <a class="button" href="/api/public/evaluations.xlsx">Export Excel</a>
           <a class="button" href="/api/public/evaluations.csv">Export CSV</a>
           <a class="button secondary" href="/api/public/evaluations" target="_blank" rel="noreferrer">View JSON</a>
         </div>
@@ -861,6 +957,25 @@ const server = http.createServer(async (req, res) => {
         return;
       } catch (err) {
         return jsonResponse(res, 500, { error: String(err) });
+      }
+    }
+
+    if (pathname === '/api/public/evaluations.xlsx' && req.method === 'GET') {
+      try {
+        const data = await persistence.getAppState?.('evaluations.latest');
+        if (!data) {
+          return jsonResponse(res, 404, { error: 'No evaluations snapshot published yet.' });
+        }
+        const buffer = buildEvaluationsWorkbookBuffer(data);
+        res.writeHead(200, {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': 'attachment; filename="evaluations-public.xlsx"',
+          ...corsHeaders,
+        });
+        res.end(buffer);
+        return;
+      } catch (err) {
+        return jsonResponse(res, 500, { error: `Failed to build evaluations workbook: ${err}` });
       }
     }
 
