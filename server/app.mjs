@@ -206,6 +206,75 @@ const buildAirtableCheckWorkbookBuffer = (payload) => {
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 };
 
+const normalizeLookupValue = (value) => String(value ?? '').trim().toLowerCase();
+
+const enrichEvaluationMembersFromVats = (payload, vatsPayload) => {
+  if (!isObject(payload) || !isObject(vatsPayload) || !Array.isArray(vatsPayload.vats)) {
+    return payload;
+  }
+
+  const vatsByName = new Map(
+    vatsPayload.vats.map((vat) => [
+      normalizeLookupValue(vat?.vat ?? vat?.name),
+      Array.isArray(vat?.members) ? vat.members : [],
+    ])
+  );
+
+  const enrichMembers = (vatName, members) => {
+    if (!Array.isArray(members) || members.length === 0) return members;
+    const vatMembers = vatsByName.get(normalizeLookupValue(vatName)) ?? [];
+    const vatMemberLookup = new Map(
+      vatMembers.map((member) => {
+        const key = [
+          normalizeLookupValue(member?.name ?? member?.['Full Name']),
+          normalizeLookupValue(member?.country ?? member?.Country),
+          normalizeLookupValue(member?.office ?? member?.Office),
+        ].join('|');
+        return [key, member];
+      })
+    );
+
+    return members.map((member) => {
+      if (getEvaluationMemberEmail(member)) return member;
+      const key = [
+        normalizeLookupValue(member?.['Full Name'] ?? member?.name),
+        normalizeLookupValue(member?.Country ?? member?.country),
+        normalizeLookupValue(member?.Office ?? member?.office),
+      ].join('|');
+      const match = vatMemberLookup.get(key);
+      if (!match?.email) return member;
+      return {
+        ...member,
+        Email: match.email,
+      };
+    });
+  };
+
+  return {
+    ...payload,
+    output: {
+      ...payload.output,
+      assignments: Array.isArray(payload?.output?.assignments)
+        ? payload.output.assignments.map((assignment) => ({
+            ...assignment,
+            assignedVats: Array.isArray(assignment?.assignedVats)
+              ? assignment.assignedVats.map((vat) => ({
+                  ...vat,
+                  members: enrichMembers(vat?.name, vat?.members),
+                }))
+              : assignment?.assignedVats,
+          }))
+        : payload?.output?.assignments,
+      unassignedVats: Array.isArray(payload?.output?.unassignedVats)
+        ? payload.output.unassignedVats.map((vat) => ({
+            ...vat,
+            members: enrichMembers(vat?.name, vat?.members),
+          }))
+        : payload?.output?.unassignedVats,
+    },
+  };
+};
+
 const getEvaluationMemberEmail = (member) =>
   member?.Email ??
   member?.email ??
@@ -713,6 +782,13 @@ const saveVersionedPublication = async ({ type, projectId, versionId, payload })
   return { saved, latestSynced: Boolean(latest) };
 };
 
+const getEnrichedEvaluationsSnapshot = async () => {
+  const data = await persistence.getAppState?.('evaluations.latest');
+  if (!data) return null;
+  const vatsPayload = await persistence.getPublication?.('vats.latest');
+  return enrichEvaluationMembersFromVats(data, vatsPayload);
+};
+
 const isClientAbortError = (err) =>
   Boolean(err) && (
     err.code === 'ECONNRESET' ||
@@ -910,7 +986,7 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/public/evaluations') {
       if (req.method === 'GET') {
         try {
-          const data = await persistence.getAppState?.('evaluations.latest');
+          const data = await getEnrichedEvaluationsSnapshot();
           if (!data) {
             return jsonResponse(res, 404, { error: 'No evaluations snapshot published yet.' });
           }
@@ -943,7 +1019,7 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/public/evaluations.csv' && req.method === 'GET') {
       try {
-        const data = await persistence.getAppState?.('evaluations.latest');
+        const data = await getEnrichedEvaluationsSnapshot();
         if (!data) {
           return jsonResponse(res, 404, { error: 'No evaluations snapshot published yet.' });
         }
@@ -962,7 +1038,7 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/public/evaluations.xlsx' && req.method === 'GET') {
       try {
-        const data = await persistence.getAppState?.('evaluations.latest');
+        const data = await getEnrichedEvaluationsSnapshot();
         if (!data) {
           return jsonResponse(res, 404, { error: 'No evaluations snapshot published yet.' });
         }
@@ -981,7 +1057,7 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/public/evaluations' && req.method === 'GET') {
       try {
-        const data = await persistence.getAppState?.('evaluations.latest');
+        const data = await getEnrichedEvaluationsSnapshot();
         if (!data) {
           res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
           res.end('<h1>No evaluations snapshot published yet.</h1>');
