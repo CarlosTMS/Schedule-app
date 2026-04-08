@@ -235,7 +235,7 @@ function App() {
       setSmeStatus(loaded.status);
     }
 
-    const exportRecords = snapshot.result?.records?.length ? snapshot.result.records : snapshot.records;
+    const exportRecords = snapshot.records;
     const exportSchedulesBySA = buildSchedulesBySA(exportRecords);
 
     const summaryPayload = buildSummaryExport({
