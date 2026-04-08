@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { StudentRecord } from '../lib/excelParser';
-import { AlertTriangle, Users, AlertCircle, Plus, CheckSquare, Square, Zap, Info, ArrowRight, Send, CheckCircle, CalendarDays, Calendar, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Users, AlertCircle, Plus, CheckSquare, Square, Zap, Info, ArrowRight, Send, CheckCircle, CalendarDays, Calendar, RotateCcw, ExternalLink } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { extractScheduleKey as tzExtractKey, formatUtcHourLabel, SUN_THU_COUNTRIES } from '../lib/timezones';
 import { getAssociateEmail } from '../lib/associateEmailDirectory';
@@ -74,12 +74,14 @@ export function VATVisualizer({
     const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [publishingVats, setPublishingVats] = useState(false);
+    const [publishingPublicVats, setPublishingPublicVats] = useState(false);
     const [publishedEndpoints, setPublishedEndpoints] = useState<{
         publicSummaryUrl: string | null;
         publicVatsUrl: string | null;
         versionSummaryUrl: string | null;
         versionVatsUrl: string | null;
     } | null>(null);
+    const [publicReportLink, setPublicReportLink] = useState<string | null>(null);
 
     const data = useMemo(() => {
         const formedVats: Record<string, StudentRecord[]> = {};
@@ -183,6 +185,26 @@ export function VATVisualizer({
             alert(t('publishFailed').replace('{err}', String(err)));
         } finally {
             setPublishingVats(false);
+        }
+    };
+
+    const handleRefreshPublicVatsLink = async () => {
+        setPublishingPublicVats(true);
+        try {
+            const payload = buildVatsPayload();
+            const res = await fetch(`${API_BASE}/api/public/vats`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json() as { public_url?: string };
+            setPublicReportLink(data.public_url ?? `${window.location.origin}/public/vats`);
+        } catch (err) {
+            setPublicReportLink(null);
+            alert(t('publishFailed').replace('{err}', String(err)));
+        } finally {
+            setPublishingPublicVats(false);
         }
     };
 
@@ -500,6 +522,14 @@ export function VATVisualizer({
                     >
                         <Send size={15} /> {publishingVats ? '...' : t('refreshApiSnapshot')}
                     </button>
+                    <button
+                        onClick={() => { void handleRefreshPublicVatsLink(); }}
+                        disabled={publishingPublicVats}
+                        className="btn btn-secondary"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', opacity: publishingPublicVats ? 0.7 : 1 }}
+                    >
+                        <ExternalLink size={15} /> {publishingPublicVats ? '...' : t('refreshPublicVatsLink')}
+                    </button>
                     {publishedEndpoints && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.8rem', padding: '0.75rem 0.95rem', borderRadius: '14px', background: 'rgba(14,165,233,0.1)', border: '1px solid rgba(14,165,233,0.3)', color: '#0369a1' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700 }}>
@@ -518,6 +548,17 @@ export function VATVisualizer({
                             {publishedEndpoints.versionVatsUrl && (
                                 <div><strong>{t('apiVatsVersion')}:</strong> <a href={publishedEndpoints.versionVatsUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publishedEndpoints.versionVatsUrl}</a></div>
                             )}
+                        </div>
+                    )}
+                    {publicReportLink && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.8rem', padding: '0.75rem 0.95rem', borderRadius: '14px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.22)', color: '#166534' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700 }}>
+                                <CheckCircle size={13} />
+                                {t('publicVatsReportTitle')}
+                            </div>
+                            <div><strong>{t('publicURL')}:</strong> <a href={publicReportLink} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{publicReportLink}</a></div>
+                            <div><strong>{t('exportCSV')}:</strong> <a href={`${window.location.origin}/api/public/vats.csv`} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{`${window.location.origin}/api/public/vats.csv`}</a></div>
+                            <div><strong>{t('exportJSON')}:</strong> <a href={`${window.location.origin}/api/public/vats`} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 600 }}>{`${window.location.origin}/api/public/vats`}</a></div>
                         </div>
                     )}
                 </div>

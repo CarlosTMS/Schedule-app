@@ -206,6 +206,57 @@ const buildAirtableCheckWorkbookBuffer = (payload) => {
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 };
 
+const flattenVatsRows = (payload) =>
+  Array.isArray(payload?.vats)
+    ? payload.vats.map((vat) => ({
+        vat: vat?.vat ?? '',
+        membersCount: vat?.members_count ?? '',
+        solutionAreas: Array.isArray(vat?.solution_areas) ? vat.solution_areas.join(', ') : '',
+        schedules: Array.isArray(vat?.schedules) ? vat.schedules.join(', ') : '',
+        members: Array.isArray(vat?.members) ? vat.members : [],
+        teamDetails: Array.isArray(vat?.members)
+          ? vat.members
+              .map((member) => {
+                const meta = [member?.country, member?.office, member?.email].filter(Boolean).join(' | ');
+                return `${member?.name ?? 'Unknown'}${meta ? ` (${meta})` : ''}`;
+              })
+              .join('; ')
+          : '',
+      }))
+    : [];
+
+const buildVatsCsv = (payload) => {
+  const headers = [
+    'VAT',
+    'Members Count',
+    'Solution Areas',
+    'Schedules',
+    'VAT Team',
+  ];
+  const rows = flattenVatsRows(payload).map((row) => ([
+    row.vat,
+    row.membersCount,
+    row.solutionAreas,
+    row.schedules,
+    row.teamDetails,
+  ]));
+  return [headers, ...rows].map((line) => line.map(escapeCsvCell).join(',')).join('\n');
+};
+
+const renderVatsTeamHtml = (members) => {
+  if (!Array.isArray(members) || members.length === 0) return '<span class="muted">No team details</span>';
+  return `
+    <ul class="team-list">
+      ${members.map((member) => `
+        <li>
+          <strong>${escapeHtml(member?.name ?? 'Unknown')}</strong>
+          <span>${escapeHtml([member?.country, member?.office, member?.email].filter(Boolean).join(' | ') || 'No extra details')}</span>
+        </li>
+      `).join('')}
+    </ul>
+  `;
+};
+
 const normalizeLookupValue = (value) => String(value ?? '').trim().toLowerCase();
 
 const enrichEvaluationMembersFromVats = (payload, vatsPayload) => {
@@ -495,6 +546,41 @@ const renderEvaluationsTable = (title, rows) => {
   `;
 };
 
+const renderVatsTable = (rows) => {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const body = safeRows.length
+    ? safeRows.map((row) => `
+      <tr>
+        <td>${escapeHtml(row.vat)}</td>
+        <td>${escapeHtml(row.membersCount)}</td>
+        <td>${escapeHtml(row.solutionAreas)}</td>
+        <td>${escapeHtml(row.schedules)}</td>
+        <td>${renderVatsTeamHtml(row.members)}</td>
+      </tr>
+    `).join('')
+    : `<tr><td colspan="5">No VAT rows available.</td></tr>`;
+
+  return `
+    <section class="section">
+      <h2><span class="section-badge">${safeRows.length}</span> Published VATs</h2>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>VAT</th>
+              <th>Members</th>
+              <th>Solution Areas</th>
+              <th>Schedules</th>
+              <th>VAT Team</th>
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    </section>
+  `;
+};
+
 const renderAirtableCheckHtml = (payload) => `<!doctype html>
 <html lang="en">
   <head>
@@ -749,6 +835,117 @@ const renderEvaluationsHtml = (payload) => {
 </html>`;
 };
 
+const renderVatsHtml = (payload) => {
+  const rows = flattenVatsRows(payload);
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VATs</title>
+    <style>
+      :root {
+        --bg: #eef3ef;
+        --panel: rgba(255,255,255,0.94);
+        --panel-strong: #ffffff;
+        --border: rgba(45, 95, 75, 0.12);
+        --text: #17201b;
+        --muted: #5f7267;
+        --primary: #2d5f4b;
+        --primary-dark: #234a3a;
+        --accent-soft: #edf8cf;
+        --shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+      }
+      * { box-sizing: border-box; }
+      body {
+        font-family: Inter, system-ui, sans-serif;
+        margin: 0;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(217,255,115,0.18), transparent 22%),
+          radial-gradient(circle at top right, rgba(45,95,75,0.08), transparent 28%),
+          var(--bg);
+      }
+      .page { max-width: 1260px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+      .hero, .section {
+        background: linear-gradient(180deg, rgba(255,255,255,0.97) 0%, rgba(243,248,244,0.97) 100%);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 1.5rem;
+        box-shadow: var(--shadow);
+      }
+      .section { margin-top: 1.25rem; padding: 1.2rem; }
+      .brandlockup { display:flex; align-items:center; gap:1rem; margin-bottom:1rem; }
+      .brandmark {
+        width: 56px; height: 56px; border-radius: 18px;
+        background: linear-gradient(180deg, #203029 0%, #111915 100%);
+        border: 1px solid rgba(217,255,115,0.2);
+        box-shadow: 0 14px 30px rgba(15,23,42,0.12);
+        display:inline-flex; align-items:center; justify-content:center; padding:0.45rem;
+      }
+      .brandmark img { width:100%; height:100%; display:block; }
+      .eyebrow { margin:0 0 0.25rem; font-size:0.76rem; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:var(--muted); }
+      h1 { margin:0; font-size:clamp(1.8rem,3vw,2.5rem); line-height:1.05; }
+      .subtitle { margin:0.45rem 0 0; color:var(--muted); max-width:780px; line-height:1.6; }
+      .summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin-top:1rem; }
+      .card { background: linear-gradient(180deg, #ffffff 0%, #f4faec 100%); border:1px solid rgba(45,95,75,0.12); border-radius:18px; padding:1rem; box-shadow:0 10px 26px rgba(15,23,42,0.04); }
+      .card-title { font-size:0.82rem; font-weight:800; letter-spacing:0.05em; text-transform:uppercase; color:var(--muted); }
+      .card-value { font-size:2rem; font-weight:800; margin-top:0.35rem; color:var(--primary-dark); }
+      .actions { display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:1rem; }
+      .button { display:inline-flex; align-items:center; gap:0.45rem; background: linear-gradient(135deg, #213d32 0%, var(--primary) 100%); color:white; padding:0.8rem 1rem; border-radius:14px; font-weight:700; border:1px solid rgba(35,74,58,0.22); box-shadow:0 12px 28px rgba(33,61,50,0.18); text-decoration:none; }
+      .button.secondary { background:#ffffff; color:var(--primary); border:1px solid rgba(45,95,75,0.14); box-shadow:0 8px 20px rgba(15,23,42,0.04); }
+      .meta-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:0.75rem; margin-top:1rem; }
+      .meta-card { background:rgba(255,255,255,0.9); border:1px solid var(--border); border-radius:16px; padding:0.9rem 1rem; }
+      .meta-label { font-size:0.72rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin-bottom:0.35rem; }
+      .meta-value { color:var(--text); font-weight:600; word-break:break-word; }
+      .section h2 { margin:0 0 0.85rem; font-size:1.2rem; display:flex; align-items:center; gap:0.65rem; }
+      .section-badge { display:inline-flex; align-items:center; justify-content:center; min-width:1.9rem; height:1.9rem; padding:0 0.55rem; border-radius:999px; background:var(--accent-soft); color:var(--primary-dark); font-size:0.82rem; font-weight:800; }
+      .table-wrap { overflow-x:auto; border-radius:18px; border:1px solid rgba(45,95,75,0.1); background:var(--panel-strong); }
+      .data-table { width:100%; border-collapse:collapse; font-size:14px; }
+      .data-table thead { background:#f4faec; }
+      .data-table th { text-align:left; padding:0.85rem 0.75rem; color:var(--muted); font-size:0.75rem; font-weight:800; letter-spacing:0.05em; text-transform:uppercase; }
+      .data-table td { padding:0.85rem 0.75rem; border-top:1px solid rgba(45,95,75,0.08); vertical-align:top; }
+      .team-list { margin: 0; padding-left: 1rem; }
+      .team-list li + li { margin-top: 0.35rem; }
+      .team-list strong { display: block; color: var(--text); }
+      .team-list span, .muted { color: var(--muted); font-size: 0.92em; }
+      a { color:var(--primary); text-decoration:none; }
+      a:hover { text-decoration:underline; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="hero">
+        <div class="brandlockup">
+          <div class="brandmark"><img src="/sessionzilla-mark.svg" alt="Sessionzilla" /></div>
+          <div>
+            <p class="eyebrow">Sessionzilla Public Report</p>
+            <h1>VATs</h1>
+            <p class="subtitle">Shared snapshot of the published VAT explorer output for review, export, and downstream consumption.</p>
+          </div>
+        </div>
+        <div class="actions">
+          <a class="button" href="/api/public/vats.csv">Export CSV</a>
+          <a class="button secondary" href="/api/public/vats" target="_blank" rel="noreferrer">View JSON</a>
+        </div>
+        <div class="meta-grid">
+          <div class="meta-card"><div class="meta-label">Generated At</div><div class="meta-value">${escapeHtml(payload?.generated_at ?? '')}</div></div>
+          <div class="meta-card"><div class="meta-label">Source Records</div><div class="meta-value">${escapeHtml(payload?.source_records_count ?? '')}</div></div>
+          <div class="meta-card"><div class="meta-label">Excluded Records</div><div class="meta-value">${escapeHtml(payload?.excluded_records_count ?? '')}</div></div>
+        </div>
+        <div class="summary">
+          <div class="card"><div class="card-title">Total VATs</div><div class="card-value">${escapeHtml(payload?.total_vats ?? '')}</div></div>
+          <div class="card"><div class="card-title">Total Records</div><div class="card-value">${escapeHtml(payload?.total_records ?? '')}</div></div>
+          <div class="card"><div class="card-title">Rows in report</div><div class="card-value">${rows.length}</div></div>
+        </div>
+      </div>
+      ${renderVatsTable(rows)}
+    </div>
+  </body>
+</html>`;
+};
+
 const versionedPublicationKey = (type, projectId, versionId) => `${type}.project.${projectId}.version.${versionId}`;
 
 const normalizeTypeFromPath = (segment) => {
@@ -941,13 +1138,54 @@ const server = http.createServer(async (req, res) => {
           const validationError = validateVatsSnapshot(parsed);
           if (validationError) return jsonResponse(res, 400, { error: validationError });
           const result = await persistence.savePublication('vats.latest', parsed);
-          return jsonResponse(res, 200, { ok: true, saved_at: result.savedAt });
+          return jsonResponse(res, 200, {
+            ok: true,
+            saved_at: result.savedAt,
+            public_url: `${publicOrigin}/public/vats`,
+          });
         } catch (err) {
           return jsonResponse(res, 400, { error: `Invalid JSON body: ${err}` });
         }
       }
 
       return jsonResponse(res, 405, { error: `Method not allowed: ${req.method}` });
+    }
+
+    if (pathname === '/api/public/vats.csv' && req.method === 'GET') {
+      try {
+        const data = await persistence.getPublication('vats.latest');
+        if (!data) {
+          return jsonResponse(res, 404, { error: 'No VAT snapshot published yet.' });
+        }
+        const csv = buildVatsCsv(data);
+        res.writeHead(200, {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="vats-public.csv"',
+          ...corsHeaders,
+        });
+        res.end(csv);
+        return;
+      } catch (err) {
+        return jsonResponse(res, 500, { error: String(err) });
+      }
+    }
+
+    if (pathname === '/public/vats' && req.method === 'GET') {
+      try {
+        const data = await persistence.getPublication('vats.latest');
+        if (!data) {
+          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end('<h1>No VAT snapshot published yet.</h1>');
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(renderVatsHtml(data));
+        return;
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(`<h1>Failed to load VATs report</h1><pre>${escapeHtml(String(err))}</pre>`);
+        return;
+      }
     }
 
     if (pathname === '/api/public/airtable-check') {
